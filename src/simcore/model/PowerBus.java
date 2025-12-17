@@ -6,7 +6,6 @@ import java.util.List;
 
 /**
  * Шина (или секция шины).
- * Наследник Equipment, потому что у неё тоже есть частота отказов и время ремонта.
  */
 public class PowerBus extends Equipment {
 

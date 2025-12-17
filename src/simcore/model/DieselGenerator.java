@@ -1,5 +1,6 @@
 package simcore.model;
 
+import java.util.Comparator;
 import java.util.Random;
 
 /**
@@ -16,6 +17,12 @@ public class DieselGenerator extends Equipment {
     /** Номинальная мощность ДГУ, кВт. */
     private final double ratedPowerKw;
 
+    /** Текущая загрузка ДГУ, кВт. */
+    private double currentLoad;
+
+    /** Наработка часов */
+    private int totalTimeWorked = 0;
+
     /** Период ТО по наработке, ч. */
     private static final int MAINTENANCE_INTERVAL_HOURS = 250;
 
@@ -27,6 +34,9 @@ public class DieselGenerator extends Equipment {
 
     /** Количество проведённых ТО. */
     private int maintenanceCount = 0;
+
+    /** true, если ДГУ работает. */
+    private boolean isWorking = true;
 
     /** true, если ДГУ сейчас в ТО (а не в ремонте после отказа). */
     private boolean inMaintenance = false;
@@ -45,6 +55,10 @@ public class DieselGenerator extends Equipment {
         this.ratedPowerKw = ratedPowerKw;
     }
 
+    public boolean isWorking() {
+        return isWorking;
+    }
+
     public double getRatedPowerKw() {
         return ratedPowerKw;
     }
@@ -61,6 +75,14 @@ public class DieselGenerator extends Equipment {
         return inMaintenance;
     }
 
+    public double getCurrentLoad() {
+        return currentLoad;
+    }
+
+    public void setCurrentLoad(double currentLoad) {
+        this.currentLoad = currentLoad;
+    }
+
     /**
      * Инициализация модели отказов/ТО перед одним прогоном Monte Carlo.
      */
@@ -75,13 +97,23 @@ public class DieselGenerator extends Equipment {
     /**
      * Наработка учитывается и для общей наработки, и для ТО.
      */
-    @Override
-    public void addWorkTime(double hours) {
-        if (hours <= 0.0) {
+    public void startWork() {
+        if (isAvailable()) {
+            isWorking = true;
+        }
+    }
+
+    public void stopWork() {
+        isWorking = false;
+    }
+
+    public void addWorkTime(int hours, int motoHours) {
+        if (hours <= 0) {
             return;
         }
         if (status && repairDurationHours == 0) {
-            timeWorkedHours += hours;
+            timeWorked += motoHours;
+            totalTimeWorked += motoHours;
             hoursSinceMaintenance += hours;
         }
     }
@@ -123,7 +155,7 @@ public class DieselGenerator extends Equipment {
             if (repairDurationHours <= 0) {
                 repairDurationHours = 0;
                 status = true;
-                timeWorkedHours = 0.0;
+                timeWorked = 0;
                 inMaintenance = false;
 
                 double lambdaYear = getFailureRatePerYear();
@@ -154,11 +186,20 @@ public class DieselGenerator extends Equipment {
 
         // Проверка на случайный отказ
         if (getFailureRatePerYear() > 0.0
-                && timeWorkedHours >= nextFailureTimeHours) {
+                && timeWorked >= nextFailureTimeHours) {
             status = false;
             inMaintenance = false;
             failureCount++;
             repairDurationHours = getRepairTimeHours();
         }
     }
+
+    public static Comparator<DieselGenerator> DISPATCH_COMPARATOR =
+            (dg1, dg2) -> {
+                if (dg1.isWorking() != dg2.isWorking()) {
+                    return dg1.isWorking() ? -1 : 1;
+                }
+                return Integer.compare(dg1.timeWorked, dg2.timeWorked);
+            };
+
 }

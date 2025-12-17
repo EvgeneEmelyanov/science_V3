@@ -46,7 +46,7 @@ public class InputDataLoader {
     }
 
     private void scaleLoad(double[] arr) {
-        double factor = SimulationConstants.MAX_LOAD_KW;
+        double factor = SimulationConstants.MAX_LOAD;
         for (int i = 0; i < arr.length; i++) {
             arr[i] *= factor;
         }

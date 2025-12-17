@@ -2,7 +2,6 @@ package simcore.model;
 
 /**
  * Автомат (секционный / шинный) между шинами.
- * Наследник Equipment, т.к. у него есть свои отказы и ремонты.
  */
 public class Breaker extends Equipment {
 

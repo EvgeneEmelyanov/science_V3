@@ -36,26 +36,31 @@ public class Main {
             // 2. Параметры системы (тип шин, количество и мощность оборудования, ёмкость АКБ)
             SystemParameters params = new SystemParameters(
                     BusSystemType.SINGLE_SECTIONAL_BUS,
-                    4,        // всего ВЭУ
-                    250.0,    // мощность одной ВЭУ, кВт
+                    8,        // всего ВЭУ
+                    330.0,    // мощность одной ВЭУ, кВт
                     10,       // всего ДГУ
-                    500.0,    // мощность одного ДГУ, кВт
-                    500.0,    // ёмкость АКБ на шину, кВт·ч
+                    340.0,    // мощность одного ДГУ, кВт
+                    336.5,    // ёмкость АКБ на шину, кВт·ч
+
+                    1.0,      // максимальный ток заряда АКБ, С
+                    2.0,      // максимальный ток разряда АКБ, С
+                    0.8,      // допустимый уровень разряда АКБ не для резерва
+
 
                     1.94,     // WT: частота отказов, 1/год
                     46,       // WT: время ремонта, ч
 
-                    1.0,      // DG: частота отказов, 1/год (пример)
-                    24,       // DG: время ремонта, ч (пример)
+                    4.75,      // DG: частота отказов, 1/год (пример)
+                    50,       // DG: время ремонта, ч (пример)
 
                     0.575,    // BT: частота отказов, 1/год (пример)
                     44,       // BT: время ремонта/замены, ч
 
-                    0.1,      // BUS: частота отказов, 1/год (пример)
-                    10,       // BUS: время ремонта, ч (пример)
+                    0.016,      // BUS: частота отказов, 1/год (пример)
+                    12,       // BUS: время ремонта, ч (пример)
 
-                    0.2,      // BRK: частота отказов, 1/год (пример)
-                    8         // BRK: время ремонта, ч (пример)
+                    0.05,      // BRK: частота отказов, 1/год (пример)
+                    10         // BRK: время ремонта, ч (пример)
             );
 
             // 3. Конфиг симуляции
@@ -63,7 +68,12 @@ public class Main {
                     windMs,
                     1,   // Monte Carlo итераций; 1 → будет CSV-трейс на D:/simulation_trace.csv
                     Runtime.getRuntime().availableProcessors(),
-                    true // учитывать отказы
+                    true,
+                    true,
+                    true,
+                    false,
+                    true,
+                    true
             );
 
             // 4. Создаём движок
@@ -73,11 +83,7 @@ public class Main {
             SimulationEngine.SimulationSummary summary = engine.runMonteCarlo();
 
             // 6. Вывод результатов
-            System.out.println("Прогонов:              " + summary.getIterations());
-            System.out.println("Суммарный дефицит, кВт·ч:  " + summary.getTotalDeficitSum());
-            System.out.println("Средний дефицит, кВт·ч:    " + summary.getAverageDeficit());
-            System.out.println("Нагрузка от ВЭУ, кВт·ч:    " + summary.getTotalSupplyFromWT());
-            System.out.println("Нагрузка от ДГУ, кВт·ч:    " + summary.getTotalSupplyFromDG());
+
 
         } catch (Exception e) {
             System.err.println("Ошибка: " + e.getMessage());

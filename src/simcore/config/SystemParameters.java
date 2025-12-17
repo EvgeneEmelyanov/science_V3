@@ -2,13 +2,6 @@ package simcore.config;
 
 /**
  * Параметры энергосистемы:
- *  - тип системы шин;
- *  - количество и мощность ВЭУ и ДГУ;
- *  - ёмкость АКБ на шину;
- *  - параметры отказов и ремонтов для всех типов оборудования.
- *
- * Через этот класс удобно прокидывать параметры от метода Соболя:
- * можно изменять частоты отказов и времена ремонта перед каждой серией прогонов.
  */
 public class SystemParameters {
 
@@ -62,12 +55,27 @@ public class SystemParameters {
     /** Время ремонта автомата, ч. */
     private final int breakerRepairTimeHours;
 
+    // ---------- Параметры АКБ ----------
+
+    /** Максимальный ток заряда относительно емкости, С */
+    private final double maxChargeCurrent;
+
+    /** Максимальный ток заряда относительно емкости, С */
+    private final double maxDischargeCurrent;
+
+    /** Допустимый уровень разряда не в целях резервирования */
+    private final double nonReserveDischargeLevel;
+
     public SystemParameters(BusSystemType busSystemType,
                             int totalWindTurbineCount,
                             double windTurbinePowerKw,
                             int totalDieselGeneratorCount,
                             double dieselGeneratorPowerKw,
                             double batteryCapacityKwhPerBus,
+                            double maxChargeCurrent,
+                            double maxDischargeCurrent,
+                            double nonReserveDischargeLevel,
+
                             double windTurbineFailureRatePerYear,
                             int windTurbineRepairTimeHours,
                             double dieselGeneratorFailureRatePerYear,
@@ -84,6 +92,10 @@ public class SystemParameters {
         this.totalDieselGeneratorCount = totalDieselGeneratorCount;
         this.dieselGeneratorPowerKw = dieselGeneratorPowerKw;
         this.batteryCapacityKwhPerBus = batteryCapacityKwhPerBus;
+        this.maxChargeCurrent = maxChargeCurrent;
+        this.maxDischargeCurrent = maxDischargeCurrent;
+        this.nonReserveDischargeLevel = nonReserveDischargeLevel;
+
         this.windTurbineFailureRatePerYear = windTurbineFailureRatePerYear;
         this.windTurbineRepairTimeHours = windTurbineRepairTimeHours;
         this.dieselGeneratorFailureRatePerYear = dieselGeneratorFailureRatePerYear;
@@ -119,6 +131,21 @@ public class SystemParameters {
     public double getBatteryCapacityKwhPerBus() {
         return batteryCapacityKwhPerBus;
     }
+
+    public double getMaxChargeCurrent() {
+        return maxChargeCurrent;
+    }
+
+    public double getMaxDischargeCurrent() {
+        return maxDischargeCurrent;
+    }
+
+    public double getNonReserveDischargeLevel() {
+        return nonReserveDischargeLevel;
+    }
+
+
+    // ПОКАЗАТЕЛИ НАДЕЖНОСТИ
 
     public double getWindTurbineFailureRatePerYear() {
         return windTurbineFailureRatePerYear;

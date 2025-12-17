@@ -31,6 +31,11 @@ public class MainSobol {
                     500.0,    // мощность одного ДГУ, кВт
                     500.0,    // ёмкость АКБ на шину, кВт·ч
 
+                    1.0,      // максимальный ток заряда АКБ, С
+                    2.0,      // максимальный ток разряда АКБ, С
+                    0.5,      // допустимый уровень разряда АКБ не для резерва
+
+
                     1.94,     // WT: частота отказов, 1/год
                     46,       // WT: время ремонта, ч
 
@@ -48,10 +53,15 @@ public class MainSobol {
             );
 
             // 3. Базовый конфиг симуляции
-            SimulationConfig baseConfig = new SimulationConfig(
+            SimulationConfig config = new SimulationConfig(
                     windMs,
-                    50,   // число Monte Carlo прогонов на одну точку Соболя (пример)
+                    1,   // Monte Carlo итераций; 1 → будет CSV-трейс на D:/simulation_trace.csv
                     Runtime.getRuntime().availableProcessors(),
+                    true,
+                    true,
+                    true,
+                    false,
+                    true,
                     true
             );
 
@@ -75,7 +85,7 @@ public class MainSobol {
 
             // 7. Создаём анализатор Соболя
             SobolAnalyzer analyzer = new SobolAnalyzer(
-                    baseConfig,
+                    config,
                     baseParams,
                     totalLoadKw,
                     sobolParams,

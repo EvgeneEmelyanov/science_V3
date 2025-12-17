@@ -6,25 +6,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Утилита для экспорта пошаговых результатов моделирования в CSV,
- * который удобно открыть в Excel.
- */
 public final class SimulationTraceExporter {
 
     private static final Locale RU_LOCALE = new Locale("ru", "RU");
 
-    private SimulationTraceExporter() {
-        // утилитарный класс
-    }
+    private SimulationTraceExporter() {}
 
-    /**
-     * Запись списка шагов моделирования в CSV.
-     *
-     * @param filePath путь к выходному файлу (например, "D:/simulation_trace.csv")
-     * @param records  список шагов моделирования
-     * @param busCount количество шин (1 или 2)
-     */
     public static void exportToCsv(String filePath,
                                    List<SimulationStepRecord> records,
                                    int busCount) throws IOException {
@@ -35,32 +22,43 @@ public final class SimulationTraceExporter {
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
 
-            // Заголовок
-            if (busCount == 1) {
-                writer.write("t;TotalLoad;Bus1Load;Bus1WindGen;Bus1Balance");
-            } else {
-                writer.write("t;TotalLoad;" +
-                        "Bus1Load;Bus1WindGen;Bus1Balance;" +
-                        "Bus2Load;Bus2WindGen;Bus2Balance");
+            // --- Заголовок ---
+            StringBuilder header = new StringBuilder("t;TotalLoad");
+            for (int b = 0; b < busCount; b++) {
+                header.append(";Bus").append(b + 1).append("Load");
+                header.append(";Bus").append(b + 1).append("WT");
+
+                // Кол-во ДГУ на шине берём из первой записи
+                double[] dgLoads = records.get(0).getBusGenDgPerUnitKw()[b];
+                for (int i = 0; i < dgLoads.length; i++) {
+                    header.append(";Bus").append(b + 1).append("DG").append(i + 1);
+                }
+
+                header.append(";Bus").append(b + 1).append("BT");
+                header.append(";Bus").append(b + 1).append("Deficit");
             }
+
+            writer.write(header.toString());
             writer.newLine();
 
-            // Строки данных
+            // --- Данные ---
             for (SimulationStepRecord r : records) {
-
                 StringBuilder sb = new StringBuilder();
-
                 sb.append(r.getTimeIndex()).append(';')
-                        .append(formatDouble(r.getTotalLoadKw())).append(';')
-                        .append(formatDouble(r.getBus1LoadKw())).append(';')
-                        .append(formatDouble(r.getBus1WindGenKw())).append(';')
-                        .append(formatDouble(r.getBus1BalanceKw()));
+                        .append(formatDouble(r.getTotalLoadKw()));
 
-                if (busCount == 2) {
-                    sb.append(';')
-                            .append(formatDouble(r.getBus2LoadKw())).append(';')
-                            .append(formatDouble(r.getBus2WindGenKw())).append(';')
-                            .append(formatDouble(r.getBus2BalanceKw()));
+                for (int b = 0; b < busCount; b++) {
+                    sb.append(';').append(formatDouble(r.getBusLoadKw()[b]))
+                            .append(';').append(formatDouble(r.getBusGenWindKw()[b]));
+
+                    // Записываем нагрузку каждого ДГУ
+                    double[] dgLoads = r.getBusGenDgPerUnitKw()[b];
+                    for (double dgLoad : dgLoads) {
+                        sb.append(';').append(formatDouble(dgLoad));
+                    }
+
+                    sb.append(';').append(formatDouble(r.getBusGenBtKw()[b]))
+                            .append(';').append(formatDouble(r.getBusDeficitKw()[b]));
                 }
 
                 writer.write(sb.toString());
@@ -69,17 +67,10 @@ public final class SimulationTraceExporter {
         }
     }
 
-    /**
-     * Форматируем число в виде:
-     *  - десятичная запятая (ru-RU),
-     *  - один знак после запятой,
-     *  - без лишних пробелов.
-     */
     private static String formatDouble(double value) {
         if (Double.isNaN(value) || Double.isInfinite(value)) {
             return "";
         }
-        // "%.1f" -> один знак после запятой, Locale ru-RU -> запятая
         return String.format(RU_LOCALE, "%.1f", value);
     }
 }

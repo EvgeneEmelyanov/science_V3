@@ -2,50 +2,66 @@ package simcore.engine;
 
 /**
  * Одна строка "пошагового" вывода результатов моделирования
- * для отладки и анализа в Excel.
+ * для отладки и анализа.
  */
 public class SimulationStepRecord {
 
-    /** Номер шага моделирования (например, час), начиная с 0 или 1 — на твой выбор. */
+    /** Номер шага моделирования (например, час), начиная с 0. */
     private final int timeIndex;
 
     /** Общая нагрузка системы в этот момент, кВт. */
     private final double totalLoadKw;
 
-    /** Нагрузка на шину 1, кВт (0, если шины нет/не используется). */
-    private final double bus1LoadKw;
+    /** Общий дефицит в этот момент, кВт. */
+    private final double totalDeficitKw;
 
-    /** Генерация всех ВЭУ на шине 1, кВт. */
-    private final double bus1WindGenKw;
+    /** Общая неиспользованная энергия ветра (WRE), кВт. */
+    private final double totalWreKw;
 
-    /** Баланс шины 1: генерация - нагрузка (профицит > 0, дефицит < 0). */
-    private final double bus1BalanceKw;
+    /** Статус каждой шины: true = рабочая, false = отказ. */
+    private final boolean[] busStatus;
 
-    /** Нагрузка на шину 2, кВт (0, если шины нет). */
-    private final double bus2LoadKw;
+    /** Нагрузка по каждой шине, кВт. */
+    private final double[] busLoadKw;
 
-    /** Генерация всех ВЭУ на шине 2, кВт. */
-    private final double bus2WindGenKw;
+    /** Генерация всех ВЭУ по каждой шине, кВт. */
+    private final double[] busGenWindKw;
 
-    /** Баланс шины 2: генерация - нагрузка. */
-    private final double bus2BalanceKw;
+    /** Генерация всех ДГУ по каждой шине, кВт. */
+    private final double[] busGenDgKw;
+
+    /** Генерация АКБ по каждой шине, кВт. */
+    private final double[] busGenBtKw;
+
+    /** Дефицит по каждой шине: load - (wind + DG + battery), кВт. */
+    private final double[] busDeficitKw;
+
+    /** Нагрузка каждой дгу по каждой шине */
+    private final double[][] busGenDgPerUnitKw; // [bus][dgIndex]
+
 
     public SimulationStepRecord(int timeIndex,
                                 double totalLoadKw,
-                                double bus1LoadKw,
-                                double bus1WindGenKw,
-                                double bus1BalanceKw,
-                                double bus2LoadKw,
-                                double bus2WindGenKw,
-                                double bus2BalanceKw) {
+                                double totalDeficitKw,
+                                double totalWreKw,
+                                boolean[] busStatus,
+                                double[] busLoadKw,
+                                double[] busGenWindKw,
+                                double[] busGenDgKw,
+                                double[] busGenBtKw,
+                                double[] busDeficitKw,
+                                double [][] busGenDgPerUnitKw) {
         this.timeIndex = timeIndex;
         this.totalLoadKw = totalLoadKw;
-        this.bus1LoadKw = bus1LoadKw;
-        this.bus1WindGenKw = bus1WindGenKw;
-        this.bus1BalanceKw = bus1BalanceKw;
-        this.bus2LoadKw = bus2LoadKw;
-        this.bus2WindGenKw = bus2WindGenKw;
-        this.bus2BalanceKw = bus2BalanceKw;
+        this.totalDeficitKw = totalDeficitKw;
+        this.totalWreKw = totalWreKw;
+        this.busStatus = busStatus.clone();
+        this.busLoadKw = busLoadKw.clone();
+        this.busGenWindKw = busGenWindKw.clone();
+        this.busGenDgKw = busGenDgKw.clone();
+        this.busGenBtKw = busGenBtKw.clone();
+        this.busDeficitKw = busDeficitKw.clone();
+        this.busGenDgPerUnitKw = busGenDgPerUnitKw.clone();
     }
 
     public int getTimeIndex() {
@@ -56,27 +72,40 @@ public class SimulationStepRecord {
         return totalLoadKw;
     }
 
-    public double getBus1LoadKw() {
-        return bus1LoadKw;
+    public double getTotalDeficitKw() {
+        return totalDeficitKw;
     }
 
-    public double getBus1WindGenKw() {
-        return bus1WindGenKw;
+    public double getTotalWreKw() {
+        return totalWreKw;
     }
 
-    public double getBus1BalanceKw() {
-        return bus1BalanceKw;
+    public boolean[] getBusStatus() {
+        return busStatus.clone();
     }
 
-    public double getBus2LoadKw() {
-        return bus2LoadKw;
+    public double[] getBusLoadKw() {
+        return busLoadKw.clone();
     }
 
-    public double getBus2WindGenKw() {
-        return bus2WindGenKw;
+    public double[] getBusGenWindKw() {
+        return busGenWindKw.clone();
     }
 
-    public double getBus2BalanceKw() {
-        return bus2BalanceKw;
+    public double[] getBusGenDgKw() {
+        return busGenDgKw.clone();
     }
+
+    public double[] getBusGenBtKw() {
+        return busGenBtKw.clone();
+    }
+
+    public double[] getBusDeficitKw() {
+        return busDeficitKw.clone();
+    }
+
+    public double[][] getBusGenDgPerUnitKw() {
+        return busGenDgPerUnitKw.clone(); // поверхностная копия массива шин
+    }
+
 }

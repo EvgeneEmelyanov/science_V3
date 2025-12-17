@@ -2,17 +2,6 @@ package simcore.config;
 
 /**
  * Builder для SystemParameters.
- *
- * Нужен для метода Соболя:
- *  - есть базовый набор параметров (base),
- *  - для каждой точки в пространстве (u1, u2, ..., ud) меняем нужные параметры,
- *  - создаём новый SystemParameters через build().
- *
- * Так мы можем удобно варьировать любой набор параметров:
- *  - только частоты отказов;
- *  - только параметры ВЭУ;
- *  - только параметры ДГУ;
- *  - или всё сразу.
  */
 public class SystemParametersBuilder {
 
@@ -25,6 +14,11 @@ public class SystemParametersBuilder {
     private double dieselGeneratorPowerKw;
 
     private double batteryCapacityKwhPerBus;
+
+    private double maxChargeCurrent;
+    private double maxDischargeCurrent;
+    private double nonReserveDischargeLevel;
+
 
     private double windTurbineFailureRatePerYear;
     private int windTurbineRepairTimeHours;
@@ -55,6 +49,10 @@ public class SystemParametersBuilder {
         b.totalDieselGeneratorCount = base.getTotalDieselGeneratorCount();
         b.dieselGeneratorPowerKw = base.getDieselGeneratorPowerKw();
         b.batteryCapacityKwhPerBus = base.getBatteryCapacityKwhPerBus();
+        b.maxChargeCurrent = base.getMaxChargeCurrent();
+        b.maxDischargeCurrent = base.getMaxDischargeCurrent();
+        b.nonReserveDischargeLevel = base.getNonReserveDischargeLevel();
+
         b.windTurbineFailureRatePerYear = base.getWindTurbineFailureRatePerYear();
         b.windTurbineRepairTimeHours = base.getWindTurbineRepairTimeHours();
         b.dieselGeneratorFailureRatePerYear = base.getDieselGeneratorFailureRatePerYear();
@@ -76,6 +74,10 @@ public class SystemParametersBuilder {
                 totalDieselGeneratorCount,
                 dieselGeneratorPowerKw,
                 batteryCapacityKwhPerBus,
+                maxChargeCurrent,
+                maxDischargeCurrent,
+                nonReserveDischargeLevel,
+
                 windTurbineFailureRatePerYear,
                 windTurbineRepairTimeHours,
                 dieselGeneratorFailureRatePerYear,
@@ -144,6 +146,35 @@ public class SystemParametersBuilder {
         this.batteryCapacityKwhPerBus = batteryCapacityKwhPerBus;
         return this;
     }
+
+    public double getMaxChargeCurrent() {
+        return maxChargeCurrent;
+    }
+
+    public SystemParametersBuilder setMaxChargeCurrent(double maxChargeCurrent) {
+        this.maxChargeCurrent = maxChargeCurrent;
+        return this;
+    }
+
+    public double getMaxDischargeCurrent() {
+        return maxDischargeCurrent;
+    }
+
+    public SystemParametersBuilder setMaxDischargeCurrent(double maxDischargeCurrent) {
+        this.maxDischargeCurrent = maxDischargeCurrent;
+        return this;
+    }
+
+    public double getNonReserveDischargeLevel() {
+        return nonReserveDischargeLevel;
+    }
+
+    public SystemParametersBuilder setNonReserveDischargeLevel(double nonReserveDischargeLevel) {
+        this.nonReserveDischargeLevel = nonReserveDischargeLevel;
+        return this;
+    }
+
+
 
     public double getWindTurbineFailureRatePerYear() {
         return windTurbineFailureRatePerYear;

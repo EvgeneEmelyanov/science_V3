@@ -8,14 +8,6 @@ import java.util.List;
 
 /**
  * Строит PowerSystem на основе SystemParameters и общего профиля нагрузки.
- *
- * Логика:
- *  - SINGLE_NOT_SECTIONAL_BUS  → 1 шина, без автомата;
- *  - SINGLE_SECTIONAL_BUS      → 2 шины + автомат между ними;
- *  - DOUBLE_BUS                → 2 шины + автомат между ними;
- *
- * Нагрузка делится по шинам равномерно (можно заменить на свою схему).
- * ВЭУ, ДГУ и АКБ распределяются равномерно между шинами.
  */
 public class PowerSystemBuilder {
 
@@ -41,8 +33,8 @@ public class PowerSystemBuilder {
         int totalWt = params.getTotalWindTurbineCount();
         int totalDg = params.getTotalDieselGeneratorCount();
 
-        int wtPerBus = (busCount == 0) ? 0 : totalWt / busCount;
-        int dgPerBus = (busCount == 0) ? 0 : totalDg / busCount;
+        int wtPerBus = totalWt / busCount;
+        int dgPerBus = totalDg / busCount;
 
         double batteryCapacityPerBus = params.getBatteryCapacityKwhPerBus();
 

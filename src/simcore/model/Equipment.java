@@ -4,17 +4,6 @@ import java.util.Random;
 
 /**
  * Базовый класс оборудования.
- * Содержит:
- *  - тип (строкой) и id;
- *  - частоту отказов и время ремонта;
- *  - наработку;
- *  - внутреннюю модель случайных отказов (экспоненциальное распределение).
- *
- * ВАЖНО:
- *  - наработка (timeWorkedHours) увеличивается ВНЕ этого класса (через addWorkTime),
- *    когда оборудование реально работало этот час;
- *  - часть оборудования (ДГУ, АКБ) переопределяет updateFailureOneHour()
- *    и добавляет свою специфичную логику.
  */
 public abstract class Equipment {
 
@@ -34,7 +23,7 @@ public abstract class Equipment {
     protected boolean status = true;
 
     /** Наработка с момента последнего определения nextFailureTimeHours, ч. */
-    protected double timeWorkedHours = 0.0;
+    protected int timeWorked = 0;
 
     /** Время (наработки), через которое произойдёт следующий случайный отказ, ч. */
     protected double nextFailureTimeHours = Double.POSITIVE_INFINITY;
@@ -86,8 +75,8 @@ public abstract class Equipment {
         this.repairTimeHours = repairTimeHours;
     }
 
-    public double getTimeWorkedHours() {
-        return timeWorkedHours;
+    public double getTimeWorked() {
+        return timeWorked;
     }
 
     public int getRepairDurationHours() {
@@ -113,7 +102,7 @@ public abstract class Equipment {
      */
     public void initFailureModel(Random rnd, boolean considerFailures) {
         this.failureRandom = rnd;
-        this.timeWorkedHours = 0.0;
+        this.timeWorked = 0;
         this.repairDurationHours = 0;
         this.failureCount = 0;
         this.status = true;
@@ -141,7 +130,7 @@ public abstract class Equipment {
             if (repairDurationHours <= 0) {
                 repairDurationHours = 0;
                 status = true;
-                timeWorkedHours = 0.0;
+                timeWorked = 0;
 
                 if (failureRatePerYear > 0.0 && failureRandom != null) {
                     nextFailureTimeHours = generateNextFailureTime(failureRatePerYear, failureRandom);
@@ -160,7 +149,7 @@ public abstract class Equipment {
 
         // Проверка на случайный отказ по наработке
         if (failureRatePerYear > 0.0
-                && timeWorkedHours >= nextFailureTimeHours) {
+                && timeWorked >= nextFailureTimeHours) {
             status = false;
             failureCount++;
             repairDurationHours = repairTimeHours;
@@ -171,12 +160,12 @@ public abstract class Equipment {
      * Увеличение наработки оборудования на заданное количество часов.
      * Вызывается только когда оборудование реально работало этот интервал.
      */
-    public void addWorkTime(double hours) {
-        if (hours <= 0.0) {
+    public void addWorkTime(int hours) {
+        if (hours <= 0) {
             return;
         }
         if (status && repairDurationHours == 0) {
-            timeWorkedHours += hours;
+            timeWorked += hours;
         }
     }
 
@@ -185,7 +174,7 @@ public abstract class Equipment {
      */
     public void forceFailNow() {
         this.status = false;
-        this.timeWorkedHours = 0.0;
+        this.timeWorked = 0;
         this.repairDurationHours = repairTimeHours;
         this.failureCount++;
     }
