@@ -1,44 +1,32 @@
 package simcore.engine;
 
+import java.util.Arrays;
+
 /**
- * Одна строка "пошагового" вывода результатов моделирования
- * для отладки и анализа.
+ * Одна строка "пошагового" вывода результатов моделирования для анализа.
  */
 public class SimulationStepRecord {
 
-    /** Номер шага моделирования (например, час), начиная с 0. */
     private final int timeIndex;
-
-    /** Общая нагрузка системы в этот момент, кВт. */
     private final double totalLoadKw;
-
-    /** Общий дефицит в этот момент, кВт. */
     private final double totalDeficitKw;
-
-    /** Общая неиспользованная энергия ветра (WRE), кВт. */
     private final double totalWreKw;
-
-    /** Статус каждой шины: true = рабочая, false = отказ. */
     private final boolean[] busStatus;
-
-    /** Нагрузка по каждой шине, кВт. */
     private final double[] busLoadKw;
-
-    /** Генерация всех ВЭУ по каждой шине, кВт. */
     private final double[] busGenWindKw;
-
-    /** Генерация всех ДГУ по каждой шине, кВт. */
     private final double[] busGenDgKw;
-
-    /** Генерация АКБ по каждой шине, кВт. */
     private final double[] busGenBtKw;
-
-    /** Дефицит по каждой шине: load - (wind + DG + battery), кВт. */
     private final double[] busDeficitKw;
 
-    /** Нагрузка каждой дгу по каждой шине */
-    private final double[][] busGenDgPerUnitKw; // [bus][dgIndex]
+    // ДГУ по шинам
+    private final double[][] busGenDgLoadKw;
+    private final double[][] busGenDgHoursSinceMaintenance;
+    private final double[][] busGenDgTimeWorked;
+    private final double[][] busGenDgTotalTimeWorked;
 
+    // Состояние ДГУ
+    private final boolean[][] dgAvailable;      // true = доступна
+    private final boolean[][] dgInMaintenance;  // true = ТО
 
     public SimulationStepRecord(int timeIndex,
                                 double totalLoadKw,
@@ -50,7 +38,13 @@ public class SimulationStepRecord {
                                 double[] busGenDgKw,
                                 double[] busGenBtKw,
                                 double[] busDeficitKw,
-                                double [][] busGenDgPerUnitKw) {
+                                double[][] busGenDgLoadKw,
+                                double[][] busGenDgHoursSinceMaintenance,
+                                double[][] busGenDgTimeWorked,
+                                double[][] busGenDgTotalTimeWorked,
+                                boolean[][] dgAvailable,
+                                boolean[][] dgInMaintenance) {
+
         this.timeIndex = timeIndex;
         this.totalLoadKw = totalLoadKw;
         this.totalDeficitKw = totalDeficitKw;
@@ -61,51 +55,41 @@ public class SimulationStepRecord {
         this.busGenDgKw = busGenDgKw.clone();
         this.busGenBtKw = busGenBtKw.clone();
         this.busDeficitKw = busDeficitKw.clone();
-        this.busGenDgPerUnitKw = busGenDgPerUnitKw.clone();
+
+        this.busGenDgLoadKw = deepCopy(busGenDgLoadKw);
+        this.busGenDgHoursSinceMaintenance = deepCopy(busGenDgHoursSinceMaintenance);
+        this.busGenDgTimeWorked = deepCopy(busGenDgTimeWorked);
+        this.busGenDgTotalTimeWorked = deepCopy(busGenDgTotalTimeWorked);
+
+        this.dgAvailable = deepCopy(dgAvailable);
+        this.dgInMaintenance = deepCopy(dgInMaintenance);
     }
 
-    public int getTimeIndex() {
-        return timeIndex;
+    private static double[][] deepCopy(double[][] array) {
+        return Arrays.stream(array).map(double[]::clone).toArray(double[][]::new);
     }
 
-    public double getTotalLoadKw() {
-        return totalLoadKw;
+    private static boolean[][] deepCopy(boolean[][] array) {
+        return Arrays.stream(array).map(boolean[]::clone).toArray(boolean[][]::new);
     }
 
-    public double getTotalDeficitKw() {
-        return totalDeficitKw;
-    }
+    // --- Геттеры ---
+    public int getTimeIndex() { return timeIndex; }
+    public double getTotalLoadKw() { return totalLoadKw; }
+    public double getTotalDeficitKw() { return totalDeficitKw; }
+    public double getTotalWreKw() { return totalWreKw; }
+    public boolean[] getBusStatus() { return busStatus.clone(); }
+    public double[] getBusLoadKw() { return busLoadKw.clone(); }
+    public double[] getBusGenWindKw() { return busGenWindKw.clone(); }
+    public double[] getBusGenDgKw() { return busGenDgKw.clone(); }
+    public double[] getBusGenBtKw() { return busGenBtKw.clone(); }
+    public double[] getBusDeficitKw() { return busDeficitKw.clone(); }
 
-    public double getTotalWreKw() {
-        return totalWreKw;
-    }
+    public double[][] getBusGenDgLoadKw() { return deepCopy(busGenDgLoadKw); }
+    public double[][] getBusGenDgHoursSinceMaintenance() { return deepCopy(busGenDgHoursSinceMaintenance); }
+    public double[][] getBusGenDgTimeWorked() { return deepCopy(busGenDgTimeWorked); }
+    public double[][] getBusGenDgTotalTimeWorked() { return deepCopy(busGenDgTotalTimeWorked); }
 
-    public boolean[] getBusStatus() {
-        return busStatus.clone();
-    }
-
-    public double[] getBusLoadKw() {
-        return busLoadKw.clone();
-    }
-
-    public double[] getBusGenWindKw() {
-        return busGenWindKw.clone();
-    }
-
-    public double[] getBusGenDgKw() {
-        return busGenDgKw.clone();
-    }
-
-    public double[] getBusGenBtKw() {
-        return busGenBtKw.clone();
-    }
-
-    public double[] getBusDeficitKw() {
-        return busDeficitKw.clone();
-    }
-
-    public double[][] getBusGenDgPerUnitKw() {
-        return busGenDgPerUnitKw.clone(); // поверхностная копия массива шин
-    }
-
+    public boolean[][] getDgAvailable() { return deepCopy(dgAvailable); }
+    public boolean[][] getDgInMaintenance() { return deepCopy(dgInMaintenance); }
 }

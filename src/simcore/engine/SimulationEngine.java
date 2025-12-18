@@ -64,7 +64,7 @@ public class SimulationEngine {
 
             // путь к CSV-файлу
             String tracePath = "D:/simulation_trace.csv";
-            SimulationTraceExporter.exportToCsv(tracePath, trace, busCount);
+            SimulationTraceExporter.exportToCsv(tracePath, trace);
 
             // выборка из одного значения дефицита
             double[] deficits = new double[]{result.getTotalDeficit()};
@@ -361,9 +361,6 @@ public class SimulationEngine {
                     }
                     // === ДЕФИЦИТ ВЕТРА ===
                     else {
-                        if (t == 83) {
-                            System.out.println();
-                        }
                         busWindGenKw = busWindPotentialKw;  // ВЭУ отдали всё
 
                         double deficitAfterWind = loadKw - busWindGenKw;
@@ -377,7 +374,7 @@ public class SimulationEngine {
 
                         double dgPower = systemParameters.getDieselGeneratorPowerKw();
                         double dgMaxLoad = dgPower * SimulationConstants.DG_MAX_POWER;
-                        double perDgTarget = dgPower * 0.8; // целевая загрузка 80% //todo сделать ссылку на константу
+                        double perDgTarget = dgPower * SimulationConstants.DG_OPTIMAL_POWER;
 
                         long availableGenerators = bus.getDieselGenerators().stream()
                                 .filter(DieselGenerator::isAvailable)
@@ -399,7 +396,8 @@ public class SimulationEngine {
                         dgCount = (int) Math.min(neededGenerators, availableGenerators);
 
                         int dgToUse = 0;
-                        double x = 0;
+                        double x = 0; // todo нормально назвать переменную
+
 
                         for (int i = 0; i <= dgCount; i++) {
 
@@ -517,8 +515,9 @@ public class SimulationEngine {
                             }
 
                             dg.setCurrentLoad(energy);
-                            dg.startWork();
                             dg.addWorkTime(1, dg.isWorking() ? 1 : 1 + 5); //todo сделать ссылку на константу
+                            dg.startWork();
+
                             used++;
                         }
 
@@ -537,6 +536,11 @@ public class SimulationEngine {
                 }
 
 
+//не выводить в то если в то уже есть дгу с этой шины
+//                если нагрузка меньше 30 процентов пробовать догрузить дгу  и зарядить акб
+//                        если нагрузка меньше 30 процентов дольше 4 часов то нужно прожеч дгу
+
+
                 // todo запись результатов
                 busGenDgAtTime[b] = busDieselGenKw;
                 busGenBtAtTime[b] = busBatteryGenKw;
@@ -553,13 +557,33 @@ public class SimulationEngine {
 
 
             if (trace != null) {
-                // Создаём массив нагрузки каждого ДГУ на каждой шине
-                double[][] busGenDgPerUnitKw = new double[busCount][];
+                double[][] busGenDgLoadKw = new double[busCount][];
+                double[][] busGenDgHoursSinceMaintenance = new double[busCount][];
+                double[][] busGenDgTimeWorked = new double[busCount][];
+                double[][] busGenDgTotalTimeWorked = new double[busCount][];
+                boolean[][] dgAvailable = new boolean[busCount][];
+                boolean[][] dgInMaintenance = new boolean[busCount][];
+
                 for (int b = 0; b < busCount; b++) {
                     List<DieselGenerator> dgList = buses.get(b).getDieselGenerators();
-                    busGenDgPerUnitKw[b] = dgList.stream()
-                            .mapToDouble(DieselGenerator::getCurrentLoad)
-                            .toArray();
+                    int dgCount = dgList.size();
+
+                    busGenDgLoadKw[b] = new double[dgCount];
+                    busGenDgHoursSinceMaintenance[b] = new double[dgCount];
+                    busGenDgTimeWorked[b] = new double[dgCount];
+                    busGenDgTotalTimeWorked[b] = new double[dgCount];
+                    dgAvailable[b] = new boolean[dgCount];
+                    dgInMaintenance[b] = new boolean[dgCount];
+
+                    for (int i = 0; i < dgCount; i++) {
+                        DieselGenerator dg = dgList.get(i);
+                        busGenDgLoadKw[b][i] = dg.getCurrentLoad();
+                        busGenDgHoursSinceMaintenance[b][i] = dg.getHoursSinceMaintenance();
+                        busGenDgTimeWorked[b][i] = dg.getTimeWorked();
+                        busGenDgTotalTimeWorked[b][i] = dg.getTotalTimeWorked();
+                        dgAvailable[b][i] = dg.isAvailable();
+                        dgInMaintenance[b][i] = dg.isInMaintenance();
+                    }
                 }
 
                 trace.add(new SimulationStepRecord(
@@ -573,9 +597,16 @@ public class SimulationEngine {
                         busGenDgAtTime,
                         busGenBtAtTime,
                         busDeficitAtTime,
-                        busGenDgPerUnitKw     // <-- передаём сюда
+                        busGenDgLoadKw,
+                        busGenDgHoursSinceMaintenance,
+                        busGenDgTimeWorked,
+                        busGenDgTotalTimeWorked,
+                        dgAvailable,
+                        dgInMaintenance
                 ));
             }
+
+
 
 
         }

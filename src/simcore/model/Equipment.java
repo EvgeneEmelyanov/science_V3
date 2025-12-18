@@ -143,7 +143,7 @@ public abstract class Equipment {
         }
 
         // Если отключен внешне (но не в ремонте) — не проверяем случайный отказ
-        if (!status) {
+        if (!status) { // todo что?
             return;
         }
 

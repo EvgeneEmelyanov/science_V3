@@ -23,6 +23,9 @@ public class DieselGenerator extends Equipment {
     /** Наработка часов */
     private int totalTimeWorked = 0;
 
+    /** Наработка на низкой загрузке */
+    private int idleTime = 0;
+
     /** Период ТО по наработке, ч. */
     private static final int MAINTENANCE_INTERVAL_HOURS = 250;
 
@@ -41,6 +44,9 @@ public class DieselGenerator extends Equipment {
     /** true, если ДГУ сейчас в ТО (а не в ремонте после отказа). */
     private boolean inMaintenance = false;
 
+    /** true, если ДГУ сейчас на низкой загрузке */
+    private boolean isIdle = false;
+
     /**
      * @param id                   id ДГУ
      * @param ratedPowerKw         номинальная мощность ДГУ, кВт
@@ -57,6 +63,10 @@ public class DieselGenerator extends Equipment {
 
     public boolean isWorking() {
         return isWorking;
+    }
+
+    public boolean isIdle() {
+        return isIdle;
     }
 
     public double getRatedPowerKw() {
@@ -81,6 +91,10 @@ public class DieselGenerator extends Equipment {
 
     public void setCurrentLoad(double currentLoad) {
         this.currentLoad = currentLoad;
+    }
+
+    public int getTotalTimeWorked() {
+        return totalTimeWorked;
     }
 
     /**
@@ -108,9 +122,7 @@ public class DieselGenerator extends Equipment {
     }
 
     public void addWorkTime(int hours, int motoHours) {
-        if (hours <= 0) {
-            return;
-        }
+
         if (status && repairDurationHours == 0) {
             timeWorked += motoHours;
             totalTimeWorked += motoHours;
@@ -155,15 +167,19 @@ public class DieselGenerator extends Equipment {
             if (repairDurationHours <= 0) {
                 repairDurationHours = 0;
                 status = true;
-                timeWorked = 0;
+                if (!inMaintenance) {
+                    // Был отказ → сбрасываем счетчик наработки
+                    timeWorked = 0;
+
+                    double lambdaYear = getFailureRatePerYear();
+                    if (lambdaYear > 0.0 && failureRandom != null) {
+                        nextFailureTimeHours = generateNextFailureTime(lambdaYear, failureRandom);
+                    } else {
+                        nextFailureTimeHours = Double.POSITIVE_INFINITY;
+                    }
+                }
                 inMaintenance = false;
 
-                double lambdaYear = getFailureRatePerYear();
-                if (lambdaYear > 0.0 && failureRandom != null) {
-                    nextFailureTimeHours = generateNextFailureTime(lambdaYear, failureRandom);
-                } else {
-                    nextFailureTimeHours = Double.POSITIVE_INFINITY;
-                }
                 onRepairFinished();
             }
             return;
