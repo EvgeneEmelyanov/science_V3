@@ -1,53 +1,53 @@
 package simcore.sobol;
 
-import java.util.Arrays;
+import simcore.engine.MonteCarloEstimate;
+
 import java.util.List;
 
 /**
- * Результаты анализа Соболя:
- *  - список параметров (в том же порядке, что и индексы),
- *  - первые индексы S_j,
- *  - тотальные индексы ST_j.
+ * Результаты Соболя для 3 метрик: ENS, Fuel, Moto.
+ *
+ * Внутри также храним сырые MC-оценки по точкам (A,B,AB_j),
+ * чтобы можно было сохранить их в CSV.
  */
-public class SobolResult {
+public final class SobolResult {
 
-    private final List<SobolParameter> parameters;
-    private final double[] firstOrderIndices;
-    private final double[] totalOrderIndices;
+    public final SobolConfig config;
 
-    public SobolResult(List<SobolParameter> parameters,
-                       double[] firstOrderIndices,
-                       double[] totalOrderIndices) {
-        if (parameters.size() != firstOrderIndices.length
-                || parameters.size() != totalOrderIndices.length) {
-            throw new IllegalArgumentException("Размеры параметров и массивов индексов не совпадают");
-        }
-        this.parameters = List.copyOf(parameters);
-        this.firstOrderIndices = firstOrderIndices.clone();
-        this.totalOrderIndices = totalOrderIndices.clone();
-    }
+    // Сырые оценки по точкам
+    public final List<MonteCarloEstimate> yA;
+    public final List<MonteCarloEstimate> yB;
+    public final List<List<MonteCarloEstimate>> yAB;
 
-    public List<SobolParameter> getParameters() {
-        return parameters;
-    }
+    // Индексы Соболя (первого и полного порядка)
+    public final double[] S_ens;
+    public final double[] ST_ens;
 
-    public double[] getFirstOrderIndices() {
-        return firstOrderIndices.clone();
-    }
+    public final double[] S_fuel;
+    public final double[] ST_fuel;
 
-    public double[] getTotalOrderIndices() {
-        return totalOrderIndices.clone();
-    }
+    public final double[] S_moto;
+    public final double[] ST_moto;
 
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder("SobolResult:\n");
-        for (int i = 0; i < parameters.size(); i++) {
-            sb.append(String.format("%-30s S = %8.4f ST = %8.4f%n",
-                    parameters.get(i).getName(),
-                    firstOrderIndices[i],
-                    totalOrderIndices[i]));
-        }
-        return sb.toString();
+    public SobolResult(SobolConfig config,
+                       List<MonteCarloEstimate> yA,
+                       List<MonteCarloEstimate> yB,
+                       List<List<MonteCarloEstimate>> yAB,
+                       double[] sEns, double[] stEns,
+                       double[] sFuel, double[] stFuel,
+                       double[] sMoto, double[] stMoto) {
+        this.config = config;
+        this.yA = yA;
+        this.yB = yB;
+        this.yAB = yAB;
+
+        this.S_ens = sEns;
+        this.ST_ens = stEns;
+
+        this.S_fuel = sFuel;
+        this.ST_fuel = stFuel;
+
+        this.S_moto = sMoto;
+        this.ST_moto = stMoto;
     }
 }

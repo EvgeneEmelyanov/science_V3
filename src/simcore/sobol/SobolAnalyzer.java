@@ -1,166 +1,184 @@
 package simcore.sobol;
 
-import simcore.config.SimulationConfig;
-import simcore.config.SystemParameters;
-import simcore.config.SystemParametersBuilder;
-import simcore.engine.SimulationEngine;
+import simcore.engine.MonteCarloEstimate;
+import simcore.engine.MonteCarloRunner;
+import simcore.engine.SimInput;
 
-import java.io.IOException;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 /**
- * Анализ чувствительности по методу Соболя (схема Saltelli/Jansen).
+ * Sobol (вариант C): для каждой точки theta считаем MC,
+ * затем индексы Соболя считаем для 3 метрик: ENS, Fuel, Moto.
  *
- * Для d параметров и числа выборок N выполняется:
- *  - 2N + 2Nd запусков модели.
+ * Примечание: генерация матриц A/B здесь пока заглушка (Random),
+ * позже замените на Sobol/Saltelli последовательность.
  */
-public class SobolAnalyzer {
+public final class SobolAnalyzer {
 
-    private final SimulationConfig baseConfig;
-    private final SystemParameters baseParams;
-    private final double[] totalLoadKw;
-    private final List<SobolParameter> parameters;
-    private final SimulationMetric metric;
+    private final MonteCarloRunner mcRunner;
 
-    public SobolAnalyzer(SimulationConfig baseConfig,
-                         SystemParameters baseParams,
-                         double[] totalLoadKw,
-                         List<SobolParameter> parameters,
-                         SimulationMetric metric) {
-        if (parameters == null || parameters.isEmpty()) {
-            throw new IllegalArgumentException("Список параметров для Соболя пуст");
-        }
-        if (totalLoadKw == null || totalLoadKw.length == 0) {
-            throw new IllegalArgumentException("Профиль нагрузки пуст");
-        }
-        this.baseConfig = baseConfig;
-        this.baseParams = baseParams;
-        this.totalLoadKw = totalLoadKw;
-        this.parameters = List.copyOf(parameters);
-        this.metric = metric;
+    public SobolAnalyzer(MonteCarloRunner mcRunner) {
+        this.mcRunner = mcRunner;
     }
 
-    /**
-     * Выполнить анализ чувствительности при заданном числе базовых выборок N.
-     *
-     * @param sampleCount число строк в матрицах A и B (N), N > 0
-     */
-    public SobolResult analyze(int sampleCount)
-            throws ExecutionException, InterruptedException, IOException {
+    public SobolResult run(SimInput baseInput, SobolConfig cfg)
+            throws InterruptedException, ExecutionException {
 
-        if (sampleCount <= 0) {
-            throw new IllegalArgumentException("sampleCount must be > 0");
-        }
+        int N = cfg.getSobolN();
+        int d = cfg.dim();
 
-        int d = parameters.size();
-        int N = sampleCount;
+        double[][] A = randomUnitMatrix(N, d, 12345L);
+        double[][] B = randomUnitMatrix(N, d, 67890L);
 
-        // Матрицы A и B: N x d
-        double[][] A = new double[N][d];
-        double[][] B = new double[N][d];
+        List<MonteCarloEstimate> yA = new ArrayList<>(N);
+        List<MonteCarloEstimate> yB = new ArrayList<>(N);
+        List<List<MonteCarloEstimate>> yAB = new ArrayList<>(d);
+        for (int j = 0; j < d; j++) yAB.add(new ArrayList<>(N));
 
-        SobolSequence sobolA = new SobolSequence(d, 12345L);
-        SobolSequence sobolB = new SobolSequence(d, 67890L);
-
+        // A/B
         for (int i = 0; i < N; i++) {
-            A[i] = sobolA.next();
-            B[i] = sobolB.next();
+            ParameterSet thetaA = buildThetaFromUnitRow(A[i], cfg);
+            ParameterSet thetaB = buildThetaFromUnitRow(B[i], cfg);
+
+            yA.add(mcRunner.evaluateForTheta(
+                    baseInput, thetaA, cfg,
+                    cfg.getMcIterations(), cfg.getMcBaseSeed(), false
+            ));
+
+            yB.add(mcRunner.evaluateForTheta(
+                    baseInput, thetaB, cfg,
+                    cfg.getMcIterations(), cfg.getMcBaseSeed(), false
+            ));
         }
 
-        double[] yA = new double[N];
-        double[] yB = new double[N];
-        double[][] yAB = new double[d][N]; // yAB[j][i] = f(A_B^(j)_i)
-
-        // 1. Считаем f(A_i) и f(B_i)
-        for (int i = 0; i < N; i++) {
-            yA[i] = evaluateAt(A[i]);
-            yB[i] = evaluateAt(B[i]);
-        }
-
-        // 2. Для каждого параметра j и каждой строки i считаем A_B^(j)_i
+        // AB_j
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < N; i++) {
-                double[] ABj = buildABRow(A[i], B[i], j);
-                yAB[j][i] = evaluateAt(ABj);
+                double[] row = new double[d];
+                System.arraycopy(A[i], 0, row, 0, d);
+                row[j] = B[i][j];
+
+                ParameterSet thetaAB = buildThetaFromUnitRow(row, cfg);
+
+                yAB.get(j).add(mcRunner.evaluateForTheta(
+                        baseInput, thetaAB, cfg,
+                        cfg.getMcIterations(), cfg.getMcBaseSeed(), false
+                ));
             }
         }
 
-        // 3. Оценка дисперсии Var(Y)
-        double meanY = 0.0;
-        for (int i = 0; i < N; i++) {
-            meanY += yA[i] + yB[i];
-        }
-        meanY /= (2.0 * N);
+        // считаем индексы для 3 метрик
+        double[] sEns = new double[d], stEns = new double[d];
+        double[] sFuel = new double[d], stFuel = new double[d];
+        double[] sMoto = new double[d], stMoto = new double[d];
 
-        double varY = 0.0;
-        for (int i = 0; i < N; i++) {
-            double da = yA[i] - meanY;
-            double db = yB[i] - meanY;
-            varY += da * da + db * db;
-        }
-        varY /= (2.0 * N);
+        computeSobolIndices(yA, yB, yAB, d, Metric.ENS, sEns, stEns);
+        computeSobolIndices(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel);
+        computeSobolIndices(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto);
 
+        return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto);
+    }
+
+    private enum Metric { ENS, FUEL, MOTO }
+
+    private static void computeSobolIndices(List<MonteCarloEstimate> yA,
+                                            List<MonteCarloEstimate> yB,
+                                            List<List<MonteCarloEstimate>> yAB,
+                                            int d,
+                                            Metric metric,
+                                            double[] S,
+                                            double[] ST) {
+
+        int N = yA.size();
+        double[] a = new double[N];
+        double[] b = new double[N];
+
+        for (int i = 0; i < N; i++) {
+            a[i] = extractMetric(yA.get(i), metric);
+            b[i] = extractMetric(yB.get(i), metric);
+        }
+
+        double varY = variance(concat(a, b));
         if (varY <= 0.0) {
-            throw new IllegalStateException("Дисперсия Var(Y) <= 0, индексы Соболя не определены");
+            Arrays.fill(S, 0.0);
+            Arrays.fill(ST, 0.0);
+            return;
         }
 
-        double[] S = new double[d];   // первые индексы
-        double[] ST = new double[d];  // тотальные индексы
-
-        // Формулы:
-        // S_j  ≈ (1/N) * Σ_i [ yB_i * (yAB_j_i - yA_i) ] / Var(Y)
-        // ST_j ≈ (1/(2N)) * Σ_i [ (yA_i - yAB_j_i)^2 ] / Var(Y)
+        // Формулы Saltelli (классический вариант):
+        // S_j  = (1/N) * Σ f(B_i) * (f(AB_j_i) - f(A_i)) / Var(Y)
+        // ST_j = (1/(2N)) * Σ (f(A_i) - f(AB_j_i))^2 / Var(Y)
         for (int j = 0; j < d; j++) {
-            double numFirst = 0.0;
-            double numTotal = 0.0;
+            double sumS = 0.0;
+            double sumST = 0.0;
+
             for (int i = 0; i < N; i++) {
-                double yAi = yA[i];
-                double yBi = yB[i];
-                double yABji = yAB[j][i];
+                double ab = extractMetric(yAB.get(j).get(i), metric);
+                sumS += b[i] * (ab - a[i]);
 
-                numFirst += yBi * (yABji - yAi);
-                double diff = yAi - yABji;
-                numTotal += diff * diff;
+                double diff = a[i] - ab;
+                sumST += diff * diff;
             }
-            S[j] = numFirst / (N * varY);
-            ST[j] = numTotal / (2.0 * N * varY);
-        }
 
-        return new SobolResult(parameters, S, ST);
+            S[j] = (sumS / N) / varY;
+            ST[j] = (sumST / (2.0 * N)) / varY;
+
+            // защита от численного мусора
+            if (S[j] < 0.0) S[j] = 0.0;
+            if (ST[j] < 0.0) ST[j] = 0.0;
+        }
     }
 
-    /**
-     * Построить строку A_B^(j):
-     *  - все столбцы как в A,
-     *  - но j-й столбец взят из B.
-     */
-    private double[] buildABRow(double[] rowA, double[] rowB, int j) {
-        int d = rowA.length;
-        double[] res = new double[d];
-        System.arraycopy(rowA, 0, res, 0, d);
-        res[j] = rowB[j];
-        return res;
+    private static double extractMetric(MonteCarloEstimate e, Metric m) {
+        return switch (m) {
+            case ENS -> e.ensStats.getMean();
+            case FUEL -> e.meanFuelLiters;
+            case MOTO -> e.meanMotoHours;
+        };
     }
 
-    /**
-     * Один запуск модели для набора нормированных параметров u[0..d-1].
-     */
-    private double evaluateAt(double[] u)
-            throws ExecutionException, InterruptedException, IOException {
-
-        SystemParametersBuilder builder = SystemParametersBuilder.from(baseParams);
-
-        for (int j = 0; j < parameters.size(); j++) {
-            SobolParameter p = parameters.get(j);
-            p.applyFromUnit(builder, u[j]);
+    private static double[][] randomUnitMatrix(int n, int d, long seed) {
+        Random r = new Random(seed);
+        double[][] m = new double[n][d];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < d; j++) {
+                m[i][j] = r.nextDouble(); // [0;1)
+            }
         }
+        return m;
+    }
 
-        SystemParameters params = builder.build();
 
-        SimulationEngine engine = new SimulationEngine(baseConfig, params, totalLoadKw);
-        SimulationEngine.SimulationSummary summary = engine.runMonteCarlo();
+    private static ParameterSet buildThetaFromUnitRow(double[] u01, SobolConfig cfg) {
+        Map<String, Double> map = new LinkedHashMap<>();
+        List<SobolFactor> factors = cfg.getFactors();
+        for (int j = 0; j < factors.size(); j++) {
+            SobolFactor f = factors.get(j);
+            double value = f.scaleFromUnit(u01[j]);
+            map.put(f.getName(), value);
+        }
+        return new ParameterSet(map);
+    }
 
-        return metric.extract(summary);
+    private static double[] concat(double[] a, double[] b) {
+        double[] r = new double[a.length + b.length];
+        System.arraycopy(a, 0, r, 0, a.length);
+        System.arraycopy(b, 0, r, a.length, b.length);
+        return r;
+    }
+
+    private static double variance(double[] x) {
+        if (x.length < 2) return 0.0;
+        double mean = 0.0;
+        for (double v : x) mean += v;
+        mean /= x.length;
+
+        double s = 0.0;
+        for (double v : x) {
+            double d = v - mean;
+            s += d * d;
+        }
+        return s / (x.length - 1);
     }
 }

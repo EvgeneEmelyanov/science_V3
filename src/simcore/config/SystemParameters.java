@@ -1,7 +1,7 @@
 package simcore.config;
 
 /**
- * Параметры энергосистемы:
+ * Параметры энергосистемы (immutable).
  */
 public class SystemParameters {
 
@@ -60,7 +60,7 @@ public class SystemParameters {
     /** Максимальный ток заряда относительно емкости, С */
     private final double maxChargeCurrent;
 
-    /** Максимальный ток заряда относительно емкости, С */
+    /** Максимальный ток разряда относительно емкости, С */
     private final double maxDischargeCurrent;
 
     /** Допустимый уровень разряда не в целях резервирования */
@@ -86,6 +86,7 @@ public class SystemParameters {
                             int busRepairTimeHours,
                             double breakerFailureRatePerYear,
                             int breakerRepairTimeHours) {
+
         this.busSystemType = busSystemType;
         this.totalWindTurbineCount = totalWindTurbineCount;
         this.windTurbinePowerKw = windTurbinePowerKw;
@@ -107,6 +108,155 @@ public class SystemParameters {
         this.breakerFailureRatePerYear = breakerFailureRatePerYear;
         this.breakerRepairTimeHours = breakerRepairTimeHours;
     }
+
+    // --------- Copy helpers ---------
+
+    public SystemParameters copy() {
+        return new SystemParameters(
+                busSystemType,
+                totalWindTurbineCount,
+                windTurbinePowerKw,
+                totalDieselGeneratorCount,
+                dieselGeneratorPowerKw,
+                batteryCapacityKwhPerBus,
+                maxChargeCurrent,
+                maxDischargeCurrent,
+                nonReserveDischargeLevel,
+                windTurbineFailureRatePerYear,
+                windTurbineRepairTimeHours,
+                dieselGeneratorFailureRatePerYear,
+                dieselGeneratorRepairTimeHours,
+                batteryFailureRatePerYear,
+                batteryRepairTimeHours,
+                busFailureRatePerYear,
+                busRepairTimeHours,
+                breakerFailureRatePerYear,
+                breakerRepairTimeHours
+        );
+    }
+
+    public SystemParameters withBatteryCapacityKwhPerBus(double v) {
+        return new SystemParameters(
+                busSystemType,
+                totalWindTurbineCount,
+                windTurbinePowerKw,
+                totalDieselGeneratorCount,
+                dieselGeneratorPowerKw,
+                v,
+                maxChargeCurrent,
+                maxDischargeCurrent,
+                nonReserveDischargeLevel,
+                windTurbineFailureRatePerYear,
+                windTurbineRepairTimeHours,
+                dieselGeneratorFailureRatePerYear,
+                dieselGeneratorRepairTimeHours,
+                batteryFailureRatePerYear,
+                batteryRepairTimeHours,
+                busFailureRatePerYear,
+                busRepairTimeHours,
+                breakerFailureRatePerYear,
+                breakerRepairTimeHours
+        );
+    }
+
+    public SystemParameters withMaxChargeCurrent(double v) {
+        return new SystemParameters(
+                busSystemType,
+                totalWindTurbineCount,
+                windTurbinePowerKw,
+                totalDieselGeneratorCount,
+                dieselGeneratorPowerKw,
+                batteryCapacityKwhPerBus,
+                v,
+                maxDischargeCurrent,
+                nonReserveDischargeLevel,
+                windTurbineFailureRatePerYear,
+                windTurbineRepairTimeHours,
+                dieselGeneratorFailureRatePerYear,
+                dieselGeneratorRepairTimeHours,
+                batteryFailureRatePerYear,
+                batteryRepairTimeHours,
+                busFailureRatePerYear,
+                busRepairTimeHours,
+                breakerFailureRatePerYear,
+                breakerRepairTimeHours
+        );
+    }
+
+    public SystemParameters withMaxDischargeCurrent(double v) {
+        return new SystemParameters(
+                busSystemType,
+                totalWindTurbineCount,
+                windTurbinePowerKw,
+                totalDieselGeneratorCount,
+                dieselGeneratorPowerKw,
+                batteryCapacityKwhPerBus,
+                maxChargeCurrent,
+                v,
+                nonReserveDischargeLevel,
+                windTurbineFailureRatePerYear,
+                windTurbineRepairTimeHours,
+                dieselGeneratorFailureRatePerYear,
+                dieselGeneratorRepairTimeHours,
+                batteryFailureRatePerYear,
+                batteryRepairTimeHours,
+                busFailureRatePerYear,
+                busRepairTimeHours,
+                breakerFailureRatePerYear,
+                breakerRepairTimeHours
+        );
+    }
+
+    public SystemParameters withNonReserveDischargeLevel(double v) {
+        return new SystemParameters(
+                busSystemType,
+                totalWindTurbineCount,
+                windTurbinePowerKw,
+                totalDieselGeneratorCount,
+                dieselGeneratorPowerKw,
+                batteryCapacityKwhPerBus,
+                maxChargeCurrent,
+                maxDischargeCurrent,
+                v,
+                windTurbineFailureRatePerYear,
+                windTurbineRepairTimeHours,
+                dieselGeneratorFailureRatePerYear,
+                dieselGeneratorRepairTimeHours,
+                batteryFailureRatePerYear,
+                batteryRepairTimeHours,
+                busFailureRatePerYear,
+                busRepairTimeHours,
+                breakerFailureRatePerYear,
+                breakerRepairTimeHours
+        );
+    }
+
+    // Пример для чувствительности надёжности (если захотите):
+    public SystemParameters withDieselGeneratorFailureRatePerYear(double v) {
+        return new SystemParameters(
+                busSystemType,
+                totalWindTurbineCount,
+                windTurbinePowerKw,
+                totalDieselGeneratorCount,
+                dieselGeneratorPowerKw,
+                batteryCapacityKwhPerBus,
+                maxChargeCurrent,
+                maxDischargeCurrent,
+                nonReserveDischargeLevel,
+                windTurbineFailureRatePerYear,
+                windTurbineRepairTimeHours,
+                v,
+                dieselGeneratorRepairTimeHours,
+                batteryFailureRatePerYear,
+                batteryRepairTimeHours,
+                busFailureRatePerYear,
+                busRepairTimeHours,
+                breakerFailureRatePerYear,
+                breakerRepairTimeHours
+        );
+    }
+
+    // --------- Getters ---------
 
     public BusSystemType getBusSystemType() {
         return busSystemType;
@@ -143,9 +293,6 @@ public class SystemParameters {
     public double getNonReserveDischargeLevel() {
         return nonReserveDischargeLevel;
     }
-
-
-    // ПОКАЗАТЕЛИ НАДЕЖНОСТИ
 
     public double getWindTurbineFailureRatePerYear() {
         return windTurbineFailureRatePerYear;
