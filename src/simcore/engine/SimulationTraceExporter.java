@@ -8,78 +8,79 @@ import java.util.Locale;
 
 public final class SimulationTraceExporter {
 
-    private static final Locale RU_LOCALE = new Locale("ru", "RU");
+    private static final Locale RU = new Locale("ru", "RU");
 
     private SimulationTraceExporter() {}
 
-    public static void exportToCsv(String filePath, List<SimulationStepRecord> records) throws IOException {
-        if (records.isEmpty()) {
-            throw new IllegalArgumentException("Нет записей для экспорта");
+    public static void exportToCsv(String path, List<SimulationStepRecord> recs)
+            throws IOException {
+
+        if (recs.isEmpty()) {
+            throw new IllegalArgumentException("Empty trace");
         }
 
-        int busCount = records.get(0).getBusLoadKw().length;
+        int busCnt = recs.get(0).getBusLoadKw().length;
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+        try (BufferedWriter w = new BufferedWriter(new FileWriter(path))) {
 
-            // --- Заголовок ---
-            StringBuilder header = new StringBuilder("t;TotalLoad");
-            for (int b = 0; b < busCount; b++) {
-                header.append(";Bus").append(b + 1).append("Load");
-                header.append(";Bus").append(b + 1).append("WT");
+            /* ---------- HEADER ---------- */
+            StringBuilder h = new StringBuilder("t;L");
+            for (int b = 0; b < busCnt; b++) {
+                int bi = b + 1;
+                h.append(";B").append(bi).append("_L");
+                h.append(";B").append(bi).append("_W");
 
-                int dgCount = records.get(0).getBusGenDgLoadKw()[b].length;
-                for (int i = 0; i < dgCount; i++) {
-                    header.append(";Bus").append(b + 1).append("DG").append(i + 1).append("_Load");
-//                    header.append(";Bus").append(b + 1).append("DG").append(i + 1).append("_HoursSinceMaintenance");
-//                    header.append(";Bus").append(b + 1).append("DG").append(i + 1).append("_TimeWorked");
-                    header.append(";Bus").append(b + 1).append("DG").append(i + 1).append("_TotalTimeWorked");
+                int dgCnt = recs.get(0).getBusGenDgLoadKw()[b].length;
+                for (int i = 0; i < dgCnt; i++) {
+                    int di = i + 1;
+                    h.append(";B").append(bi).append("_D").append(di);
+                    h.append(";B").append(bi).append("_D").append(di).append("_T");
                 }
 
-                header.append(";Bus").append(b + 1).append("BT");
-                header.append(";Bus").append(b + 1).append("Deficit");
+                h.append(";B").append(bi).append("_B");
+                h.append(";B").append(bi).append("_Def");
             }
 
-            writer.write(header.toString());
-            writer.newLine();
+            w.write(h.toString());
+            w.newLine();
 
-            // --- Данные ---
-            for (SimulationStepRecord r : records) {
-                StringBuilder sb = new StringBuilder();
-                sb.append(r.getTimeIndex()).append(';')
-                        .append(formatDouble(r.getTotalLoadKw()));
+            /* ---------- DATA ---------- */
+            for (SimulationStepRecord r : recs) {
 
-                for (int b = 0; b < busCount; b++) {
-                    sb.append(';').append(formatDouble(r.getBusLoadKw()[b]))
-                            .append(';').append(formatDouble(r.getBusGenWindKw()[b]));
+                StringBuilder s = new StringBuilder();
+                s.append(r.getTimeIndex()).append(';')
+                        .append(f(r.getTotalLoadKw()));
 
-                    int dgCount = r.getBusGenDgLoadKw()[b].length;
-                    for (int i = 0; i < dgCount; i++) {
+                for (int b = 0; b < busCnt; b++) {
+
+                    s.append(';').append(f(r.getBusLoadKw()[b]));
+                    s.append(';').append(f(r.getBusGenWindKw()[b]));
+
+                    int dgCnt = r.getBusGenDgLoadKw()[b].length;
+                    for (int i = 0; i < dgCnt; i++) {
+
                         if (!r.getDgAvailable()[b][i]) {
-                            if (r.getDgInMaintenance()[b][i]) {
-                                sb.append(";TO");
-                            } else {
-                                sb.append(";OFF");
-                            }
+                            s.append(r.getDgInMaintenance()[b][i] ? ";TO" : ";OFF");
                         } else {
-                            sb.append(';').append(formatDouble(r.getBusGenDgLoadKw()[b][i]));
+                            s.append(';').append(f(r.getBusGenDgLoadKw()[b][i]));
                         }
-//                        sb.append(';').append(formatDouble(r.getBusGenDgHoursSinceMaintenance()[b][i]));
-//                        sb.append(';').append(formatDouble(r.getBusGenDgTimeWorked()[b][i]));
-                        sb.append(';').append(formatDouble(r.getBusGenDgTotalTimeWorked()[b][i]));
+
+                        s.append(';')
+                                .append(f(r.getBusGenDgTotalTimeWorked()[b][i]));
                     }
 
-                    sb.append(';').append(formatDouble(r.getBusGenBtKw()[b]))
-                            .append(';').append(formatDouble(r.getBusDeficitKw()[b]));
+                    s.append(';').append(f(r.getBusGenBtKw()[b]));
+                    s.append(';').append(f(r.getBusDeficitKw()[b]));
                 }
 
-                writer.write(sb.toString());
-                writer.newLine();
+                w.write(s.toString());
+                w.newLine();
             }
         }
     }
 
-    private static String formatDouble(double value) {
-        if (Double.isNaN(value) || Double.isInfinite(value)) return "";
-        return String.format(RU_LOCALE, "%.1f", value);
+    private static String f(double v) {
+        if (!Double.isFinite(v)) return "";
+        return String.format(RU, "%.1f", v);
     }
 }

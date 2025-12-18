@@ -66,11 +66,11 @@ public class Main {
             // 3. Конфиг симуляции
             SimulationConfig config = new SimulationConfig(
                     windMs,
-                    1,   // Monte Carlo итераций; 1 → будет CSV-трейс на D:/simulation_trace.csv
+                    10,   // Monte Carlo итераций; 1 → будет CSV-трейс на D:/simulation_trace.csv
                     Runtime.getRuntime().availableProcessors(),
                     true,
                     true,
-                    true,
+                    false,
                     false,
                     true,
                     true
@@ -81,8 +81,6 @@ public class Main {
 
             // 5. Запускаем
             SimulationEngine.SimulationSummary summary = engine.runMonteCarlo();
-
-            // 6. Вывод результатов
 
 
         } catch (Exception e) {

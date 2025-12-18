@@ -9,50 +9,28 @@ import java.util.Random;
  *  - плановым ТО каждые MAINTENANCE_INTERVAL_HOURS часов работы
  *    на MAINTENANCE_DURATION_HOURS часов.
  *
- * Наработка увеличивается снаружи, через addWorkTime(hours),
- * когда ДГУ реально задействован в генерации.
+ * Важно: ограничение "одна ДГУ в ТО на шине" реализуется тем,
+ * что движок/шина передаёт allowMaintenanceStart=false, если на шине
+ * уже есть ДГУ в ТО.
  */
 public class DieselGenerator extends Equipment {
 
-    /** Номинальная мощность ДГУ, кВт. */
     private final double ratedPowerKw;
-
-    /** Текущая загрузка ДГУ, кВт. */
     private double currentLoad;
 
-    /** Наработка часов */
     private int totalTimeWorked = 0;
-
-    /** Наработка на низкой загрузке */
     private int idleTime = 0;
 
-    /** Период ТО по наработке, ч. */
     private static final int MAINTENANCE_INTERVAL_HOURS = 250;
-
-    /** Длительность ТО, ч. */
     private static final int MAINTENANCE_DURATION_HOURS = 4;
 
-    /** Наработка с момента последнего ТО, ч. */
     private double hoursSinceMaintenance = 0.0;
-
-    /** Количество проведённых ТО. */
     private int maintenanceCount = 0;
 
-    /** true, если ДГУ работает. */
     private boolean isWorking = true;
-
-    /** true, если ДГУ сейчас в ТО (а не в ремонте после отказа). */
     private boolean inMaintenance = false;
-
-    /** true, если ДГУ сейчас на низкой загрузке */
     private boolean isIdle = false;
 
-    /**
-     * @param id                   id ДГУ
-     * @param ratedPowerKw         номинальная мощность ДГУ, кВт
-     * @param failureRatePerYear   частота случайных отказов, 1/год
-     * @param repairTimeHours      длительность ремонта после отказа, ч
-     */
     public DieselGenerator(int id,
                            double ratedPowerKw,
                            double failureRatePerYear,
@@ -61,45 +39,25 @@ public class DieselGenerator extends Equipment {
         this.ratedPowerKw = ratedPowerKw;
     }
 
-    public boolean isWorking() {
-        return isWorking;
-    }
+    public boolean isWorking() { return isWorking; }
 
-    public boolean isIdle() {
-        return isIdle;
-    }
+    public int getIdleTime() { return idleTime; }
+    public void incrementIdleTime() { idleTime++; }
+    public void resetIdleTime() { idleTime = 0; }
 
-    public double getRatedPowerKw() {
-        return ratedPowerKw;
-    }
+    public boolean isIdle() { return isIdle; }
+    public void setIdle(boolean idle) { this.isIdle = idle; }
 
-    public double getHoursSinceMaintenance() {
-        return hoursSinceMaintenance;
-    }
+    public double getRatedPowerKw() { return ratedPowerKw; }
+    public double getHoursSinceMaintenance() { return hoursSinceMaintenance; }
+    public int getMaintenanceCount() { return maintenanceCount; }
+    public boolean isInMaintenance() { return inMaintenance; }
 
-    public int getMaintenanceCount() {
-        return maintenanceCount;
-    }
+    public double getCurrentLoad() { return currentLoad; }
+    public void setCurrentLoad(double currentLoad) { this.currentLoad = currentLoad; }
 
-    public boolean isInMaintenance() {
-        return inMaintenance;
-    }
+    public int getTotalTimeWorked() { return totalTimeWorked; }
 
-    public double getCurrentLoad() {
-        return currentLoad;
-    }
-
-    public void setCurrentLoad(double currentLoad) {
-        this.currentLoad = currentLoad;
-    }
-
-    public int getTotalTimeWorked() {
-        return totalTimeWorked;
-    }
-
-    /**
-     * Инициализация модели отказов/ТО перед одним прогоном Monte Carlo.
-     */
     @Override
     public void initFailureModel(Random rnd, boolean considerFailures) {
         super.initFailureModel(rnd, considerFailures);
@@ -108,13 +66,8 @@ public class DieselGenerator extends Equipment {
         this.inMaintenance = false;
     }
 
-    /**
-     * Наработка учитывается и для общей наработки, и для ТО.
-     */
     public void startWork() {
-        if (isAvailable()) {
-            isWorking = true;
-        }
+        if (isAvailable()) isWorking = true;
     }
 
     public void stopWork() {
@@ -122,7 +75,6 @@ public class DieselGenerator extends Equipment {
     }
 
     public void addWorkTime(int hours, int motoHours) {
-
         if (status && repairDurationHours == 0) {
             timeWorked += motoHours;
             totalTimeWorked += motoHours;
@@ -130,45 +82,38 @@ public class DieselGenerator extends Equipment {
         }
     }
 
-    /**
-     * Доступная мощность ДГУ в этот час с учётом отказов/ТО.
-     *
-     * @param demandedKw требуемая мощность, кВт
-     * @return фактически доступная мощность, кВт
-     */
     public double getAvailablePowerKw(double demandedKw) {
-        if (!isAvailable()) {
-            return 0.0;
-        }
-        if (demandedKw <= 0.0) {
-            return 0.0;
-        }
+        if (!isAvailable()) return 0.0;
+        if (demandedKw <= 0.0) return 0.0;
         return Math.min(ratedPowerKw, demandedKw);
     }
 
     /**
-     * Обновление состояния отказа/ремонта/ТО на один час.
-     * Логика:
-     *  1) если идёт ремонт/ТО — уменьшаем repairDurationHours;
-     *  2) если закончился ремонт/ТО — возвращаем в работу, генерируем новое время до отказа;
-     *  3) если агрегат выключен вручную (status = false и не в ремонте) — ничего не делаем;
-     *  4) если наработка с последнего ТО >= MAINTENANCE_INTERVAL_HOURS — уводим в ТО;
-     *  5) иначе проверяем случайный отказ по экспоненте.
+     * Старый метод оставлен для совместимости: ТО разрешено.
      */
     @Override
     public void updateFailureOneHour(boolean considerFailures) {
-        if (!considerFailures) {
-            return;
-        }
+        updateFailureOneHour(considerFailures, true);
+    }
 
-        // Ремонт или ТО
+    /**
+     * Обновление состояния на один час.
+     *
+     * @param considerFailures      учитывать ли отказы/ТО
+     * @param allowMaintenanceStart разрешено ли НАЧИНАТЬ ТО в этом часу
+     *                              (движок ставит false, если на шине уже есть ДГУ в ТО)
+     */
+    public void updateFailureOneHour(boolean considerFailures, boolean allowMaintenanceStart) {
+        if (!considerFailures) return;
+
+        // Ремонт или ТО: просто считаем таймер
         if (repairDurationHours > 0) {
             repairDurationHours--;
             if (repairDurationHours <= 0) {
                 repairDurationHours = 0;
                 status = true;
+
                 if (!inMaintenance) {
-                    // Был отказ → сбрасываем счетчик наработки
                     timeWorked = 0;
 
                     double lambdaYear = getFailureRatePerYear();
@@ -178,35 +123,38 @@ public class DieselGenerator extends Equipment {
                         nextFailureTimeHours = Double.POSITIVE_INFINITY;
                     }
                 }
-                inMaintenance = false;
 
+                inMaintenance = false;
                 onRepairFinished();
             }
             return;
         }
 
-        // Если отключён внешне (но не в ремонте/ТО) — не проверяем ни ТО, ни отказы
-        if (!status) {
-            return;
-        }
+        // Если отключён внешне — ничего не делаем
+        if (!status) return;
 
-        // Проверка на ТО: если наработка с последнего ТО >= порога
-        if (hoursSinceMaintenance >= MAINTENANCE_INTERVAL_HOURS) {
+        // ТО: начинать можно только если allowMaintenanceStart == true
+        if (allowMaintenanceStart && hoursSinceMaintenance >= MAINTENANCE_INTERVAL_HOURS) {
             status = false;
             inMaintenance = true;
             maintenanceCount++;
             hoursSinceMaintenance = 0.0;
             repairDurationHours = MAINTENANCE_DURATION_HOURS;
+
+            isWorking = false;
+            currentLoad = 0.0;
             return;
         }
 
-        // Проверка на случайный отказ
-        if (getFailureRatePerYear() > 0.0
-                && timeWorked >= nextFailureTimeHours) {
+        // Случайный отказ
+        if (getFailureRatePerYear() > 0.0 && timeWorked >= nextFailureTimeHours) {
             status = false;
             inMaintenance = false;
             failureCount++;
             repairDurationHours = getRepairTimeHours();
+
+            isWorking = false;
+            currentLoad = 0.0;
         }
     }
 
@@ -217,5 +165,4 @@ public class DieselGenerator extends Equipment {
                 }
                 return Integer.compare(dg1.timeWorked, dg2.timeWorked);
             };
-
 }

@@ -1,33 +1,36 @@
 package simcore.engine;
 
-import simcore.config.BusSystemType;
 import simcore.config.SimulationConfig;
 import simcore.config.SimulationConstants;
 import simcore.config.SystemParameters;
 import simcore.model.*;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.*;
 
-/**
- * Движок многопоточного Monte Carlo.
- * Считает:
- * - ВЭУ + ДГУ против нагрузки на всех шинах,
- * - учитывает отказы шин, автомата и самих ВЭУ/ДГУ/АКБ.
- * <p>
- * ВАЖНО:
- * - каждая итерация Monte Carlo строит СВОЙ экземпляр PowerSystem;
- * - никакого общего изменяемого состояния между итерациями нет;
- * - если iterations == 1, дополнительно формируется CSV-трейс по часам.
- */
 public class SimulationEngine {
+
+    // ===== Fuel model constants (из старого кода) =====
+    private static final double K11 = 0.0185;
+    private static final double K21 = -0.0361;
+    private static final double K31 = 0.2745;
+    private static final double K12 = 5.3978;
+    private static final double K22 = -11.4831;
+    private static final double K32 = 11.6284;
+
+    private static final Locale RU = new Locale("ru", "RU");
+
+    // Настройки анализа (как в старом ResultAnalyzer)
+    private static final boolean REMOVE_OUTLIERS = false;
+    private static final double T_SCORE = 1.96; // 95%
+    private static final double REL_ERR = 0.10; // 10%
 
     private final SimulationConfig config;
     private final SystemParameters systemParameters;
-    private final double[] totalLoadKw; // общий ряд нагрузки (как в файле)
+    private final double[] totalLoadKw;
 
     public SimulationEngine(SimulationConfig config,
                             SystemParameters systemParameters,
@@ -37,673 +40,799 @@ public class SimulationEngine {
         this.totalLoadKw = totalLoadKw;
     }
 
-    /**
-     * Запуск Monte Carlo-симуляции.
-     *
-     * @return сводка по результатам (средний дефицит уже после обработки выборки)
-     */
     public SimulationSummary runMonteCarlo()
             throws InterruptedException, ExecutionException, IOException {
 
-        int iterations = config.getIterations();
-        int threads = config.getThreads();
+        final int iterations = config.getIterations();
+        final int threads = config.getThreads();
 
-        // параметры обработки выборки (можно вынести в конфиг, если захочешь)
-        boolean removeOutliers = false;  // пока без удаления выбросов
-        double tScore = 1.96;            // 95% доверительный уровень
-        double relativeError = 0.10;     // 10% относительная допустимая ошибка
+        final String resultsCsvPath = "D:/simulation_results.csv";
 
-        // Особый режим: iterations == 1 → детальный трейс в CSV
         if (iterations == 1) {
-
             List<SimulationStepRecord> trace = new ArrayList<>();
-            SimulationResult result = runSingleSimulation(0, trace);
+            SimulationResult r = runSingleSimulation(0, trace);
 
-            int busCount = (systemParameters.getBusSystemType() == BusSystemType.SINGLE_NOT_SECTIONAL_BUS)
-                    ? 1 : 2;
+            SimulationTraceExporter.exportToCsv("D:/simulation_trace.csv", trace);
 
-            // путь к CSV-файлу
-            String tracePath = "D:/simulation_trace.csv";
-            SimulationTraceExporter.exportToCsv(tracePath, trace);
-
-            // выборка из одного значения дефицита
-            double[] deficits = new double[]{result.getTotalDeficit()};
-            MonteCarloStats.Stats stats =
-                    MonteCarloStats.compute(deficits, removeOutliers, tScore, relativeError);
-
-            double processedMean = stats.getMean(); // по факту то же самое значение
+            ResultsCsvWriter.write(resultsCsvPath, systemParameters, config, List.of(r));
+            ResultsCsvWriter.appendSummary(resultsCsvPath, systemParameters, config, List.of(r));
 
             return new SimulationSummary(
-                    result.getTotalDeficit(),
-                    processedMean,
-                    1,
-                    result.getSupplyFromWT(),
-                    result.getSupplyFromDG()
+                    r.ensKwh, r.ensKwh, 1,
+                    r.wtKwh, r.dgKwh, r.btKwh,
+                    r.wreKwh, r.fuelLiters, r.motoHours
             );
         }
 
-        // Обычный режим Monte Carlo (iterations > 1) — без вывода часовых результатов
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         List<Future<SimulationResult>> futures = new ArrayList<>(iterations);
 
         for (int i = 0; i < iterations; i++) {
-            final int iterationIndex = i;
-            Callable<SimulationResult> task = () -> runSingleSimulation(iterationIndex, null);
-            futures.add(executor.submit(task));
+            final int idx = i;
+            futures.add(executor.submit(() -> runSingleSimulation(idx, null)));
         }
 
-        double totalDeficitSum = 0.0;
-        double totalSupplyFromWtSum = 0.0;
-        double totalSupplyFromDgSum = 0.0;
+        List<SimulationResult> results = new ArrayList<>(iterations);
 
-        // выборка дефицита по итерациям
-        double[] deficits = new double[iterations];
-        int idx = 0;
+        double sumEns = 0.0, sumWt = 0.0, sumDg = 0.0, sumBt = 0.0, sumWre = 0.0, sumFuel = 0.0;
+        long sumMoto = 0;
 
-        for (Future<SimulationResult> future : futures) {
-            SimulationResult result = future.get();
+        for (Future<SimulationResult> f : futures) {
+            SimulationResult r = f.get();
+            results.add(r);
 
-            double deficit = result.getTotalDeficit();
-            deficits[idx++] = deficit;
-
-            totalDeficitSum += deficit;
-            totalSupplyFromWtSum += result.getSupplyFromWT();
-            totalSupplyFromDgSum += result.getSupplyFromDG();
+            sumEns += r.ensKwh;
+            sumWt += r.wtKwh;
+            sumDg += r.dgKwh;
+            sumBt += r.btKwh;
+            sumWre += r.wreKwh;
+            sumFuel += r.fuelLiters;
+            sumMoto += r.motoHours;
         }
 
         executor.shutdown();
 
-        // обработка выборки Монте-Карло
-        MonteCarloStats.Stats stats =
-                MonteCarloStats.compute(deficits, removeOutliers, tScore, relativeError);
-
-
-        double processedMeanDeficit = stats.getMean();
+        ResultsCsvWriter.write(resultsCsvPath, systemParameters, config, results);
+        ResultsCsvWriter.appendSummary(resultsCsvPath, systemParameters, config, results);
 
         return new SimulationSummary(
-                totalDeficitSum,
-                processedMeanDeficit,
+                sumEns,
+                sumEns / iterations,
                 iterations,
-                totalSupplyFromWtSum,
-                totalSupplyFromDgSum
+                sumWt,
+                sumDg,
+                sumBt,
+                sumWre,
+                sumFuel,
+                sumMoto
         );
     }
 
-    /**
-     * Один прогон Monte Carlo (одна реализация по всему времяному ряду).
-     * Если trace != null, пишем пошаговые данные по времени в trace.
-     */
-    private SimulationResult runSingleSimulation(int iterationIndex,
-                                                 List<SimulationStepRecord> trace) {
+    private SimulationResult runSingleSimulation(int iterationIndex, List<SimulationStepRecord> trace) {
 
-        double[] wind = config.getWindMs();
-        int n = wind.length;
+        final double[] wind = config.getWindMs();
+        final int n = wind.length;
 
-        boolean considerFailures = config.isConsiderFailures();
-        boolean considerDegradation = config.isConsiderBatteryDegradation();
+        final boolean considerFailures = config.isConsiderFailures();
+        final boolean considerDegradation = config.isConsiderBatteryDegradation();
+        final boolean considerChargeByDg = config.isConsiderSortDiesel(); // TODO rename
 
-        // --- Строим "свою" энергосистему для этой итерации ---
-        PowerSystemBuilder builder = new PowerSystemBuilder();
-        PowerSystem powerSystem = builder.build(systemParameters, totalLoadKw);
+        PowerSystem powerSystem = new PowerSystemBuilder().build(systemParameters, totalLoadKw);
 
-        List<PowerBus> buses = powerSystem.getBuses();
-        int busCount = buses.size();
-        Breaker breaker = powerSystem.getTieBreaker();
+        final List<PowerBus> buses = powerSystem.getBuses();
+        final int busCount = buses.size();
+        final Breaker breaker = powerSystem.getTieBreaker();
 
-        // суммарно по всей итерации:
-        double totalDeficit = 0.0;
-        double totalSupplyFromWT = 0.0;
-        double totalSupplyFromDG = 0.0;
-        double totalSupplyFromBT = 0.0;
-        double totalWre = 0.0;  // суммарная неиспользованная энергия ветра (WRE)
-        double totalEns = 0.0;  // суммарный недоотпуск (ENS), если потребуется
+        final double dgPower = systemParameters.getDieselGeneratorPowerKw();
+        final double dgMaxLoad = dgPower * SimulationConstants.DG_MAX_POWER;
+        final double perDgTarget = dgPower * SimulationConstants.DG_OPTIMAL_POWER;
+        final double minKw = dgPower * SimulationConstants.DG_MIN_POWER;
+        final double tau = SimulationConstants.DG_START_DELAY_HOURS;
+        final int maxLowLoadHours = SimulationConstants.DG_MAX_IDLE_HOURS;
 
-        // --- Детерминированные генераторы случайных чисел по типам оборудования ---
+        double loadKwh = 0.0;
+        double ensKwh = 0.0;
+        double wreKwh = 0.0;
+
+        double wtToLoadKwh = 0.0;
+        double dgToLoadKwh = 0.0;
+        double btToLoadKwh = 0.0;
+
+        double fuelLiters = 0.0;
+
         long baseSeed = 1_000_000L + iterationIndex * 10_000L;
+        Random rndWT = new Random(baseSeed + 1);
+        Random rndDG = new Random(baseSeed + 2);
+        Random rndBT = new Random(baseSeed + 3);
+        Random rndBUS = new Random(baseSeed + 4);
+        Random rndBRK = new Random(baseSeed + 5);
 
-        Random rndWT = new Random(baseSeed + 1); // ВЭУ
-        Random rndDG = new Random(baseSeed + 2); // ДГУ
-        Random rndBT = new Random(baseSeed + 3); // АКБ
-        Random rndBUS = new Random(baseSeed + 4); // Шины
-        Random rndBRK = new Random(baseSeed + 5); // Автомат
-
-        // --- Инициализация моделей отказов перед ОДНОЙ итерацией ---
-
-        if (breaker != null) {
-            breaker.initFailureModel(rndBRK, considerFailures);
-        }
+        if (breaker != null) breaker.initFailureModel(rndBRK, considerFailures);
 
         for (PowerBus bus : buses) {
             bus.initFailureModel(rndBUS, considerFailures);
-
-            for (WindTurbine wt : bus.getWindTurbines()) {
-                wt.initFailureModel(rndWT, considerFailures);
-            }
-            for (DieselGenerator dg : bus.getDieselGenerators()) {
-                dg.initFailureModel(rndDG, considerFailures);
-            }
+            for (WindTurbine wt : bus.getWindTurbines()) wt.initFailureModel(rndWT, considerFailures);
+            for (DieselGenerator dg : bus.getDieselGenerators()) dg.initFailureModel(rndDG, considerFailures);
             Battery bt = bus.getBattery();
-            if (bt != null) {
-                bt.initFailureModel(rndBT, considerFailures);
-            }
+            if (bt != null) bt.initFailureModel(rndBT, considerFailures);
         }
 
-        // ====== ЧАСОВОЙ ЦИКЛ ======
+        boolean[] busAvailBefore = new boolean[busCount];
+        boolean[] busAvailAfter = new boolean[busCount];
+        boolean[] busFailedHour = new boolean[busCount];
+        boolean[] busAlive = new boolean[busCount];
+
         for (int t = 0; t < n; t++) {
 
-            double v = wind[t];
+            final double v = wind[t];
 
-            // ---------- 1. ОБНОВЛЕНИЕ ОТКАЗОВ ШИН И АВТОМАТА С УЧЁТОМ ПРАВИЛ ----------
+            // failures bus/breaker
+            for (int b = 0; b < busCount; b++) busAvailBefore[b] = buses.get(b).isAvailable();
 
-            boolean[] busAvailableBefore = new boolean[busCount];
-            for (int b = 0; b < busCount; b++) {
-                busAvailableBefore[b] = buses.get(b).isAvailable();
-            }
+            final boolean brAvailBefore = breaker != null && breaker.isAvailable();
+            final boolean brClosedBefore = breaker != null && breaker.isClosed();
 
-            boolean breakerAvailableBefore = (breaker != null) && breaker.isAvailable();
-            boolean breakerClosedBefore = (breaker != null) && breaker.isClosed();
+            if (breaker != null) breaker.updateFailureOneHour(considerFailures);
+            for (PowerBus bus : buses) bus.updateFailureOneHour(considerFailures);
 
-            if (breaker != null) {
-                breaker.updateFailureOneHour(considerFailures);
-            }
-
-            for (PowerBus bus : buses) {
-                bus.updateFailureOneHour(considerFailures);
-            }
-
-            boolean[] busAvailableAfter = new boolean[busCount];
-            boolean[] busFailedThisHour = new boolean[busCount];
-            boolean anyBusFailedThisHour = false;
-
+            boolean anyBusFailed = false;
             for (int b = 0; b < busCount; b++) {
                 PowerBus bus = buses.get(b);
-                busAvailableAfter[b] = bus.isAvailable();
-                busFailedThisHour[b] = busAvailableBefore[b] && !busAvailableAfter[b];
-                anyBusFailedThisHour |= busFailedThisHour[b];
+                busAvailAfter[b] = bus.isAvailable();
+                busFailedHour[b] = busAvailBefore[b] && !busAvailAfter[b];
+                anyBusFailed |= busFailedHour[b];
             }
 
-            boolean breakerAvailableAfter = (breaker != null) && breaker.isAvailable();
-            boolean breakerFailedThisHour =
-                    (breaker != null) && breakerAvailableBefore && !breakerAvailableAfter;
+            final boolean brAvailAfter = breaker != null && breaker.isAvailable();
+            final boolean brFailedThisHour = breaker != null && brAvailBefore && !brAvailAfter;
 
-            // Правило 1: автомат был замкнут, и в этот час отказала шина и автомат → отказ всех шин
-            if (breaker != null &&
-                    breakerClosedBefore &&
-                    breakerFailedThisHour &&
-                    anyBusFailedThisHour) {
-
-                for (PowerBus bus : buses) {
-                    if (bus.isAvailable()) {
-                        bus.forceFailNow();
-                    }
-                }
-            }
-            // Правило 2: шина отказала, автомат НЕ отказал и был замкнут → автомат размыкается
-            else if (breaker != null &&
-                    breakerClosedBefore &&
-                    anyBusFailedThisHour &&
-                    !breakerFailedThisHour) {
-
+            if (breaker != null && brClosedBefore && brFailedThisHour && anyBusFailed) {
+                for (PowerBus bus : buses) if (bus.isAvailable()) bus.forceFailNow();
+            } else if (breaker != null && brClosedBefore && anyBusFailed && !brFailedThisHour) {
                 breaker.setClosed(false);
             }
 
-            boolean[] busAlive = new boolean[busCount];
-            for (int b = 0; b < busCount; b++) {
-                busAlive[b] = buses.get(b).isAvailable();
-            }
+            for (int b = 0; b < busCount; b++) busAlive[b] = buses.get(b).isAvailable();
 
-            // ---------- 2. ОБНОВЛЕНИЕ ОТКАЗОВ ВЭУ/ДГУ/АКБ НА ЖИВЫХ ШИНАХ ----------
-
+            // equipment failures
             for (int b = 0; b < busCount; b++) {
-                if (!busAlive[b]) {
-                    continue;
-                }
+                if (!busAlive[b]) continue;
                 PowerBus bus = buses.get(b);
-
-                for (WindTurbine wt : bus.getWindTurbines()) {
-                    wt.updateFailureOneHour(considerFailures);
-                }
-                for (DieselGenerator dg : bus.getDieselGenerators()) {
-                    dg.updateFailureOneHour(considerFailures);
-                }
+                for (WindTurbine wt : bus.getWindTurbines()) wt.updateFailureOneHour(considerFailures);
+                for (DieselGenerator dg : bus.getDieselGenerators()) dg.updateFailureOneHour(considerFailures);
                 Battery bt = bus.getBattery();
-                if (bt != null) {
-                    bt.updateFailureOneHour(considerFailures);
-                }
+                if (bt != null) bt.updateFailureOneHour(considerFailures);
             }
 
-            // TODO где-то тут будет распределение нагрузки по шинам
+            if (breaker != null && breaker.isAvailable()) breaker.addWorkTime(1);
 
-            // ---------- 3. РАСЧЁТ ГЕНЕРАЦИИ, НАРАБОТКИ И ДЕФИЦИТА + ТРЕЙС ----------
-
-            double totalLoadAtTime = 0.0;
-            double totalDeficitAtTime = 0.0;
-            double totalWreAtTime = 0.0;
-            boolean[] busStatus = new boolean[busCount];
-            double[] busLoadAtTime = new double[busCount];
-            double[] busGenWindAtTime = new double[busCount];
-            double[] busGenDgAtTime = new double[busCount];
-            double[] busGenBtAtTime = new double[busCount];
-            double[] busDeficitAtTime = new double[busCount];
-
-
-            // Наработка автомата: если исправен — "работает" этот час
-            if (breaker != null && breaker.isAvailable()) {
-                breaker.addWorkTime(1);
-            }
-
-            for (int b = 0; b < busCount; b++) { // TODO ТУТ ДЕЛАЕМ ЧАСОВЫЕ ИНТЕРВАЛЫ
+            // per bus
+            for (int b = 0; b < busCount; b++) {
 
                 PowerBus bus = buses.get(b);
-                double[] busLoadArr = bus.getLoadKw(); // TODO ПОТОМ УБРАТЬ ОТ СЮДА РАСПРЕДЕЛЕНИЕ НАГРУЗКИ НА 275 СТРОКУ
-                double loadKw = busLoadArr[t];
-                totalLoadAtTime += loadKw;
+                final double loadKw = bus.getLoadKw()[t];
+                loadKwh += loadKw;
 
-                double busWindPotentialKw = 0.0;
-                double busWindGenKw = 0.0;
-                double busDieselGenKw = 0.0;
-                double busBatteryGenKw = 0.0; // >0 разряд, <0 заряд
+                double windPotKw = 0.0;
+                double windToLoadKw = 0.0;
 
-                int dgCount = 0; // кол-во дгу, которые нужны в текущей итерации
+                double dgProducedKw = 0.0;
+                double dgToLoadKwLocal = 0.0;
+
+                double btNetKw = 0.0;
+                double chargedFromDgKw = 0.0;
+
+                double wreLocal = 0.0;
 
                 if (busAlive[b]) {
-                    busStatus[b] = true;
-                    busLoadAtTime[b] = loadKw;
-
-                    // Наработка шины
                     bus.addWorkTime(1);
-
-                    // ВЭУ: суммарная потенциальная генерация всех ВЭУ на шине
                     for (WindTurbine wt : bus.getWindTurbines()) {
                         double g = wt.getPotentialGenerationKw(v);
-                        busWindPotentialKw += g;
+                        windPotKw += g;
+                        if (wt.isAvailable()) wt.addWorkTime(1);
+                    }
+                }
 
-                        if (wt.isAvailable()) {
-                            wt.addWorkTime(1);
+                Battery battery = bus.getBattery();
+                boolean btAvail = battery != null && battery.isAvailable();
+
+                if (!busAlive[b]) {
+                    for (DieselGenerator dg : bus.getDieselGenerators()) {
+                        dg.stopWork();
+                        dg.setCurrentLoad(0.0);
+                    }
+                }
+                else if (windPotKw >= loadKw - SimulationConstants.EPSILON) {
+                    windToLoadKw = loadKw;
+
+                    double surplus = Math.max(0.0, windPotKw - loadKw);
+
+                    if (btAvail && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC) {
+                        double cap = battery.getChargeCapacity(systemParameters);
+                        double ch = Math.min(surplus, cap);
+                        if (ch > SimulationConstants.EPSILON) {
+                            battery.adjustCapacity(battery, ch, ch, false, considerDegradation);
+                            btNetKw -= ch;
+                            surplus -= ch;
                         }
                     }
-                    busGenWindAtTime[b] = busWindPotentialKw;
 
-                    Battery battery = bus.getBattery();
-
-                    // === ПРОФИЦИТ ВЕТРА ===
-                    if (busWindPotentialKw >= loadKw - SimulationConstants.EPSILON) {
-
-                        busWindGenKw = loadKw; // ВЭУ полностью закрыли нагрузку
-
-                        double proficit = Math.max(0.0, busWindPotentialKw - loadKw);
-
-                        if (battery != null && battery.isAvailable()
-                                && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC) {
-
-                            double chargeCap = battery.getChargeCapacity(systemParameters);  // сколько можем принять
-                            double chargeToUse = Math.min(proficit, chargeCap);
-
-                            if (chargeToUse > SimulationConstants.EPSILON) {
-                                // заряд АКБ: в балансе генерация АКБ отрицательная
-                                battery.adjustCapacity(battery, chargeToUse, chargeToUse, false, considerDegradation);
-                                busBatteryGenKw = -chargeToUse;
-                                proficit -= chargeToUse;
-                            }
-
-                            totalWre += Math.max(0.0, proficit);
-                        } else {
-                            totalWre += Math.max(0.0, busWindPotentialKw - busWindGenKw);
-                        }
-
-                        // дизели не нужны
-                        busDieselGenKw = 0.0;
-                        for (DieselGenerator dg : bus.getDieselGenerators()) {
-                            dg.stopWork();
-                            dg.setCurrentLoad(0.0);
-                        }
-                        //todo проверка необходимости холостого хода
-                    }
-                    // === ДЕФИЦИТ ВЕТРА ===
-                    else {
-                        busWindGenKw = busWindPotentialKw;  // ВЭУ отдали всё
-
-                        double deficitAfterWind = loadKw - busWindGenKw;
-
-                        double batteryDischargeCap = 0.0;
-                        boolean batteryAvailable = false;
-                        if (battery != null && battery.isAvailable()) {
-                            batteryAvailable = true;
-                            batteryDischargeCap = battery.getDischargeCapacity(systemParameters);
-                        }
-
-                        double dgPower = systemParameters.getDieselGeneratorPowerKw();
-                        double dgMaxLoad = dgPower * SimulationConstants.DG_MAX_POWER;
-                        double perDgTarget = dgPower * SimulationConstants.DG_OPTIMAL_POWER;
-
-                        long availableGenerators = bus.getDieselGenerators().stream()
-                                .filter(DieselGenerator::isAvailable)
-                                .count();
-
-
-                        int readyDgCount = (int) bus.getDieselGenerators().stream()
-                                .filter(DieselGenerator::isWorking)
-                                .count();
-
-                        boolean canUse80Percent = (perDgTarget * availableGenerators >= deficitAfterWind); //todo мб умножать на ready
-
-                        int neededGenerators;
-                        if (canUse80Percent) {
-                            neededGenerators = (int) Math.ceil(deficitAfterWind / perDgTarget);
-                        } else {
-                            neededGenerators = (int) Math.ceil(deficitAfterWind / dgMaxLoad);
-                        }
-                        dgCount = (int) Math.min(neededGenerators, availableGenerators);
-
-                        int dgToUse = 0;
-                        double x = 0; // todo нормально назвать переменную
-
-
-                        for (int i = 0; i <= dgCount; i++) {
-
-                            dgToUse = i;
-
-                            double dgEnergy;
-                            double btEnergy;
-                            double btCurrent;
-
-                            if (i == 0) {
-                                dgEnergy = 0.0;
-                                btEnergy = deficitAfterWind;
-                                btCurrent = deficitAfterWind;
-                            } else {
-                                int ready = Math.min(i, readyDgCount);
-
-                                // Сколько готовы выдать уже работающие ДГУ
-                                double dgPowerReady = ready * dgMaxLoad;
-                                double startingDeficit = Math.max(0.0, deficitAfterWind - dgPowerReady);
-                                double startingEnergy = startingDeficit * SimulationConstants.DG_START_DELAY_HOURS;
-
-                                // Определяем целевую нагрузку на ДГУ
-                                double perDgLoad;
-                                if (canUse80Percent) {
-                                    perDgLoad = Math.min(deficitAfterWind / i, dgMaxLoad * 0.8); // нагрузка до 100% //todo сделать ссылку на константу
-                                } else {
-                                    perDgLoad = Math.min(deficitAfterWind / i, dgMaxLoad); // нагрузка до 100%
-                                }
-
-                                double totalDgPowerSteady = perDgLoad * i;
-                                double steadyDeficit = Math.max(0.0, deficitAfterWind - totalDgPowerSteady);
-                                x = steadyDeficit;
-                                double steadyEnergy = steadyDeficit * (1.0 - SimulationConstants.DG_START_DELAY_HOURS);
-
-                                btEnergy = startingEnergy + steadyEnergy;
-                                btCurrent = Math.max(startingDeficit, steadyDeficit);
-                                dgEnergy = deficitAfterWind - btEnergy;
-                            }
-
-                            boolean useBattery =
-                                    batteryAvailable
-                                            && (Battery.useBattery(systemParameters, battery, btEnergy, batteryDischargeCap) ||
-                                            (i != 0 && batteryDischargeCap >= btEnergy && x == 0))
-                                            && batteryDischargeCap > btEnergy - SimulationConstants.EPSILON;
-
-                            if (useBattery) {
-                                // АКБ может добровольно отдать требуемую энергию — решение найдено
-                                battery.adjustCapacity(battery, -btEnergy, btCurrent, false, considerDegradation);
-                                busBatteryGenKw = btEnergy;
-                                busDieselGenKw = dgEnergy;
-                                break; // выходим, минимальное i найдено
-                            }
-
-                            // если мы дошли до последней итерации и АКБ не может отдать btEnergy
-                            if (i == dgCount && !useBattery) {
-                                if (batteryAvailable) {
-                                    // разряжаем АКБ на максимум, что доступно
-                                    btEnergy = batteryDischargeCap;
-                                    btCurrent = btEnergy;
-                                    battery.adjustCapacity(battery, -btEnergy, btCurrent, false, considerDegradation);
-                                } else {
-                                    btEnergy = 0.0;
-                                }
-                                // суммарная генерация ДГУ
-                                busDieselGenKw = deficitAfterWind - btEnergy;
-                                busBatteryGenKw = btEnergy;
-
-                                break;
-                            }
-
-                        }
-                        // todo нужно чтобы дгу по возможности работало >30% и <80%
-                        List<DieselGenerator> allDg = new ArrayList<>(bus.getDieselGenerators());
-                        allDg.sort(DieselGenerator.DISPATCH_COMPARATOR);
-
-                        int R = Math.min(readyDgCount, dgToUse);
-                        double tau = SimulationConstants.DG_START_DELAY_HOURS;
-
-                        // Пусковой режим — сколько могут взять готовые ДГУ
-                        double readyMaxStart = R * perDgTarget;
-                        double readyLoadStart = Math.min(deficitAfterWind, readyMaxStart);
-                        double perReadyStart = (R > 0) ? readyLoadStart / R : 0.0;
-
-                        // Установившийся режим
-                        double perDgSteady;
-                        if (canUse80Percent) {
-                            perDgSteady = deficitAfterWind / dgToUse;
-                        } else {
-                            perDgSteady = Math.min(deficitAfterWind / dgToUse, dgMaxLoad);
-                        }
-
-
-                        // 3. Распределяем по конкретным ДГУ
-                        int used = 0;
-
-                        for (DieselGenerator dg : allDg) {
-
-                            if (!dg.isAvailable()) {
-                                dg.setCurrentLoad(0.0);
-                                dg.stopWork();
-                                continue;
-                            }
-
-                            if (used >= dgToUse) {
-                                dg.setCurrentLoad(0.0);
-                                dg.stopWork();
-                                continue;
-                            }
-
-                            double energy;
-                            if (dg.isWorking()) {// ДГУ была готова
-                                energy = perReadyStart * tau + perDgSteady * (1.0 - tau);
-                            } else {// ДГУ запускалась
-                                energy = 0.0 * tau + perDgSteady * (1.0 - tau);
-                            }
-
-                            dg.setCurrentLoad(energy);
-                            dg.addWorkTime(1, dg.isWorking() ? 1 : 1 + 5); //todo сделать ссылку на константу
-                            dg.startWork();
-
-                            used++;
-                        }
-
-
-                    }
-                } else {
-                    // === ШИНА В ОТКАЗЕ ===
-                    busWindGenKw = 0.0;
-                    busDieselGenKw = 0.0;
-                    busBatteryGenKw = 0.0;
+                    wreLocal = Math.max(0.0, surplus);
 
                     for (DieselGenerator dg : bus.getDieselGenerators()) {
                         dg.stopWork();
                         dg.setCurrentLoad(0.0);
                     }
                 }
+                else {
+                    windToLoadKw = windPotKw;
+                    final double deficitAfterWind = loadKw - windToLoadKw;
 
+                    double btDisCap = 0.0;
+                    if (btAvail) btDisCap = battery.getDischargeCapacity(systemParameters);
 
-//не выводить в то если в то уже есть дгу с этой шины
-//                если нагрузка меньше 30 процентов пробовать догрузить дгу  и зарядить акб
-//                        если нагрузка меньше 30 процентов дольше 4 часов то нужно прожеч дгу
+                    List<DieselGenerator> dgs = new ArrayList<>(bus.getDieselGenerators());
+                    dgs.sort(DieselGenerator.DISPATCH_COMPARATOR);
 
+                    int available = 0, ready = 0;
+                    for (DieselGenerator dg : dgs) {
+                        if (dg.isAvailable()) available++;
+                        if (dg.isWorking()) ready++;
+                    }
 
-                // todo запись результатов
-                busGenDgAtTime[b] = busDieselGenKw;
-                busGenBtAtTime[b] = busBatteryGenKw;
-                busDeficitAtTime[b] = busLoadAtTime[b] - (busDieselGenKw + busWindGenKw + Math.max(0.0, busBatteryGenKw));
+                    if (available == 0) {
+                        double bt = btAvail ? Math.min(deficitAfterWind, btDisCap) : 0.0;
+                        if (bt > SimulationConstants.EPSILON && btAvail) {
+                            battery.adjustCapacity(battery, -bt, bt, false, considerDegradation);
+                        }
+                        btNetKw += bt;
 
+                        dgProducedKw = Math.max(0.0, deficitAfterWind - bt);
+                        dgToLoadKwLocal = dgProducedKw;
+                    } else {
 
-                totalSupplyFromWT += busWindGenKw;
-                totalSupplyFromDG += busDieselGenKw;
-                totalSupplyFromBT += Math.max(0.0, busBatteryGenKw);
-                totalDeficit += busDeficitAtTime[b];
+                        boolean canUseOptimal = (perDgTarget * available >= deficitAfterWind);
 
+                        int needed = canUseOptimal
+                                ? (int) Math.ceil(deficitAfterWind / perDgTarget)
+                                : (int) Math.ceil(deficitAfterWind / dgMaxLoad);
 
-            }
+                        int dgCount = Math.min(needed, available);
+                        int dgToUse = dgCount;
 
+                        for (int i = 0; i <= dgCount; i++) {
 
-            if (trace != null) {
-                double[][] busGenDgLoadKw = new double[busCount][];
-                double[][] busGenDgHoursSinceMaintenance = new double[busCount][];
-                double[][] busGenDgTimeWorked = new double[busCount][];
-                double[][] busGenDgTotalTimeWorked = new double[busCount][];
-                boolean[][] dgAvailable = new boolean[busCount][];
-                boolean[][] dgInMaintenance = new boolean[busCount][];
+                            double btEnergy, btCurrent;
+                            double startDef = 0.0, startEnergy = 0.0, steadyDef = 0.0;
 
-                for (int b = 0; b < busCount; b++) {
-                    List<DieselGenerator> dgList = buses.get(b).getDieselGenerators();
-                    int dgCount = dgList.size();
+                            if (i == 0) {
+                                btEnergy = deficitAfterWind;
+                                btCurrent = deficitAfterWind;
+                                steadyDef = deficitAfterWind;
+                            } else {
+                                int readyUsed = Math.min(i, ready);
 
-                    busGenDgLoadKw[b] = new double[dgCount];
-                    busGenDgHoursSinceMaintenance[b] = new double[dgCount];
-                    busGenDgTimeWorked[b] = new double[dgCount];
-                    busGenDgTotalTimeWorked[b] = new double[dgCount];
-                    dgAvailable[b] = new boolean[dgCount];
-                    dgInMaintenance[b] = new boolean[dgCount];
+                                double dgPowerReadyStart = readyUsed * dgMaxLoad;
 
-                    for (int i = 0; i < dgCount; i++) {
-                        DieselGenerator dg = dgList.get(i);
-                        busGenDgLoadKw[b][i] = dg.getCurrentLoad();
-                        busGenDgHoursSinceMaintenance[b][i] = dg.getHoursSinceMaintenance();
-                        busGenDgTimeWorked[b][i] = dg.getTimeWorked();
-                        busGenDgTotalTimeWorked[b][i] = dg.getTotalTimeWorked();
-                        dgAvailable[b][i] = dg.isAvailable();
-                        dgInMaintenance[b][i] = dg.isInMaintenance();
+                                startDef = Math.max(0.0, deficitAfterWind - dgPowerReadyStart);
+                                startEnergy = startDef * tau;
+
+                                double perDgLoad = canUseOptimal
+                                        ? Math.min(deficitAfterWind / i, perDgTarget)
+                                        : Math.min(deficitAfterWind / i, dgMaxLoad);
+
+                                double totalSteady = perDgLoad * i;
+
+                                steadyDef = Math.max(0.0, deficitAfterWind - totalSteady);
+                                double steadyEnergy = steadyDef * (1.0 - tau);
+
+                                btEnergy = startEnergy + steadyEnergy;
+                                btCurrent = Math.max(startDef, steadyDef);
+                            }
+
+                            boolean useBatteryBase = btAvail
+                                    && btDisCap > btEnergy - SimulationConstants.EPSILON
+                                    && Battery.useBattery(systemParameters, battery, btEnergy, btDisCap);
+
+                            boolean allowStartBridge = (i > 0)
+                                    && (steadyDef <= SimulationConstants.EPSILON)
+                                    && btAvail
+                                    && (btDisCap > startEnergy - SimulationConstants.EPSILON);
+
+                            boolean useBattery = useBatteryBase || allowStartBridge;
+
+                            if (useBattery) {
+                                double discharge = btEnergy;
+                                double dischargeCur = btCurrent;
+
+                                if (allowStartBridge && !useBatteryBase) {
+                                    discharge = startEnergy;
+                                    dischargeCur = startDef;
+                                }
+
+                                battery.adjustCapacity(battery, -discharge, dischargeCur, false, considerDegradation);
+                                btNetKw += discharge;
+                                dgToUse = i;
+                                break;
+                            }
+
+                            if (i == dgCount) {
+                                double bt = btAvail ? Math.min(deficitAfterWind, btDisCap) : 0.0;
+                                if (bt > SimulationConstants.EPSILON && btAvail) {
+                                    battery.adjustCapacity(battery, -bt, bt, false, considerDegradation);
+                                }
+                                btNetKw += bt;
+                                dgToUse = dgCount;
+                            }
+                        }
+
+                        int R = Math.min(ready, dgToUse);
+
+                        double readyMaxStart = R * dgMaxLoad;
+                        double readyLoadStart = Math.min(deficitAfterWind, readyMaxStart);
+                        double perReadyStart = (R > 0) ? (readyLoadStart / R) : 0.0;
+
+                        double perDgSteady = 0.0;
+                        if (dgToUse > 0) {
+                            perDgSteady = canUseOptimal
+                                    ? (deficitAfterWind / dgToUse)
+                                    : Math.min(deficitAfterWind / dgToUse, dgMaxLoad);
+                        }
+
+                        double chargeCap = 0.0;
+                        boolean canCharge = false;
+                        if (btAvail) {
+                            chargeCap = battery.getChargeCapacity(systemParameters);
+                            canCharge = chargeCap > SimulationConstants.EPSILON
+                                    && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON;
+                        }
+
+                        int used = 0;
+                        double sumDiesel = 0.0;
+                        boolean anyBurn = false;
+
+                        for (DieselGenerator dg : dgs) {
+
+                            if (!dg.isAvailable() || used >= dgToUse) {
+                                dg.setCurrentLoad(0.0);
+                                dg.stopWork();
+                                continue;
+                            }
+
+                            boolean wasWorking = dg.isWorking();
+
+                            double genKw = wasWorking
+                                    ? (perReadyStart * tau + perDgSteady * (1.0 - tau))
+                                    : (perDgSteady * (1.0 - tau));
+
+                            if (genKw + SimulationConstants.EPSILON < minKw) {
+                                if (dg.getIdleTime() >= maxLowLoadHours) {
+                                    genKw = Math.max(genKw, minKw);
+                                    anyBurn = true;
+                                    dg.setIdle(false);
+                                    dg.resetIdleTime();
+                                } else {
+                                    dg.incrementIdleTime();
+                                    dg.setIdle(true);
+                                }
+                            } else {
+                                dg.setIdle(false);
+                                dg.resetIdleTime();
+                            }
+
+                            if (genKw > dgMaxLoad) genKw = dgMaxLoad;
+
+                            dg.setCurrentLoad(genKw);
+                            dg.addWorkTime(1, wasWorking ? 1 : 6);
+                            dg.startWork();
+
+                            sumDiesel += genKw;
+                            used++;
+                        }
+
+                        dgProducedKw = sumDiesel;
+
+                        double btDisToLoad = Math.max(0.0, btNetKw);
+                        double needFromDiesel = loadKw - windToLoadKw - btDisToLoad;
+                        if (needFromDiesel < 0.0) needFromDiesel = 0.0;
+
+                        double surplusDiesel = dgProducedKw - needFromDiesel;
+                        if (surplusDiesel < 0.0) surplusDiesel = 0.0;
+
+                        boolean allowChargeNow = canCharge && (considerChargeByDg || anyBurn);
+
+                        if (allowChargeNow && surplusDiesel > SimulationConstants.EPSILON) {
+                            double ch = Math.min(surplusDiesel, chargeCap);
+                            if (ch > SimulationConstants.EPSILON) {
+                                battery.adjustCapacity(battery, +ch, ch, true, considerDegradation);
+                                btNetKw -= ch;
+                                chargedFromDgKw = ch;
+                            }
+                        }
+
+                        dgToLoadKwLocal = Math.max(0.0, dgProducedKw - chargedFromDgKw);
                     }
                 }
 
-                trace.add(new SimulationStepRecord(
-                        t,
-                        totalLoadAtTime,
-                        totalDeficitAtTime,
-                        totalWreAtTime,
-                        busStatus,
-                        busLoadAtTime,
-                        busGenWindAtTime,
-                        busGenDgAtTime,
-                        busGenBtAtTime,
-                        busDeficitAtTime,
-                        busGenDgLoadKw,
-                        busGenDgHoursSinceMaintenance,
-                        busGenDgTimeWorked,
-                        busGenDgTotalTimeWorked,
-                        dgAvailable,
-                        dgInMaintenance
-                ));
+                // Fuel: abs(currentLoad)/dgPower
+                if (busAlive[b]) {
+                    for (DieselGenerator dg : bus.getDieselGenerators()) {
+                        if (!dg.isAvailable()) continue;
+                        double pSigned = dg.getCurrentLoad();
+                        double loadLevel = Math.abs(pSigned) / dgPower;
+                        if (loadLevel <= SimulationConstants.EPSILON) continue;
+                        if (loadLevel > 1.0) loadLevel = 1.0;
+                        fuelLiters += fuelLitersOneHour(loadLevel, dgPower);
+                    }
+                }
+
+                // totals
+                double btDisToLoad = Math.max(0.0, btNetKw);
+
+                wtToLoadKwh += windToLoadKw;
+                dgToLoadKwh += dgToLoadKwLocal;
+                btToLoadKwh += btDisToLoad;
+
+                wreKwh += wreLocal;
+
+                double supplied = windToLoadKw + dgToLoadKwLocal + btDisToLoad;
+                double def = loadKw - supplied;
+                if (def < 0.0) def = 0.0;
+
+                ensKwh += def;
+            }
+        }
+
+        long motoHours = 0;
+        for (PowerBus bus : buses) {
+            for (DieselGenerator dg : bus.getDieselGenerators()) {
+                motoHours += dg.getTotalTimeWorked();
+            }
+        }
+
+        return new SimulationResult(
+                iterationIndex,
+                loadKwh,
+                ensKwh,
+                wreKwh,
+                wtToLoadKwh,
+                dgToLoadKwh,
+                btToLoadKwh,
+                fuelLiters,
+                motoHours,
+                considerFailures,
+                considerDegradation,
+                considerChargeByDg,
+                dgPower
+        );
+    }
+
+    private static double fuelLitersOneHour(double loadLevel, double powerKw) {
+        if (loadLevel <= 0.0) return 0.0;
+
+        double k1 = K11 + (K12 / powerKw);
+        double k2 = K21 + (K22 / powerKw);
+        double k3 = K31 + (K32 / powerKw);
+
+        double unitFuel = k1 * loadLevel * loadLevel + k2 * loadLevel + k3;
+        double liters = 0.84 * powerKw * loadLevel * unitFuel;
+
+        return Math.max(0.0, liters);
+    }
+
+    // ========================= CSV RESULTS + MONTE CARLO ANALYSIS =========================
+
+    private static final class ResultsCsvWriter {
+
+        private static final String[] COLS = {
+                "iter", "ENS_kWh", "Fuel_L", "Moto_h", "WRE_kWh", "WT_%", "DG_%", "BT_%", "TLE_%", "ENS_ppt"
+        };
+
+        static void write(String filePath,
+                          SystemParameters sp,
+                          SimulationConfig cfg,
+                          List<SimulationResult> results) throws IOException {
+
+            SimulationResult r0 = results.get(0);
+
+            try (BufferedWriter w = new BufferedWriter(new FileWriter(filePath, false))) {
+
+                // ===== "шапка параметров" как в старом коде (1-2 строки) =====
+                w.write(buildConfigHeaderLine(sp, cfg, r0));
+                w.newLine();
+
+                // ===== заголовок колонок =====
+                w.write(String.join(";", COLS));
+                w.newLine();
+
+                for (SimulationResult r : results) {
+                    w.write(line(r));
+                    w.newLine();
+                }
+            }
+        }
+
+        static void appendSummary(String filePath,
+                                  SystemParameters sp,
+                                  SimulationConfig cfg,
+                                  List<SimulationResult> results) throws IOException {
+
+            double[] ens = new double[results.size()];
+            double[] fuel = new double[results.size()];
+            double[] moto = new double[results.size()];
+            double[] wre = new double[results.size()];
+            double[] wtPct = new double[results.size()];
+            double[] dgPct = new double[results.size()];
+            double[] btPct = new double[results.size()];
+            double[] tlePct = new double[results.size()];
+            double[] ensPpt = new double[results.size()];
+
+            for (int i = 0; i < results.size(); i++) {
+                SimulationResult r = results.get(i);
+
+                ens[i] = r.ensKwh;
+                fuel[i] = r.fuelLiters;
+                moto[i] = r.motoHours;
+                wre[i] = r.wreKwh;
+
+                wtPct[i] = safePct(r.wtKwh, r.loadKwh);
+                dgPct[i] = safePct(r.dgKwh, r.loadKwh);
+                btPct[i] = safePct(r.btKwh, r.loadKwh);
+                tlePct[i] = safePct(r.wreKwh, r.loadKwh);
+
+                ensPpt[i] = (r.loadKwh > SimulationConstants.EPSILON)
+                        ? (100000.0 * r.ensKwh / r.loadKwh)
+                        : 0.0;
             }
 
+            Stats ensS = Stats.of(ens);
+            Stats fuelS = Stats.of(fuel);
+            Stats motoS = Stats.of(moto);
+            Stats wreS = Stats.of(wre);
+            Stats wtS = Stats.of(wtPct);
+            Stats dgS = Stats.of(dgPct);
+            Stats btS = Stats.of(btPct);
+            Stats tleS = Stats.of(tlePct);
+            Stats pptS = Stats.of(ensPpt);
 
+            try (BufferedWriter w = new BufferedWriter(new FileWriter(filePath, true))) {
+                w.newLine();
+                w.write("#SUMMARY");
+                w.newLine();
 
+                w.write("row;" + String.join(";", Arrays.copyOfRange(COLS, 1, COLS.length)));
+                w.newLine();
 
+                w.write("MEAN;" + join(ss(ensS, fuelS, motoS, wreS, wtS, dgS, btS, tleS, pptS), s -> fmt2(s.mean)));
+                w.newLine();
+                w.write("CI_LO;" + join(ss(ensS, fuelS, motoS, wreS, wtS, dgS, btS, tleS, pptS), s -> fmt2(s.ciLo)));
+                w.newLine();
+                w.write("CI_HI;" + join(ss(ensS, fuelS, motoS, wreS, wtS, dgS, btS, tleS, pptS), s -> fmt2(s.ciHi)));
+                w.newLine();
+                w.write("REQ_N;" + join(ss(ensS, fuelS, motoS, wreS, wtS, dgS, btS, tleS, pptS), s -> String.valueOf(s.requiredN)));
+                w.newLine();
+            }
         }
 
-        return new SimulationResult(totalDeficit, totalSupplyFromWT, totalSupplyFromDG);
+        private static String buildConfigHeaderLine(SystemParameters sp, SimulationConfig cfg, SimulationResult r0) {
+
+            // Аналог старого: busSystem; N; DG:PxN; WT:PxN; BT:cap x busCount; flags...
+            // Часть параметров в новых классах может отсутствовать — оставлено то, что точно есть
+            // + можно расширять по мере появления в config/systemParameters.
+
+            int busCount = cfg.getWindMs().length;// если нет — замените на 1/2 или уберите
+            int dgNum = sp.getTotalDieselGeneratorCount() / busCount; // если нет — уберите/замените
+            int wtNum = sp.getTotalWindTurbineCount() / busCount;     // если нет — уберите/замените
+            double wtPow = sp.getWindTurbinePowerKw();
+            double dgPow = sp.getDieselGeneratorPowerKw();
+            double btCap = sp.getBatteryCapacityKwhPerBus();
+
+            return String.format(
+                    RU,
+                    "CFG; N:%d; thr:%d; DG:%.0fx%d; WT:%.0fx%d; BT:%.0fx%d; fail:%b; deg:%b; chDg:%b;",
+                    cfg.getIterations(),
+                    cfg.getThreads(),
+                    dgPow, dgNum,
+                    wtPow, wtNum,
+                    btCap, busCount,
+                    r0.considerFailures,
+                    r0.considerDegradation,
+                    r0.considerChargeByDg
+            );
+        }
+
+        private static String line(SimulationResult r) {
+            double wtPct = safePct(r.wtKwh, r.loadKwh);
+            double dgPct = safePct(r.dgKwh, r.loadKwh);
+            double btPct = safePct(r.btKwh, r.loadKwh);
+            double tlePct = safePct(r.wreKwh, r.loadKwh);
+
+            double ensPpt = (r.loadKwh > SimulationConstants.EPSILON)
+                    ? round1(100000.0 * r.ensKwh / r.loadKwh)
+                    : 0.0;
+
+            return r.iter + ";" +
+                    fmt0(r.ensKwh) + ";" +
+                    fmt3(r.fuelLiters) + ";" +
+                    fmt0(r.motoHours) + ";" +
+                    fmt3(r.wreKwh) + ";" +
+                    fmt2(wtPct) + ";" +
+                    fmt2(dgPct) + ";" +
+                    fmt2(btPct) + ";" +
+                    fmt2(tlePct) + ";" +
+                    fmt1(ensPpt);
+        }
+
+        private static Stats[] ss(Stats... s) { return s; }
+
+        private static String join(Stats[] ss, java.util.function.Function<Stats, String> f) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < ss.length; i++) {
+                if (i > 0) sb.append(';');
+                sb.append(f.apply(ss[i]));
+            }
+            return sb.toString();
+        }
+
+        private static double safePct(double part, double total) {
+            if (total <= SimulationConstants.EPSILON) return 0.0;
+            return (part / total) * 100.0;
+        }
+
+        private static double round1(double v) { return Math.round(v * 10.0) / 10.0; }
+
+        private static String fmt0(double v) { return String.format(RU, "%.0f", v); }
+        private static String fmt1(double v) { return String.format(RU, "%.1f", v); }
+        private static String fmt2(double v) { return String.format(RU, "%.2f", v); }
+        private static String fmt3(double v) { return String.format(RU, "%.3f", v); }
     }
 
-    // -----------------------------
-    // РЕЗУЛЬТАТЫ ОДНОЙ И МНОГИХ ИТЕРАЦИЙ
-    // -----------------------------
+    private static final class Stats {
+        final double mean;
+        final double std;
+        final double ciLo;
+        final double ciHi;
+        final int n;
+        final int requiredN;
 
-    /**
-     * Результат одной итерации (одного прогона по всем часам).
-     */
-    public static final class SimulationResult {
-        private final double totalDeficit;
-        private final double supplyFromWT;
-        private final double supplyFromDG;
-
-        public SimulationResult(double totalDeficit,
-                                double supplyFromWT,
-                                double supplyFromDG) {
-            this.totalDeficit = totalDeficit;
-            this.supplyFromWT = supplyFromWT;
-            this.supplyFromDG = supplyFromDG;
+        private Stats(double mean, double std, double ciLo, double ciHi, int n, int requiredN) {
+            this.mean = mean;
+            this.std = std;
+            this.ciLo = ciLo;
+            this.ciHi = ciHi;
+            this.n = n;
+            this.requiredN = requiredN;
         }
 
-        public double getTotalDeficit() {
-            return totalDeficit;
+        static Stats of(double[] raw) {
+            List<Double> list = new ArrayList<>(raw.length);
+            for (double v : raw) if (Double.isFinite(v)) list.add(v);
+
+            if (list.isEmpty()) return new Stats(0, 0, 0, 0, 0, 0);
+
+            if (REMOVE_OUTLIERS && list.size() >= 4) list = removeOutliers(list);
+
+            int n = list.size();
+            double mean = mean(list);
+            double std = (n < 2) ? 0.0 : sampleStd(list, mean);
+
+            double margin = (n < 2) ? 0.0 : (T_SCORE * std / Math.sqrt(n));
+            double ciLo = mean - margin;
+            double ciHi = mean + margin;
+
+            int reqN = requiredN(mean, std);
+            return new Stats(mean, std, ciLo, ciHi, n, reqN);
         }
 
-        /**
-         * Сколько нагрузки (кВт·ч) было обеспечено ВЭУ за одну итерацию.
-         */
-        public double getSupplyFromWT() {
-            return supplyFromWT;
+        private static int requiredN(double mean, double std) {
+            if (mean == 0.0) return 1;
+            double E = REL_ERR * Math.abs(mean);
+            if (E <= 0.0) return 1;
+            double z = T_SCORE;
+            return (std <= 0.0) ? 1 : (int) Math.ceil(Math.pow((z * std) / E, 2));
         }
 
-        /**
-         * Сколько нагрузки (кВт·ч) было обеспечено ДГУ за одну итерацию.
-         */
-        public double getSupplyFromDG() {
-            return supplyFromDG;
+        private static double mean(List<Double> data) {
+            double s = 0.0;
+            for (double v : data) s += v;
+            return s / data.size();
+        }
+
+        private static double sampleStd(List<Double> data, double mean) {
+            double sum = 0.0;
+            for (double v : data) sum += (v - mean) * (v - mean);
+            return Math.sqrt(sum / (data.size() - 1));
+        }
+
+        private static List<Double> removeOutliers(List<Double> data) {
+            List<Double> sorted = new ArrayList<>(data);
+            Collections.sort(sorted);
+            int n = sorted.size();
+            double q1 = sorted.get(n / 4);
+            double q3 = sorted.get(3 * n / 4);
+            double iqr = q3 - q1;
+            double lower = q1 - 1.5 * iqr;
+            double upper = q3 + 1.5 * iqr;
+            List<Double> filtered = new ArrayList<>();
+            for (double v : sorted) if (v >= lower && v <= upper) filtered.add(v);
+            return filtered;
         }
     }
 
-    /**
-     * Сводка по всем итерациям Monte Carlo.
-     */
+    private static final class SimulationResult {
+        final int iter;
+        final double loadKwh;
+        final double ensKwh;
+        final double wreKwh;
+        final double wtKwh;
+        final double dgKwh;
+        final double btKwh;
+        final double fuelLiters;
+        final long motoHours;
+
+        final boolean considerFailures;
+        final boolean considerDegradation;
+        final boolean considerChargeByDg;
+        final double dgPowerKw;
+
+        SimulationResult(int iter,
+                         double loadKwh,
+                         double ensKwh,
+                         double wreKwh,
+                         double wtKwh,
+                         double dgKwh,
+                         double btKwh,
+                         double fuelLiters,
+                         long motoHours,
+                         boolean considerFailures,
+                         boolean considerDegradation,
+                         boolean considerChargeByDg,
+                         double dgPowerKw) {
+            this.iter = iter;
+            this.loadKwh = loadKwh;
+            this.ensKwh = ensKwh;
+            this.wreKwh = wreKwh;
+            this.wtKwh = wtKwh;
+            this.dgKwh = dgKwh;
+            this.btKwh = btKwh;
+            this.fuelLiters = fuelLiters;
+            this.motoHours = motoHours;
+            this.considerFailures = considerFailures;
+            this.considerDegradation = considerDegradation;
+            this.considerChargeByDg = considerChargeByDg;
+            this.dgPowerKw = dgPowerKw;
+        }
+    }
+
     public static final class SimulationSummary {
-        private final double totalDeficitSum;
-        private final double averageDeficit;
+        private final double totalEnsSum;
+        private final double averageEns;
         private final int iterations;
-
-        /**
-         * Суммарная нагрузка, покрытая ВЭУ (по всем итерациям), кВт·ч.
-         */
         private final double totalSupplyFromWT;
-
-        /**
-         * Суммарная нагрузка, покрытая ДГУ (по всем итерациям), кВт·ч.
-         */
         private final double totalSupplyFromDG;
+        private final double totalSupplyFromBT;
+        private final double totalWreKwh;
+        private final double totalFuelLiters;
+        private final long totalMotoHours;
 
-        public SimulationSummary(double totalDeficitSum,
-                                 double averageDeficit,
+        public SimulationSummary(double totalEnsSum,
+                                 double averageEns,
                                  int iterations,
                                  double totalSupplyFromWT,
-                                 double totalSupplyFromDG) {
-            this.totalDeficitSum = totalDeficitSum;
-            this.averageDeficit = averageDeficit;
+                                 double totalSupplyFromDG,
+                                 double totalSupplyFromBT,
+                                 double totalWreKwh,
+                                 double totalFuelLiters,
+                                 long totalMotoHours) {
+            this.totalEnsSum = totalEnsSum;
+            this.averageEns = averageEns;
             this.iterations = iterations;
             this.totalSupplyFromWT = totalSupplyFromWT;
             this.totalSupplyFromDG = totalSupplyFromDG;
-        }
-
-        public double getTotalDeficitSum() {
-            return totalDeficitSum;
-        }
-
-        /**
-         * Средний дефицит по выборке Monte Carlo (уже после обработки).
-         */
-        public double getAverageDeficit() {
-            return averageDeficit;
-        }
-
-        public int getIterations() {
-            return iterations;
-        }
-
-        public double getTotalSupplyFromWT() {
-            return totalSupplyFromWT;
-        }
-
-        public double getTotalSupplyFromDG() {
-            return totalSupplyFromDG;
+            this.totalSupplyFromBT = totalSupplyFromBT;
+            this.totalWreKwh = totalWreKwh;
+            this.totalFuelLiters = totalFuelLiters;
+            this.totalMotoHours = totalMotoHours;
         }
     }
 }

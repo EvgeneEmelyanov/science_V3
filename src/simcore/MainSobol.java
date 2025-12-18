@@ -81,29 +81,29 @@ public class MainSobol {
 
             // 6. Определяем метрику: по чему считаем чувствительность.
             //    Например, по среднему дефициту.
-            SimulationMetric metric = summary -> summary.getAverageDeficit();
-
-            // 7. Создаём анализатор Соболя
-            SobolAnalyzer analyzer = new SobolAnalyzer(
-                    config,
-                    baseParams,
-                    totalLoadKw,
-                    sobolParams,
-                    metric
-            );
+//            SimulationMetric metric = summary -> summary.getAverageEns();
+//
+//            // 7. Создаём анализатор Соболя
+//            SobolAnalyzer analyzer = new SobolAnalyzer(
+//                    config,
+//                    baseParams,
+//                    totalLoadKw,
+//                    sobolParams,
+//                    metric
+//            );
 
             int N = 100; // размер матриц A и B (число базовых точек)
-            SobolResult result = analyzer.analyze(N);
+//            SobolResult result = analyzer.analyze(N);
 
-            double[] S = result.getFirstOrderIndices();
-            double[] ST = result.getTotalOrderIndices();
+//            double[] S = result.getFirstOrderIndices();
+//            double[] ST = result.getTotalOrderIndices();
 
-            System.out.println("Результаты анализа Соболя (метрика: средний дефицит):");
-            for (int i = 0; i < sobolParams.size(); i++) {
-                String name = sobolParams.get(i).getName();
-                System.out.printf("%-30s  S = %8.4f   ST = %8.4f%n",
-                        name, S[i], ST[i]);
-            }
+//            System.out.println("Результаты анализа Соболя (метрика: средний дефицит):");
+//            for (int i = 0; i < sobolParams.size(); i++) {
+//                String name = sobolParams.get(i).getName();
+//                System.out.printf("%-30s  S = %8.4f   ST = %8.4f%n",
+//                        name, S[i], ST[i]);
+//            }
 
         } catch (Exception e) {
             System.err.println("Ошибка в MainSobol: " + e.getMessage());
