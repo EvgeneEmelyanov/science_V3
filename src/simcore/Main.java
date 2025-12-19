@@ -20,7 +20,7 @@ public final class Main {
         String traceCsvPath = "D:/simulation_trace.csv";
 
         int threads = Runtime.getRuntime().availableProcessors();
-        int mcIterations = 411;          // iterations==1 -> будет trace
+        int mcIterations = 10;          // iterations==1 -> будет trace
         long mcBaseSeed = 1_000_000L;
 
         try {

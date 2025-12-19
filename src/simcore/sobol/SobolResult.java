@@ -4,22 +4,14 @@ import simcore.engine.MonteCarloEstimate;
 
 import java.util.List;
 
-/**
- * Результаты Соболя для 3 метрик: ENS, Fuel, Moto.
- *
- * Внутри также храним сырые MC-оценки по точкам (A,B,AB_j),
- * чтобы можно было сохранить их в CSV.
- */
 public final class SobolResult {
 
     public final SobolConfig config;
 
-    // Сырые оценки по точкам
     public final List<MonteCarloEstimate> yA;
     public final List<MonteCarloEstimate> yB;
     public final List<List<MonteCarloEstimate>> yAB;
 
-    // Индексы Соболя (первого и полного порядка)
     public final double[] S_ens;
     public final double[] ST_ens;
 
@@ -50,4 +42,13 @@ public final class SobolResult {
         this.S_moto = sMoto;
         this.ST_moto = stMoto;
     }
+
+    public double[] getS_ens() { return S_ens; }
+    public double[] getSt_ens() { return ST_ens; }
+
+    public double[] getS_fuel() { return S_fuel; }
+    public double[] getSt_fuel() { return ST_fuel; }
+
+    public double[] getS_moto() { return S_moto; }
+    public double[] getSt_moto() { return ST_moto; }
 }

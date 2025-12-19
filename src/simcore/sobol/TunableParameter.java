@@ -1,67 +1,46 @@
 package simcore.sobol;
 
+import simcore.config.SystemParameters;
 import simcore.config.SystemParametersBuilder;
 
-/**
- * Описание изменяемого параметра в "каталоге":
- *  - id (enum),
- *  - имя (для отображения),
- *  - диапазон [min, max],
- *  - функция, которая применяет значение к SystemParametersBuilder.
- */
-public class TunableParameter {
+public final class TunableParameter {
 
     private final TunableParamId id;
-    private final String displayName;
+    private final String name;
     private final double min;
     private final double max;
     private final SobolApplier applier;
 
     public TunableParameter(TunableParamId id,
-                            String displayName,
+                            String name,
                             double min,
                             double max,
                             SobolApplier applier) {
-        if (max < min) {
-            throw new IllegalArgumentException("max < min для параметра " + id);
-        }
+        if (max < min) throw new IllegalArgumentException("max < min for " + id);
         this.id = id;
-        this.displayName = displayName;
+        this.name = name;
         this.min = min;
         this.max = max;
         this.applier = applier;
     }
 
-    public TunableParamId getId() {
-        return id;
-    }
+    public TunableParamId getId() { return id; }
+    public String getName() { return name; }
+    public double getMin() { return min; }
+    public double getMax() { return max; }
+    public SobolApplier getApplier() { return applier; }
 
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public double getMin() {
-        return min;
-    }
-
-    public double getMax() {
-        return max;
-    }
-
-    public SobolApplier getApplier() {
-        return applier;
-    }
-
-    /**
-     * Преобразовать в SobolParameter для конкретного эксперимента.
-     * Здесь в качестве name можно использовать displayName или id.name().
-     */
-    public SobolParameter toSobolParameter() {
-        return new SobolParameter(
-                displayName,
+    public SobolFactor toSobolFactor() {
+        return new SobolFactor(
+                name,
                 min,
                 max,
-                applier
+                (base, value) -> {
+                    // копия через builder.from(base) -> применяем параметр -> build
+                    SystemParametersBuilder b = SystemParametersBuilder.from(base);
+                    applier.apply(b, value);
+                    return b.build();
+                }
         );
     }
 }

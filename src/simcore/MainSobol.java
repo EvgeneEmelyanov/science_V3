@@ -1,13 +1,17 @@
 package simcore;
 
+import simcore.config.BusSystemType;
 import simcore.config.SimulationConfig;
 import simcore.config.SystemParameters;
-import simcore.engine.MonteCarloRunner;
-import simcore.engine.SimInput;
-import simcore.io.ResultsCsvWriter;
+import simcore.engine.*;
+import simcore.io.InputData;
+import simcore.io.InputDataLoader;
 import simcore.sobol.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class MainSobol {
 
@@ -16,82 +20,82 @@ public final class MainSobol {
         String loadFilePath = "D:/01_Load.txt";
         String windFilePath = "D:/02_Wind.txt";
 
-        String sobolResultsCsvPath = "D:/sobol_points_mc.csv";
-
-        // execution
-        int threads = Runtime.getRuntime().availableProcessors();
-        int sobolN = 50;        // размер матриц A/B
-        int mcIterations = 10;  // MC на каждую точку
-        long mcBaseSeed = 1_000_000L;
-
         try {
-            // 1) входные данные
-            SimcoreRunner.LoadedScenario sc = SimcoreRunner.loadScenario(loadFilePath, windFilePath);
+            // 1) load data
+            InputData inputData = new InputDataLoader().load(loadFilePath, windFilePath);
+            double[] totalLoadKw = inputData.getLoadKw();
+            double[] windMs = inputData.getWindMs();
 
-            // 2) базовые параметры/конфиг
-            SystemParameters baseParams = SimcoreRunner.buildDefaultParams(sc.windMs());
-            SimulationConfig cfg = SimcoreRunner.buildDefaultConfig(sc.windMs(), mcIterations, threads);
-
-            // 3) общий контекст движка
-            SimcoreRunner.EngineContext ctx = SimcoreRunner.buildEngineContext(
-                    cfg, baseParams, sc.totalLoadKw(), threads
+            // 2) base SystemParameters
+            SystemParameters baseParams = new SystemParameters(
+                    BusSystemType.SINGLE_SECTIONAL_BUS,
+                    8, 330.0,
+                    8, 340.0,
+                    336.5,
+                    1.0, 2.0, 0.8,
+                    1.94, 46,
+                    4.75, 50,
+                    0.575, 44,
+                    0.016, 12,
+                    0.05, 10
             );
 
-            SimInput baseInput = ctx.input();
-            MonteCarloRunner mcRunner = ctx.mcRunner();
-
-            // 4) факторы (пример: батарейные)
-            List<SobolFactor> factors = DefaultSobolFactors.batteryFactors();
-
-            SobolConfig sobolCfg = SimcoreRunner.buildSobolConfig(
-                    sobolN,
-                    mcIterations,
-                    mcBaseSeed,
-                    threads,
-                    factors
+            // 3) base SimulationConfig (важно: iterations тут НЕ используются для соболя напрямую,
+            //    потому что MC iterations берём из SobolConfig)
+            SimulationConfig baseCfg = new SimulationConfig(
+                    windMs,
+                    1, // можно оставить 1; trace всё равно выключен в Соболе
+                    Runtime.getRuntime().availableProcessors(),
+                    true,   // failures
+                    true,   // degradation
+                    false,
+                    false,
+                    true,
+                    true
             );
 
-            // 5) Sobol analyzer (инфраструктура)
-            SobolAnalyzer sobol = new SobolAnalyzer(mcRunner);
-            SobolResult result = sobol.run(baseInput, sobolCfg);
-
-            System.out.println("Sobol indices (ENS):");
-            for (int i = 0; i < sobolCfg.dim(); i++) {
-                String name = sobolCfg.getFactors().get(i).getName();
-                System.out.printf("%-20s  S=%.4f  ST=%.4f%n", name, result.S_ens[i], result.ST_ens[i]);
-            }
-
-            System.out.println("Sobol indices (Fuel):");
-            for (int i = 0; i < sobolCfg.dim(); i++) {
-                String name = sobolCfg.getFactors().get(i).getName();
-                System.out.printf("%-20s  S=%.4f  ST=%.4f%n", name, result.S_fuel[i], result.ST_fuel[i]);
-            }
-
-            System.out.println("Sobol indices (Moto):");
-            for (int i = 0; i < sobolCfg.dim(); i++) {
-                String name = sobolCfg.getFactors().get(i).getName();
-                System.out.printf("%-20s  S=%.4f  ST=%.4f%n", name, result.S_moto[i], result.ST_moto[i]);
-            }
-
-
-            // 6) Сохраняем “сырые” оценки MC по точкам (A, B, AB)
-            // Сейчас writer пишет список estimates. Для удобства сольём в один список:
-            List<simcore.engine.MonteCarloEstimate> all = new java.util.ArrayList<>();
-            all.addAll(result.yA);
-            all.addAll(result.yB);
-            for (List<simcore.engine.MonteCarloEstimate> col : result.yAB) all.addAll(col);
-
-            ResultsCsvWriter.writeSobolEstimates(
-                    sobolResultsCsvPath,
-                    cfg,
-                    baseParams,
-                    all
+            // 4) choose parameters to vary (ids)
+            List<TunableParamId> ids = List.of(
+                    TunableParamId.WT_FAILURE_RATE,
+                    TunableParamId.DG_FAILURE_RATE,
+                    TunableParamId.BT_FAILURE_RATE
             );
 
-            // 7) закрыть executor
-            ctx.executor().shutdown();
+            // 5) SobolConfig from ids (диапазоны берутся из TunableParameterPool)
+            SobolConfig sobolCfg = SobolConfig.fromIds(
+                    50,            // Sobol N
+                    5,             // MC iterations per point
+                    1_000_000L,      // MC base seed (важно: общий для всех точек Соболя)
+                    Runtime.getRuntime().availableProcessors(),
+                    ids
+            );
 
-            System.out.println("Sobol points MC computed. Saved to: " + sobolResultsCsvPath);
+            // 6) shared executor for MC across the whole Sobol experiment
+            ExecutorService ex = Executors.newFixedThreadPool(sobolCfg.getThreads());
+
+            // 7) build base SimInput
+            SimInput baseInput = new SimInput(baseCfg, baseParams, totalLoadKw);
+
+            // 8) MC runner + Sobol analyzer
+            SingleRunSimulator sim = new SingleRunSimulator();
+            MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.10);
+
+            SobolAnalyzer analyzer = new SobolAnalyzer(mc);
+
+            // 9) run
+            SobolResult res = analyzer.run(baseInput, sobolCfg);
+
+            // 10) print (пример)
+            System.out.println("Sobol done. dim=" + sobolCfg.dim());
+            System.out.println("S(ENS):  " + Arrays.toString(res.getS_ens()));
+            System.out.println("ST(ENS): " + Arrays.toString(res.getSt_ens()));
+            System.out.println("S(Fuel): " + Arrays.toString(res.getS_fuel()));
+            System.out.println("ST(Fuel):" + Arrays.toString(res.getSt_fuel()));
+            System.out.println("S(Moto): " + Arrays.toString(res.getS_moto()));
+            System.out.println("ST(Moto):" + Arrays.toString(res.getSt_moto()));
+
+
+            ex.shutdown();
 
         } catch (Exception e) {
             System.err.println("Ошибка в MainSobol: " + e.getMessage());

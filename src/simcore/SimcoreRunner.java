@@ -7,9 +7,7 @@ import simcore.config.SystemParameters;
 import simcore.engine.*;
 import simcore.io.InputData;
 import simcore.io.InputDataLoader;
-import simcore.sobol.*;
 
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,44 +36,27 @@ public final class SimcoreRunner {
     }
 
     public static SystemParameters buildDefaultParams(double[] ignoredWind) {
-        // Здесь держите “базовую точку”, как в вашем старом Main.
         return new SystemParameters(
                 BusSystemType.SINGLE_SECTIONAL_BUS,
-                8,
-                330.0,
-                8,
-                340.0,
+                8, 330.0,
+                8, 340.0,
                 336.5,
-
-                1.0,
-                2.0,
-                0.8,
-
-                1.94,
-                46,
-
-                4.75,
-                50,
-
-                0.575,
-                44,
-
-                0.016,
-                12,
-
-                0.05,
-                10
+                1.0, 2.0, 0.8,
+                1.94, 46,
+                4.75, 50,
+                0.575, 44,
+                0.016, 12,
+                0.05, 10
         );
     }
 
     public static SimulationConfig buildDefaultConfig(double[] windMs, int iterations, int threads) {
-        // Важно: iterations/threads в новой архитектуре не обязательны, но пусть остаются для совместимости.
         return new SimulationConfig(
                 windMs,
                 iterations,
                 threads,
-                true,   // considerFailures
-                true,   // considerBatteryDegradation
+                true,
+                true,
                 false,
                 false,
                 true,
@@ -95,9 +76,9 @@ public final class SimcoreRunner {
         MonteCarloRunner mcRunner = new MonteCarloRunner(
                 executor,
                 simulator,
-                false,   // removeOutliers
-                1.96,    // tScore
-                0.10     // relativeError
+                false,
+                1.96,
+                0.10
         );
 
         SimulationEngine engine = new SimulationEngine(mcRunner);
@@ -105,26 +86,6 @@ public final class SimcoreRunner {
         SimInput simInput = new SimInput(cfg, params, totalLoadKw);
 
         return new EngineContext(simInput, engine, mcRunner, executor);
-    }
-
-    /**
-     * Собираем SobolConfig и список факторов.
-     * Факторы здесь примерные — поменяйте min/max под ваши смыслы.
-     */
-    public static SobolConfig buildSobolConfig(int sobolN,
-                                               int mcIterations,
-                                               long mcBaseSeed,
-                                               int threads,
-                                               List<SobolFactor> factors) {
-
-        return new SobolConfig(
-                sobolN,
-                mcIterations,
-                mcBaseSeed,
-                threads,
-                factors,
-                SystemParameters::copy // <-- теперь copy() есть
-        );
     }
 
     public record LoadedScenario(double[] totalLoadKw, double[] windMs) {}
