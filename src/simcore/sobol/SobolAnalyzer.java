@@ -43,12 +43,16 @@ public final class SobolAnalyzer {
 
             yA.add(mcRunner.evaluateForTheta(
                     baseInput, thetaA, cfg,
-                    cfg.getMcIterations(), cfg.getMcBaseSeed(), false
+                    cfg.getMcIterations(), cfg.getMcBaseSeed(),
+                    (long) i,   // sobolRowIdx
+                    false
             ));
 
             yB.add(mcRunner.evaluateForTheta(
                     baseInput, thetaB, cfg,
-                    cfg.getMcIterations(), cfg.getMcBaseSeed(), false
+                    cfg.getMcIterations(), cfg.getMcBaseSeed(),
+                    (long) i,   // sobolRowIdx
+                    false
             ));
         }
 
@@ -63,7 +67,9 @@ public final class SobolAnalyzer {
 
                 yAB.get(j).add(mcRunner.evaluateForTheta(
                         baseInput, thetaAB, cfg,
-                        cfg.getMcIterations(), cfg.getMcBaseSeed(), false
+                        cfg.getMcIterations(), cfg.getMcBaseSeed(),
+                        (long) i,   // sobolRowIdx — тот же i, что и для A/B
+                        false
                 ));
             }
         }
@@ -148,7 +154,6 @@ public final class SobolAnalyzer {
         }
         return m;
     }
-
 
     private static ParameterSet buildThetaFromUnitRow(double[] u01, SobolConfig cfg) {
         Map<String, Double> map = new LinkedHashMap<>();

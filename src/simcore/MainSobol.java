@@ -19,8 +19,8 @@ public final class MainSobol {
         String windFilePath = "D:/02_Wind.txt";
 
         // Sobol settings
-        int sobolN = 50; // размер A/B
-        int mcIterations = 50;
+        int sobolN = 100; // размер A/B
+        int mcIterations = 100;
         long mcBaseSeed = 1_000_000L;
         int threads = Runtime.getRuntime().availableProcessors();
 

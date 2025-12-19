@@ -1,6 +1,5 @@
 package simcore.sobol;
 
-import simcore.config.SystemParameters;
 import simcore.config.SystemParametersBuilder;
 
 public final class TunableParameter {

@@ -11,12 +11,19 @@ import java.util.concurrent.*;
 
 /**
  * Запуск Monte Carlo для одной точки параметров theta.
- * Важно: seed зависит только от индекса MC-итерации (common random numbers),
- * и НЕ зависит от индекса точки Соболя.
+ *
+ * Важно:
+ *  - seed зависит от (sobolRowIdx, mcIdx)
+ *  - внутри одной строки Соболя (фиксированный sobolRowIdx) используется common random numbers
+ *    для A/B/AB (одинаковые траектории отказов при сравнении параметров)
+ *  - между разными строками sobolRowIdx траектории различаются
  */
 public final class MonteCarloRunner {
 
     private static final long MC_SEED_STRIDE = 10_000L;
+
+    // Должен быть >> mcIterations * MC_SEED_STRIDE, чтобы разные строки i не пересекались по seed.
+    private static final long SOBOL_ROW_SEED_STRIDE = 10_000_000_000L; // 1e10
 
     private final ExecutorService executor;
     private final SingleRunSimulator simulator;
@@ -37,11 +44,34 @@ public final class MonteCarloRunner {
         this.relativeError = relativeError;
     }
 
+    /**
+     * Backward-compatible wrapper: для обычного MC/не-Sobol вызова используем sobolRowIdx=0.
+     */
     public MonteCarloEstimate evaluateForTheta(SimInput baseInput,
                                                ParameterSet theta,
                                                SobolConfig sobolCfg,
                                                int mcIterations,
                                                long mcBaseSeed,
+                                               boolean traceIfSingle)
+            throws InterruptedException, ExecutionException {
+
+        return evaluateForTheta(
+                baseInput,
+                theta,
+                sobolCfg,
+                mcIterations,
+                mcBaseSeed,
+                0L,          // sobolRowIdx
+                traceIfSingle
+        );
+    }
+
+    public MonteCarloEstimate evaluateForTheta(SimInput baseInput,
+                                               ParameterSet theta,
+                                               SobolConfig sobolCfg,
+                                               int mcIterations,
+                                               long mcBaseSeed,
+                                               long sobolRowIdx,
                                                boolean traceIfSingle)
             throws InterruptedException, ExecutionException {
 
@@ -55,7 +85,7 @@ public final class MonteCarloRunner {
 
         // 2) single-run режим (iterations == 1): нужен trace по часам
         if (mcIterations == 1) {
-            long seed = mcBaseSeed + 0L * MC_SEED_STRIDE;
+            long seed = seedFor(mcBaseSeed, sobolRowIdx, 0);
 
             SimulationMetrics m = simulator.simulate(input, seed, traceIfSingle);
 
@@ -89,7 +119,7 @@ public final class MonteCarloRunner {
         for (int i = 0; i < mcIterations; i++) {
             final int mcIdx = i;
             futures.add(executor.submit(() -> {
-                long seed = mcBaseSeed + (long) mcIdx * MC_SEED_STRIDE;
+                long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
                 return simulator.simulate(inputFinal, seed, false);
             }));
         }
@@ -99,9 +129,7 @@ public final class MonteCarloRunner {
         double fuelSum = 0.0;
         double motoSum = 0.0;
 
-        // FIX: теперь аккумулируем WRE в процентах, чтобы совпадало с веткой iterations==1
         double wrePctSum = 0.0;
-
         double wtPctSum = 0.0;
         double dgPctSum = 0.0;
         double btPctSum = 0.0;
@@ -113,7 +141,6 @@ public final class MonteCarloRunner {
             fuelSum += m.fuelLiters;
             motoSum += (double) m.totalMotoHours;
 
-            // FIX
             wrePctSum += pct(m.wreKwh, m.loadKwh);
 
             wtPctSum += pct(m.wtToLoadKwh, m.loadKwh);
@@ -130,12 +157,18 @@ public final class MonteCarloRunner {
                 ensStats,
                 fuelSum * inv,
                 motoSum * inv,
-                wrePctSum * inv,  // FIX: WRE_% mean
+                wrePctSum * inv,  // WRE_% mean
                 wtPctSum * inv,
                 dgPctSum * inv,
                 btPctSum * inv,
                 null
         );
+    }
+
+    private static long seedFor(long mcBaseSeed, long sobolRowIdx, int mcIdx) {
+        return mcBaseSeed
+                + sobolRowIdx * SOBOL_ROW_SEED_STRIDE
+                + (long) mcIdx * MC_SEED_STRIDE;
     }
 
     private static double pct(double part, double total) {
