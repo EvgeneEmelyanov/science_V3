@@ -33,5 +33,8 @@ public enum TunableParamId {
     DG_POWER,
 
     // АКБ
-    BT_CAPACITY_PER_BUS
+    BT_CAPACITY_PER_BUS,
+    BT_MAX_CHARGE_CURRENT,
+    BT_MAX_DISCHARGE_CURRENT,
+    BT_NON_RESERVE_DISCHARGE_LVL
 }

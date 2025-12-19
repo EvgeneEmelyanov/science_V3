@@ -33,7 +33,7 @@ public final class SingleRunSimulator {
 
         boolean considerFailures = config.isConsiderFailures();
         boolean considerDegradation = config.isConsiderBatteryDegradation();
-        boolean considerChargeByDg = config.isConsiderSortDiesel(); // TODO rename
+        boolean considerChargeByDg = config.isConsiderChargeByDg();
 
         PowerSystem powerSystem = new PowerSystemBuilder().build(systemParameters, input.getTotalLoadKw());
         List<PowerBus> buses = powerSystem.getBuses();

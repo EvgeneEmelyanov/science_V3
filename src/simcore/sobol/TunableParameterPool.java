@@ -19,7 +19,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_FAILURE_RATE,
                         "WT_FAILURE_RATE",
-                        0.5, 3.0,
+                        0.485, 3.88,
                         (b, v) -> b.setWindTurbineFailureRatePerYear(v)
                 ));
 
@@ -27,7 +27,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DG_FAILURE_RATE,
                         "DG_FAILURE_RATE",
-                        0.2, 2.0,
+                        1.1875, 7,
                         (b, v) -> b.setDieselGeneratorFailureRatePerYear(v)
                 ));
 
@@ -35,7 +35,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_FAILURE_RATE,
                         "BT_FAILURE_RATE",
-                        0.1, 1.0,
+                        0.2, 3,
                         (b, v) -> b.setBatteryFailureRatePerYear(v)
                 ));
 
@@ -43,7 +43,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BUS_FAILURE_RATE,
                         "BUS_FAILURE_RATE",
-                        0.01, 0.5,
+                        0.005, 0.5,
                         (b, v) -> b.setBusFailureRatePerYear(v)
                 ));
 
@@ -51,7 +51,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BRK_FAILURE_RATE,
                         "BRK_FAILURE_RATE",
-                        0.01, 0.5,
+                        0.005, 0.3,
                         (b, v) -> b.setBreakerFailureRatePerYear(v)
                 ));
 
@@ -60,7 +60,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_REPAIR_TIME,
                         "WT_REPAIR_TIME",
-                        10.0, 100.0,
+                        25, 100.0,
                         (b, v) -> b.setWindTurbineRepairTimeHours((int) Math.round(v))
                 ));
 
@@ -68,7 +68,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DG_REPAIR_TIME,
                         "DG_REPAIR_TIME",
-                        5.0, 72.0,
+                        25, 100,
                         (b, v) -> b.setDieselGeneratorRepairTimeHours((int) Math.round(v))
                 ));
 
@@ -76,7 +76,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_REPAIR_TIME,
                         "BT_REPAIR_TIME",
-                        10.0, 100.0,
+                        25, 100.0,
                         (b, v) -> b.setBatteryRepairTimeHours((int) Math.round(v))
                 ));
 
@@ -84,7 +84,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BUS_REPAIR_TIME,
                         "BUS_REPAIR_TIME",
-                        1.0, 48.0,
+                        5, 20,
                         (b, v) -> b.setBusRepairTimeHours((int) Math.round(v))
                 ));
 
@@ -92,7 +92,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BRK_REPAIR_TIME,
                         "BRK_REPAIR_TIME",
-                        1.0, 24.0,
+                        5, 20,
                         (b, v) -> b.setBreakerRepairTimeHours((int) Math.round(v))
                 ));
 
@@ -137,6 +137,27 @@ public final class TunableParameterPool {
                         "BT_CAPACITY_PER_BUS",
                         0.0, 2000.0,
                         (b, v) -> b.setBatteryCapacityKwhPerBus(v)
+                ));
+        m.put(TunableParamId.BT_MAX_CHARGE_CURRENT,
+                new TunableParameter(
+                        TunableParamId.BT_MAX_CHARGE_CURRENT,
+                        "BT_MAX_CHARGE_CURRENT",
+                        0.2, 1,
+                        (b, v) -> b.setMaxChargeCurrent(v)
+                ));
+        m.put(TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                new TunableParameter(
+                        TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                        "BT_MAX_DISCHARGE_CURRENT",
+                        0.5, 5,
+                        (b, v) -> b.setMaxDischargeCurrent(v)
+                ));
+        m.put(TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
+                new TunableParameter(
+                        TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
+                        "BT_NON_RESERVE_DISCHARGE_LVL",
+                        0, 0.8,
+                        (b, v) -> b.setNonReserveDischargeLevel(v)
                 ));
 
         PARAMS = Collections.unmodifiableMap(m);

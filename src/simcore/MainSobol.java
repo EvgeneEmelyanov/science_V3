@@ -7,7 +7,6 @@ import simcore.engine.SingleRunSimulator;
 import simcore.engine.SimInput;
 import simcore.sobol.*;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -18,11 +17,10 @@ public final class MainSobol {
 
         String loadFilePath = "D:/01_Load.txt";
         String windFilePath = "D:/02_Wind.txt";
-        String sobolCsvPath = "D:/sobol_results.csv"; // если у вас есть writer — используйте
 
         // Sobol settings
         int sobolN = 50; // размер A/B
-        int mcIterations = 5;
+        int mcIterations = 50;
         long mcBaseSeed = 1_000_000L;
         int threads = Runtime.getRuntime().availableProcessors();
 
@@ -37,9 +35,12 @@ public final class MainSobol {
 
             // 3) параметры Соболя (через пул диапазонов)
             List<TunableParamId> ids = List.of(
-                    TunableParamId.WT_FAILURE_RATE,
-                    TunableParamId.DG_FAILURE_RATE,
-                    TunableParamId.BT_FAILURE_RATE
+//                    TunableParamId.WT_FAILURE_RATE,
+//                    TunableParamId.DG_FAILURE_RATE,
+//                    TunableParamId.BT_FAILURE_RATE
+                    TunableParamId.BT_MAX_CHARGE_CURRENT,
+                    TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                    TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
             );
 
             SobolConfig sobolCfg = SobolConfig.fromIds(
@@ -67,15 +68,10 @@ public final class MainSobol {
 
             // 8) print
             System.out.println("Sobol done. dim=" + sobolCfg.dim());
-            System.out.println("S(ENS):  " + Arrays.toString(res.getS_ens()));
-            System.out.println("ST(ENS): " + Arrays.toString(res.getSt_ens()));
-            System.out.println("S(Fuel): " + Arrays.toString(res.getS_fuel()));
-            System.out.println("ST(Fuel):" + Arrays.toString(res.getSt_fuel()));
-            System.out.println("S(Moto): " + Arrays.toString(res.getS_moto()));
-            System.out.println("ST(Moto):" + Arrays.toString(res.getSt_moto()));
-
-            // 9) если у вас есть writer — тут:
-            // SobolResultsCsvWriter.write(sobolCsvPath, sobolCfg, ids, res);
+            SobolResultPrinter.printTable(
+                    sobolCfg.getFactors(),
+                    res
+            );
 
         } catch (Exception e) {
             System.err.println("Ошибка в MainSobol: " + e.getMessage());
