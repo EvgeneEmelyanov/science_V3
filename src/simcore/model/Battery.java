@@ -73,9 +73,7 @@ public class Battery extends Equipment {
 
     @Override
     protected void onRepairFinished() {
-        // После ремонта восстанавливаем ёмкость до номинала
         this.maxCapacityKwh = this.nominalCapacityKwh;
-        // и выставляем SOC на некоторую начальную долю
         this.soc = SimulationConstants.BATTERY_START_SOC;
     }
 
@@ -128,12 +126,12 @@ public class Battery extends Equipment {
                 considerDegradation) {
 
             maxCapacityKwh = maxCapacityKwh;
-            // todo реализовать нормальну. модель деградации емкеости
+            // todo реализовать нормальную модель деградации емкости
 
         }
     }
 
-    public void selfDischargeOneHour() { // todo вызвать гдето в движке
+    public void selfDischargeOneHour() { // todo вызвать где-то в движке
         double rate = SimulationConstants.BATTERY_SELF_DISCHARGE_PER_HOUR;
         soc = Math.max(0.0, soc * (1.0 - rate));
     }

@@ -32,7 +32,7 @@ public enum TunableParamId {
     DG_COUNT,
     DG_POWER,
 
-    // АКБ
+    // Параметры АКБ
     BT_CAPACITY_PER_BUS,
     BT_MAX_CHARGE_CURRENT,
     BT_MAX_DISCHARGE_CURRENT,

@@ -11,7 +11,6 @@ import java.util.concurrent.*;
 
 /**
  * Запуск Monte Carlo для одной точки параметров theta.
- *
  * Важно:
  *  - seed зависит от (sobolRowIdx, mcIdx)
  *  - внутри одной строки Соболя (фиксированный sobolRowIdx) используется common random numbers
@@ -61,7 +60,7 @@ public final class MonteCarloRunner {
                 sobolCfg,
                 mcIterations,
                 mcBaseSeed,
-                0L,          // sobolRowIdx
+                0L,
                 traceIfSingle
         );
     }
@@ -104,7 +103,7 @@ public final class MonteCarloRunner {
                     ensStats,
                     m.fuelLiters,
                     (double) m.totalMotoHours,
-                    wrePct,     // WRE_% (а не kWh)
+                    wrePct,
                     wtPct,
                     dgPct,
                     btPct,
@@ -157,7 +156,7 @@ public final class MonteCarloRunner {
                 ensStats,
                 fuelSum * inv,
                 motoSum * inv,
-                wrePctSum * inv,  // WRE_% mean
+                wrePctSum * inv,
                 wtPctSum * inv,
                 dgPctSum * inv,
                 btPctSum * inv,

@@ -78,7 +78,7 @@ public final class SingleRunSimulator {
         for (int t = 0; t < n; t++) {
 
             double v = wind[t];
-// ===== trace buffers for hour t =====
+            // ===== trace buffers for hour t =====
             final boolean doTrace = (trace != null);
 
             double totalLoadAtTime = 0.0;
@@ -166,9 +166,9 @@ public final class SingleRunSimulator {
                 loadKwh += loadKw;
 
                 double windPotKw = 0.0;
-                double windToLoadKw = 0.0;
+                double windToLoadKw;
 
-                double dgProducedKw = 0.0;     // фактическая генерация ДГУ (включая прожиг)
+                double dgProducedKw;     // фактическая генерация ДГУ (включая прожиг)
                 double dgToLoadKwLocal = 0.0;  // сколько из ДГУ пошло в нагрузку
 
                 double btNetKw = 0.0;          // +разряд, -заряд
@@ -247,7 +247,7 @@ public final class SingleRunSimulator {
                         if (dg.isWorking()) ready++;
                     }
 
-                    int dgToUse = 0;
+                    int dgToUse;
 
                     if (available == 0) {
                         // только АКБ
@@ -396,7 +396,7 @@ public final class SingleRunSimulator {
                             if (genKw + SimulationConstants.EPSILON < dgMinKw) {
 
                                 if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-                                    // прожиг 1 час, затем сброс idle state, чтобы на след.час снова можно было быть low-load
+                                    // прожиг 1 час
                                     genKw = Math.max(genKw, dgMinKw);
                                     anyBurnThisHour = true;
 
@@ -425,7 +425,7 @@ public final class SingleRunSimulator {
 
                         dgProducedKw = sumDiesel;
 
-                        // ---- заряд от ДГУ ----
+                        // ---- заряд от ДГУ ---- //TODO ТУТ КАКТО НЕ ПРАВИЛЬНО РЕАЛИЗОВАНО ПЕРЕПРОВЕРИТЬ КАРОЧ!
                         // 1) если considerChargeByDg=true — всегда, когда есть избыток
                         // 2) если considerChargeByDg=false — всё равно заряжаем при прожиге (anyBurnThisHour)
                         boolean allowChargeNow = canCharge && (considerChargeByDg || anyBurnThisHour);

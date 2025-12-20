@@ -60,10 +60,6 @@ public class SimulationConfig {
         return iterations;
     }
 
-    public int getThreads() {
-        return threads;
-    }
-
     public boolean isConsiderFailures() {
         return considerFailures;
     }

@@ -26,10 +26,6 @@ public class WindTurbine extends Equipment {
         this.ratedPowerKw = ratedPowerKw;
     }
 
-    public double getRatedPowerKw() {
-        return ratedPowerKw;
-    }
-
     public double getPotentialGenerationKw(double windSpeedMs) {
         if (!isAvailable()) {
             return 0.0;

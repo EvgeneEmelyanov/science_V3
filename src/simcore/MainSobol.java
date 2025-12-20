@@ -19,8 +19,8 @@ public final class MainSobol {
         String windFilePath = "D:/02_Wind.txt";
 
         // Sobol settings
-        int sobolN = 100; // размер A/B
-        int mcIterations = 100;
+        int sobolN = 3; // размер A/B
+        int mcIterations = 2;
         long mcBaseSeed = 1_000_000L;
         int threads = Runtime.getRuntime().availableProcessors();
 
@@ -38,6 +38,8 @@ public final class MainSobol {
 //                    TunableParamId.WT_FAILURE_RATE,
 //                    TunableParamId.DG_FAILURE_RATE,
 //                    TunableParamId.BT_FAILURE_RATE
+//                    TunableParamId.BUS_FAILURE_RATE,
+//                    TunableParamId.BRK_FAILURE_RATE,
                     TunableParamId.BT_MAX_CHARGE_CURRENT,
                     TunableParamId.BT_MAX_DISCHARGE_CURRENT,
                     TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL

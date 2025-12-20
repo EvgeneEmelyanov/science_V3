@@ -8,7 +8,7 @@ import java.util.Locale;
 
 public final class SimulationTraceExporter {
 
-    private static final Locale RU = new Locale("ru", "RU");
+    private static final Locale RU = Locale.forLanguageTag("ru-RU");
 
     private SimulationTraceExporter() {}
 
@@ -19,7 +19,7 @@ public final class SimulationTraceExporter {
             throw new IllegalArgumentException("Empty trace");
         }
 
-        int busCnt = recs.get(0).getBusLoadKw().length;
+        int busCnt = recs.getFirst().getBusLoadKw().length;
 
         try (BufferedWriter w = new BufferedWriter(new FileWriter(path))) {
 
@@ -30,7 +30,7 @@ public final class SimulationTraceExporter {
                 h.append(";B").append(bi).append("_L");
                 h.append(";B").append(bi).append("_W");
 
-                int dgCnt = recs.get(0).getBusGenDgLoadKw()[b].length;
+                int dgCnt = recs.getFirst().getBusGenDgLoadKw()[b].length;
                 for (int i = 0; i < dgCnt; i++) {
                     int di = i + 1;
                     h.append(";B").append(bi).append("_D").append(di);

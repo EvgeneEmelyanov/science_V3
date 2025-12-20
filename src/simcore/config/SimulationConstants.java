@@ -48,12 +48,6 @@ public final class SimulationConstants {
     /** Саморазряд 3% в месяц = 3%/мес */
     public static final double BATTERY_SELF_DISCHARGE_PER_HOUR = 0.03 / 720.0;
 
-    /** Минимальный остаток ёмкости при разряде (в долях от номинала) */
-    public static final double BATTERY_MIN_RESERVE = 0.05;
-
-    /** Порог деградации: maxCapacity <= 0.8 * nominal */
-    public static final double BATTERY_DEGRADATION_THRESHOLD = 0.8;
-
     /** Скорость деградации (параметр старения из старого кода) */
     public static final double BATTERY_DEGRADATION_RATE = 0.0025;
 
