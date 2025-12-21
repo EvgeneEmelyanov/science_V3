@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class MainSobol {
+    // todo: мб для λ попробовать логорифм для вариации
 
     public static void main(String[] args) {
 
@@ -19,8 +20,8 @@ public final class MainSobol {
         String windFilePath = "D:/02_Wind.txt";
 
         // Sobol settings
-        int sobolN = 3; // размер A/B
-        int mcIterations = 2;
+        int sobolN = 256; // размер A/B
+        int mcIterations = 200;
         long mcBaseSeed = 1_000_000L;
         int threads = Runtime.getRuntime().availableProcessors();
 
@@ -35,14 +36,14 @@ public final class MainSobol {
 
             // 3) параметры Соболя (через пул диапазонов)
             List<TunableParamId> ids = List.of(
-//                    TunableParamId.WT_FAILURE_RATE,
-//                    TunableParamId.DG_FAILURE_RATE,
-//                    TunableParamId.BT_FAILURE_RATE
-//                    TunableParamId.BUS_FAILURE_RATE,
+                    TunableParamId.WT_FAILURE_RATE,
+                    TunableParamId.DG_FAILURE_RATE,
+                    TunableParamId.BT_FAILURE_RATE,
+                    TunableParamId.BUS_FAILURE_RATE
 //                    TunableParamId.BRK_FAILURE_RATE,
-                    TunableParamId.BT_MAX_CHARGE_CURRENT,
-                    TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-                    TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+//                    TunableParamId.BT_MAX_CHARGE_CURRENT,
+//                    TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+//                    TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
             );
 
             SobolConfig sobolCfg = SobolConfig.fromIds(

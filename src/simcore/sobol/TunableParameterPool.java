@@ -14,12 +14,15 @@ public final class TunableParameterPool {
     static {
         Map<TunableParamId, TunableParameter> m = new EnumMap<>(TunableParamId.class);
 
-        // ----- Частоты отказов -----
+        // ----- Частоты отказов (интенсивности), 1/год -----
+// Рекомендуемая постановка для Sobol при отсутствии точной статистики:
+// одинаковая мультипликативная неопределённость вокруг базового значения (×0.5..×2).
+
         m.put(TunableParamId.WT_FAILURE_RATE,
                 new TunableParameter(
                         TunableParamId.WT_FAILURE_RATE,
                         "WT_FAILURE_RATE",
-                        0.485, 3.88,
+                        0.97, 3.88, // base=1.94
                         (b, v) -> b.setWindTurbineFailureRatePerYear(v)
                 ));
 
@@ -27,7 +30,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DG_FAILURE_RATE,
                         "DG_FAILURE_RATE",
-                        1.1875, 7,
+                        2.375, 9.5, // base=4.75
                         (b, v) -> b.setDieselGeneratorFailureRatePerYear(v)
                 ));
 
@@ -35,7 +38,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_FAILURE_RATE,
                         "BT_FAILURE_RATE",
-                        0.2, 3,
+                        0.2875, 1.15, // base=0.575
                         (b, v) -> b.setBatteryFailureRatePerYear(v)
                 ));
 
@@ -43,7 +46,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BUS_FAILURE_RATE,
                         "BUS_FAILURE_RATE",
-                        0.005, 0.5,
+                        0.008, 0.032, // base=0.016
                         (b, v) -> b.setBusFailureRatePerYear(v)
                 ));
 
@@ -51,9 +54,10 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BRK_FAILURE_RATE,
                         "BRK_FAILURE_RATE",
-                        0.005, 0.3,
+                        0.025, 0.1, // base=0.05
                         (b, v) -> b.setBreakerFailureRatePerYear(v)
                 ));
+
 
         // ----- Времена ремонта -----
         m.put(TunableParamId.WT_REPAIR_TIME,

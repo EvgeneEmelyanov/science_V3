@@ -1,3 +1,4 @@
+// File: simcore/engine/MonteCarloRunner.java
 package simcore.engine;
 
 import simcore.config.SimulationConstants;
@@ -10,18 +11,19 @@ import java.util.List;
 import java.util.concurrent.*;
 
 /**
- * Запуск Monte Carlo для одной точки параметров theta.
- * Важно:
- *  - seed зависит от (sobolRowIdx, mcIdx)
- *  - внутри одной строки Соболя (фиксированный sobolRowIdx) используется common random numbers
- *    для A/B/AB (одинаковые траектории отказов при сравнении параметров)
- *  - между разными строками sobolRowIdx траектории различаются
+ * Monte-Carlo evaluation for a fixed parameter point theta.
+ *
+ * Seeding:
+ *  - seed depends on (sobolRowIdx, mcIdx)
+ *  - For a fixed sobolRowIdx, mcIdx enumerates independent MC scenarios
+ *  - Independence between different theta points is achieved by using different sobolRowIdx
+ *    (handled by SobolAnalyzer: A, B and AB_j use different sobolRowIdx blocks).
  */
 public final class MonteCarloRunner {
 
     private static final long MC_SEED_STRIDE = 10_000L;
 
-    // Должен быть >> mcIterations * MC_SEED_STRIDE, чтобы разные строки i не пересекались по seed.
+    // Must be >> mcIterations * MC_SEED_STRIDE to avoid overlaps.
     private static final long SOBOL_ROW_SEED_STRIDE = 10_000_000_000L; // 1e10
 
     private final ExecutorService executor;
@@ -44,7 +46,7 @@ public final class MonteCarloRunner {
     }
 
     /**
-     * Backward-compatible wrapper: для обычного MC/не-Sobol вызова используем sobolRowIdx=0.
+     * Backward-compatible wrapper: for non-Sobol usage we keep sobolRowIdx=0.
      */
     public MonteCarloEstimate evaluateForTheta(SimInput baseInput,
                                                ParameterSet theta,
@@ -74,7 +76,7 @@ public final class MonteCarloRunner {
                                                boolean traceIfSingle)
             throws InterruptedException, ExecutionException {
 
-        // 1) применяем theta -> новые SystemParameters (только если есть Sobol)
+        // 1) apply theta -> new SystemParameters (only if Sobol is used)
         SimInput input = baseInput;
         if (theta != null && sobolCfg != null) {
             SystemParameters baseParams = baseInput.getSystemParameters();
@@ -82,7 +84,7 @@ public final class MonteCarloRunner {
             input = baseInput.withSystemParameters(tuned);
         }
 
-        // 2) single-run режим (iterations == 1): нужен trace по часам
+        // 2) single-run mode (iterations == 1): may enable trace
         if (mcIterations == 1) {
             long seed = seedFor(mcBaseSeed, sobolRowIdx, 0);
 
@@ -111,7 +113,7 @@ public final class MonteCarloRunner {
             );
         }
 
-        // 3) обычный MC: параллелим single-run по итерациям
+        // 3) regular MC: parallelize single-run simulations
         final SimInput inputFinal = input;
 
         List<Future<SimulationMetrics>> futures = new ArrayList<>(mcIterations);

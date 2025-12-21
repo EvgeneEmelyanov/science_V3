@@ -1,5 +1,7 @@
+// File: simcore/sobol/SobolAnalyzer.java
 package simcore.sobol;
 
+import org.apache.commons.math3.random.SobolSequenceGenerator;
 import simcore.engine.MonteCarloEstimate;
 import simcore.engine.MonteCarloRunner;
 import simcore.engine.SimInput;
@@ -7,13 +9,6 @@ import simcore.engine.SimInput;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-/**
- * Sobol (вариант C): для каждой точки theta считаем MC,
- * затем индексы Соболя считаем для 3 метрик: ENS, Fuel, Moto.
- *
- * Примечание: генерация матриц A/B здесь пока заглушка (Random),
- * позже замените на Sobol/Saltelli последовательность.
- */
 public final class SobolAnalyzer {
 
     private final MonteCarloRunner mcRunner;
@@ -25,18 +20,27 @@ public final class SobolAnalyzer {
     public SobolResult run(SimInput baseInput, SobolConfig cfg)
             throws InterruptedException, ExecutionException {
 
-        int N = cfg.getSobolN();
-        int d = cfg.dim();
+        final int N = cfg.getSobolN();
+        final int d = cfg.dim();
 
-        double[][] A = randomUnitMatrix(N, d, 12345L);
-        double[][] B = randomUnitMatrix(N, d, 67890L);
+        if (cfg.getFactors().size() != d) {
+            throw new IllegalArgumentException(
+                    "SobolConfig.dim() must equal factors.size(): dim=" + d +
+                            " factors=" + cfg.getFactors().size()
+            );
+        }
+
+        // A/B from Sobol(2d)
+        double[][][] ab = generateABBySobolSequence(N, d);
+        double[][] A = ab[0];
+        double[][] B = ab[1];
 
         List<MonteCarloEstimate> yA = new ArrayList<>(N);
         List<MonteCarloEstimate> yB = new ArrayList<>(N);
         List<List<MonteCarloEstimate>> yAB = new ArrayList<>(d);
         for (int j = 0; j < d; j++) yAB.add(new ArrayList<>(N));
 
-        // A/B
+        // A and B with independent random scenarios
         for (int i = 0; i < N; i++) {
             ParameterSet thetaA = buildThetaFromUnitRow(A[i], cfg);
             ParameterSet thetaB = buildThetaFromUnitRow(B[i], cfg);
@@ -44,19 +48,19 @@ public final class SobolAnalyzer {
             yA.add(mcRunner.evaluateForTheta(
                     baseInput, thetaA, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    (long) i,   // sobolRowIdx
+                    (long) i,
                     false
             ));
 
             yB.add(mcRunner.evaluateForTheta(
                     baseInput, thetaB, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    (long) i,   // sobolRowIdx
+                    (long) (i + N),
                     false
             ));
         }
 
-        // AB_j
+        // AB_j with independent random scenarios vs A and B
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < N; i++) {
                 double[] row = new double[d];
@@ -65,38 +69,52 @@ public final class SobolAnalyzer {
 
                 ParameterSet thetaAB = buildThetaFromUnitRow(row, cfg);
 
+                long sobolRowIdx = i + (2L + j) * (long) N;
+
                 yAB.get(j).add(mcRunner.evaluateForTheta(
                         baseInput, thetaAB, cfg,
                         cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                        (long) i,   // sobolRowIdx — тот же i, что и для A/B
+                        sobolRowIdx,
                         false
                 ));
             }
         }
 
-        // считаем индексы для 3 метрик
         double[] sEns = new double[d], stEns = new double[d];
         double[] sFuel = new double[d], stFuel = new double[d];
         double[] sMoto = new double[d], stMoto = new double[d];
 
-        computeSobolIndices(yA, yB, yAB, d, Metric.ENS, sEns, stEns);
-        computeSobolIndices(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel);
-        computeSobolIndices(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto);
+        computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.ENS,  sEns,  stEns, true);
+        computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel, true);
+        computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto, true);
 
         return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto);
     }
 
     private enum Metric { ENS, FUEL, MOTO }
 
-    private static void computeSobolIndices(List<MonteCarloEstimate> yA,
-                                            List<MonteCarloEstimate> yB,
-                                            List<List<MonteCarloEstimate>> yAB,
-                                            int d,
-                                            Metric metric,
-                                            double[] S,
-                                            double[] ST) {
+    /**
+     * More stable Saltelli (2010) estimators:
+     *
+     * First-order:
+     *   S_j = ( mean( f(A) * f(AB_j) ) - mean(f)^2 ) / Var(f)
+     *
+     * Total-order:
+     *   ST_j = mean( (f(A) - f(AB_j))^2 ) / (2*Var(f))
+     *
+     * where mean(f) and Var(f) are estimated from the pooled A and B samples.
+     */
+    private static void computeSobolIndicesSaltelli2010(List<MonteCarloEstimate> yA,
+                                                        List<MonteCarloEstimate> yB,
+                                                        List<List<MonteCarloEstimate>> yAB,
+                                                        int d,
+                                                        Metric metric,
+                                                        double[] S,
+                                                        double[] ST,
+                                                        boolean printDiagnostics) {
 
-        int N = yA.size();
+        final int N = yA.size();
+
         double[] a = new double[N];
         double[] b = new double[N];
 
@@ -105,34 +123,39 @@ public final class SobolAnalyzer {
             b[i] = extractMetric(yB.get(i), metric);
         }
 
-        double varY = variance(concat(a, b));
-        if (varY <= 0.0) {
-            Arrays.fill(S, 0.0);
-            Arrays.fill(ST, 0.0);
+        double[] yAll = concat(a, b);
+        double meanY = mean(yAll);
+        double varY = variancePopulation(yAll);
+
+        if (printDiagnostics) {
+            System.out.printf(
+                    "Sobol metric=%s: meanY=%.6f varY=%.6e, A[min..max]=[%.6f..%.6f], B[min..max]=[%.6f..%.6f]%n",
+                    metric, meanY, varY, min(a), max(a), min(b), max(b)
+            );
+        }
+
+        if (!(varY > 0.0) || Double.isNaN(varY) || Double.isInfinite(varY)) {
+            Arrays.fill(S, Double.NaN);
+            Arrays.fill(ST, Double.NaN);
             return;
         }
 
-        // Формулы Saltelli (классический вариант):
-        // S_j  = (1/N) * Σ f(B_i) * (f(AB_j_i) - f(A_i)) / Var(Y)
-        // ST_j = (1/(2N)) * Σ (f(A_i) - f(AB_j_i))^2 / Var(Y)
         for (int j = 0; j < d; j++) {
-            double sumS = 0.0;
-            double sumST = 0.0;
+            double sumProd = 0.0;
+            double sumSt = 0.0;
 
             for (int i = 0; i < N; i++) {
                 double ab = extractMetric(yAB.get(j).get(i), metric);
-                sumS += b[i] * (ab - a[i]);
+
+                sumProd += a[i] * ab;
 
                 double diff = a[i] - ab;
-                sumST += diff * diff;
+                sumSt += diff * diff;
             }
 
-            S[j] = (sumS / N) / varY;
-            ST[j] = (sumST / (2.0 * N)) / varY;
-
-            // защита от численного мусора
-            if (S[j] < 0.0) S[j] = 0.0;
-            if (ST[j] < 0.0) ST[j] = 0.0;
+            double meanProd = sumProd / N;
+            S[j]  = (meanProd - meanY * meanY) / varY;
+            ST[j] = (sumSt / (2.0 * N)) / varY;
         }
     }
 
@@ -144,15 +167,18 @@ public final class SobolAnalyzer {
         };
     }
 
-    private static double[][] randomUnitMatrix(int n, int d, long seed) {
-        Random r = new Random(seed);
-        double[][] m = new double[n][d];
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < d; j++) {
-                m[i][j] = r.nextDouble(); // [0;1)
-            }
+    private static double[][][] generateABBySobolSequence(int N, int d) {
+        SobolSequenceGenerator sobol = new SobolSequenceGenerator(2 * d);
+
+        double[][] A = new double[N][d];
+        double[][] B = new double[N][d];
+
+        for (int i = 0; i < N; i++) {
+            double[] v = sobol.nextVector();
+            System.arraycopy(v, 0, A[i], 0, d);
+            System.arraycopy(v, d, B[i], 0, d);
         }
-        return m;
+        return new double[][][] { A, B };
     }
 
     private static ParameterSet buildThetaFromUnitRow(double[] u01, SobolConfig cfg) {
@@ -173,17 +199,33 @@ public final class SobolAnalyzer {
         return r;
     }
 
-    private static double variance(double[] x) {
-        if (x.length < 2) return 0.0;
-        double mean = 0.0;
-        for (double v : x) mean += v;
-        mean /= x.length;
+    private static double mean(double[] x) {
+        if (x.length == 0) return Double.NaN;
+        double s = 0.0;
+        for (double v : x) s += v;
+        return s / x.length;
+    }
 
+    private static double variancePopulation(double[] x) {
+        if (x.length == 0) return Double.NaN;
+        double m = mean(x);
         double s = 0.0;
         for (double v : x) {
-            double d = v - mean;
+            double d = v - m;
             s += d * d;
         }
-        return s / (x.length - 1);
+        return s / x.length;
+    }
+
+    private static double min(double[] x) {
+        double m = Double.POSITIVE_INFINITY;
+        for (double v : x) m = Math.min(m, v);
+        return m;
+    }
+
+    private static double max(double[] x) {
+        double m = Double.NEGATIVE_INFINITY;
+        for (double v : x) m = Math.max(m, v);
+        return m;
     }
 }
