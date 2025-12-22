@@ -28,6 +28,7 @@ public final class SimulationTraceExporter {
             for (int b = 0; b < busCnt; b++) {
                 int bi = b + 1;
                 h.append(";B").append(bi).append("_L");
+                h.append(";B").append(bi).append("_Def");
                 h.append(";B").append(bi).append("_W");
 
                 int dgCnt = recs.get(0).getBusGenDgLoadKw()[b].length;
@@ -38,7 +39,9 @@ public final class SimulationTraceExporter {
                 }
 
                 h.append(";B").append(bi).append("_B");
-                h.append(";B").append(bi).append("_Def");
+                h.append(";B").append(bi).append("_C");
+                h.append(";B").append(bi).append("_SOC");
+
             }
 
             w.write(h.toString());
@@ -54,6 +57,7 @@ public final class SimulationTraceExporter {
                 for (int b = 0; b < busCnt; b++) {
 
                     s.append(';').append(f(r.getBusLoadKw()[b]));
+                    s.append(';').append(f(r.getBusDeficitKw()[b]));
                     s.append(';').append(f(r.getBusGenWindKw()[b]));
 
                     int dgCnt = r.getBusGenDgLoadKw()[b].length;
@@ -70,7 +74,9 @@ public final class SimulationTraceExporter {
                     }
 
                     s.append(';').append(f(r.getBusGenBtKw()[b]));
-                    s.append(';').append(f(r.getBusDeficitKw()[b]));
+                    s.append(';').append(f(r.getBtActualCapacity()[b]));
+                    s.append(';').append(f(r.getBtActualSOC()[b]));
+
                 }
 
                 w.write(s.toString());

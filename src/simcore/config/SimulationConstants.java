@@ -1,9 +1,9 @@
+// File: simcore/config/SimulationConstants.java
 package simcore.config;
 
 /**
  * Глобальные константы симуляции.
- * Все параметры оборудования и физические коэффициенты
- * должны находиться здесь.
+ * Все параметры оборудования и физические коэффициенты должны находиться здесь.
  */
 public final class SimulationConstants {
 
@@ -20,13 +20,8 @@ public final class SimulationConstants {
     // ===========================    ВЕТРЯК  ==================================
     // =========================================================================
 
-    /** Пересчёт скорости ветра — эталонная высота (м) */
     public static final double WIND_REFERENCE_HEIGHT_M = 50.0;
-
-    /** Коэффициент шероховатости z0 для логарифмического профиля */
     public static final double Z_FACTOR = 0.03;
-
-    /** Высота мачты ВЭУ */
     public static final double MAST_HEIGHT_M = 35.0;
 
     // =========================================================================
@@ -36,43 +31,73 @@ public final class SimulationConstants {
     /** Начальный уровень заряда АКБ (0..1) */
     public static final double BATTERY_START_SOC = 1.0;
 
-    /** Минимальный уровень заряда (бывший MIN_CAPACITY = 0.2) */
+    /** Минимальный уровень заряда */
     public static final double BATTERY_MIN_SOC = 0.20;
 
-    /** Максимальный уровень заряда (normal = 1.0) */
+    /** Максимальный уровень заряда */
     public static final double BATTERY_MAX_SOC = 1.00;
 
     /** КПД заряда/разряда */
     public static final double BATTERY_EFFICIENCY = 0.93;
 
-    /** Саморазряд 3% в месяц = 3%/мес */
+    /**
+     * Саморазряд: 3% в месяц => 0.03/720 в долях в час.
+     * В твоей постановке это эквивалентно "3/720 % от nominalCapacityKwh в час".
+     */
     public static final double BATTERY_SELF_DISCHARGE_PER_HOUR = 0.03 / 720.0;
 
-    /** Скорость деградации (параметр старения из старого кода) */
-    public static final double BATTERY_DEGRADATION_RATE = 0.0025;
+    /** Порог деградации до "замены" (ёмкость упала до 80%) */
+    public static final double BATTERY_DEGRADATION_THRESHOLD = 0.80;
+
+    /**
+     * Базовая потеря ёмкости на 1 EFC при "средних" условиях.
+     * Калибровка под 20% за ~2000 EFC: 0.20/2000 = 1e-4.
+     */
+    public static final double BATTERY_CAPACITY_LOSS_PER_EFC = 1.0e-4;
+
+    /**
+     * Вес влияния C-rate на циклическую деградацию (мягкий множитель).
+     * wC = 1 + BATTERY_CRATE_WEIGHT * min(1, C-rate)
+     */
+    public static final double BATTERY_CRATE_WEIGHT = 0.30;
+
+    /**
+     * Вес влияния DoD шага разряда на циклическую деградацию (мягкий множитель).
+     * wDoD = 1 + BATTERY_DOD_WEIGHT * min(1, DoD_step)
+     */
+    public static final double BATTERY_DOD_WEIGHT = 0.50;
+
+    /**
+     * Ослабление влияния C-rate в режиме "короткого мостика" (0..1).
+     * 0.5 означает "в 2 раза слабее токовый штраф".
+     */
+    public static final double BATTERY_BRIDGE_CRATE_RELIEF = 0.50;
+
+    /**
+     * Календарная деградация (опционально), доля от nominalCapacityKwh в год.
+     */
+    public static final double BATTERY_CALENDAR_LOSS_PER_YEAR = 0.0025;
+
+    // ===== Throughput power-law degradation =====
+    public static final double BATTERY_DEG_Z = 0.57;          // степень (типично 0.5..0.7)
+    public static final double BATTERY_DEG_H = 0.35;          // чувствительность к C-rate (калибруется)
+    public static final double BATTERY_DEG_BETA_DOD = 1;    // влияние DoD (мягко), 0..1
+    public static final double BATTERY_DOD_REF = 0.80;        // опорная DoD для нормировки
+
+    // Калибровка "20% потери на 2000 EFC при базовых условиях (C≈0, DoD≈DOD_REF)"
+    public static final double BATTERY_DEG_K =
+            0.20 / Math.pow(2000.0, BATTERY_DEG_Z);
+
 
     // =========================================================================
     // ===========================    ДИЗЕЛЬ  ==================================
     // =========================================================================
 
-    /** Минимальная мощность ДГУ (в долях) */
     public static final double DG_MIN_POWER = 0.3;
-
-    /** Максимальная мощность ДГУ (в долях) */
     public static final double DG_MAX_POWER = 1;
-
-    /** Оптимальная максимальная загрузка ДГУ (в долях) */
     public static final double DG_OPTIMAL_POWER = 0.8;
-
-    /** Задержка первого пуска ДГУ (из старого FirstTimeStart) */
-    public static final double DG_START_DELAY_HOURS = 0.1; // 0.05
-
-    /** Максимальная длительность работы на низкую загрузку */
+    public static final double DG_START_DELAY_HOURS = 0.1;
     public static final int DG_MAX_IDLE_HOURS = 4;
-
-    // =========================================================================
-    // ===========================    ПРОЧЕЕ   =================================
-    // =========================================================================
 
     private SimulationConstants() {}
 }

@@ -10,20 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 
-/**
- * Monte-Carlo evaluation for a fixed parameter point theta.
- *
- * Seeding:
- *  - seed depends on (sobolRowIdx, mcIdx)
- *  - For a fixed sobolRowIdx, mcIdx enumerates independent MC scenarios
- *  - Independence between different theta points is achieved by using different sobolRowIdx
- *    (handled by SobolAnalyzer: A, B and AB_j use different sobolRowIdx blocks).
- */
 public final class MonteCarloRunner {
 
     private static final long MC_SEED_STRIDE = 10_000L;
-
-    // Must be >> mcIterations * MC_SEED_STRIDE to avoid overlaps.
     private static final long SOBOL_ROW_SEED_STRIDE = 10_000_000_000L; // 1e10
 
     private final ExecutorService executor;
@@ -45,9 +34,6 @@ public final class MonteCarloRunner {
         this.relativeError = relativeError;
     }
 
-    /**
-     * Backward-compatible wrapper: for non-Sobol usage we keep sobolRowIdx=0.
-     */
     public MonteCarloEstimate evaluateForTheta(SimInput baseInput,
                                                ParameterSet theta,
                                                SobolConfig sobolCfg,
@@ -57,13 +43,9 @@ public final class MonteCarloRunner {
             throws InterruptedException, ExecutionException {
 
         return evaluateForTheta(
-                baseInput,
-                theta,
-                sobolCfg,
-                mcIterations,
-                mcBaseSeed,
-                0L,
-                traceIfSingle
+                baseInput, theta, sobolCfg,
+                mcIterations, mcBaseSeed,
+                0L, traceIfSingle
         );
     }
 
@@ -76,7 +58,7 @@ public final class MonteCarloRunner {
                                                boolean traceIfSingle)
             throws InterruptedException, ExecutionException {
 
-        // 1) apply theta -> new SystemParameters (only if Sobol is used)
+        // apply theta
         SimInput input = baseInput;
         if (theta != null && sobolCfg != null) {
             SystemParameters baseParams = baseInput.getSystemParameters();
@@ -84,10 +66,12 @@ public final class MonteCarloRunner {
             input = baseInput.withSystemParameters(tuned);
         }
 
-        // 2) single-run mode (iterations == 1): may enable trace
+        if (mcIterations <= 0) {
+            throw new IllegalArgumentException("mcIterations must be > 0");
+        }
+
         if (mcIterations == 1) {
             long seed = seedFor(mcBaseSeed, sobolRowIdx, 0);
-
             SimulationMetrics m = simulator.simulate(input, seed, traceIfSingle);
 
             double[] ensArr = new double[]{m.ensKwh};
@@ -113,20 +97,23 @@ public final class MonteCarloRunner {
             );
         }
 
-        // 3) regular MC: parallelize single-run simulations
         final SimInput inputFinal = input;
 
-        List<Future<SimulationMetrics>> futures = new ArrayList<>(mcIterations);
-        for (int i = 0; i < mcIterations; i++) {
-            final int mcIdx = i;
-            futures.add(executor.submit(() -> {
-                long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
-                return simulator.simulate(inputFinal, seed, false);
-            }));
+        int parallelism = estimateParallelism(executor);
+        int chunks = Math.min(mcIterations, Math.max(1, parallelism * 2));
+        int chunkSize = (int) Math.ceil(mcIterations / (double) chunks);
+
+        List<Future<ChunkAgg>> futures = new ArrayList<>(chunks);
+
+        for (int c = 0; c < chunks; c++) {
+            int from = c * chunkSize;
+            int to = Math.min(mcIterations, from + chunkSize);
+            if (from >= to) break;
+
+            futures.add(executor.submit(() -> runChunk(inputFinal, mcBaseSeed, sobolRowIdx, from, to)));
         }
 
         double[] ens = new double[mcIterations];
-
         double fuelSum = 0.0;
         double motoSum = 0.0;
 
@@ -135,18 +122,16 @@ public final class MonteCarloRunner {
         double dgPctSum = 0.0;
         double btPctSum = 0.0;
 
-        for (int i = 0; i < mcIterations; i++) {
-            SimulationMetrics m = futures.get(i).get();
+        for (Future<ChunkAgg> f : futures) {
+            ChunkAgg a = f.get();
+            fuelSum += a.fuelSum;
+            motoSum += a.motoSum;
+            wrePctSum += a.wrePctSum;
+            wtPctSum += a.wtPctSum;
+            dgPctSum += a.dgPctSum;
+            btPctSum += a.btPctSum;
 
-            ens[i] = m.ensKwh;
-            fuelSum += m.fuelLiters;
-            motoSum += (double) m.totalMotoHours;
-
-            wrePctSum += pct(m.wreKwh, m.loadKwh);
-
-            wtPctSum += pct(m.wtToLoadKwh, m.loadKwh);
-            dgPctSum += pct(m.dgToLoadKwh, m.loadKwh);
-            btPctSum += pct(m.btToLoadKwh, m.loadKwh);
+            System.arraycopy(a.ens, 0, ens, a.ensOffset, a.ens.length);
         }
 
         MonteCarloStats.Stats ensStats = MonteCarloStats.compute(ens, removeOutliers, tScore, relativeError);
@@ -164,6 +149,75 @@ public final class MonteCarloRunner {
                 btPctSum * inv,
                 null
         );
+    }
+
+    private ChunkAgg runChunk(SimInput input,
+                              long mcBaseSeed,
+                              long sobolRowIdx,
+                              int fromInclusive,
+                              int toExclusive) {
+
+        int n = toExclusive - fromInclusive;
+        double[] ens = new double[n];
+
+        double fuelSum = 0.0;
+        double motoSum = 0.0;
+        double wrePctSum = 0.0;
+        double wtPctSum = 0.0;
+        double dgPctSum = 0.0;
+        double btPctSum = 0.0;
+
+        for (int mcIdx = fromInclusive; mcIdx < toExclusive; mcIdx++) {
+            long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
+            SimulationMetrics m = simulator.simulate(input, seed, false);
+
+            int k = mcIdx - fromInclusive;
+            ens[k] = m.ensKwh;
+
+            fuelSum += m.fuelLiters;
+            motoSum += (double) m.totalMotoHours;
+
+            wrePctSum += pct(m.wreKwh, m.loadKwh);
+            wtPctSum += pct(m.wtToLoadKwh, m.loadKwh);
+            dgPctSum += pct(m.dgToLoadKwh, m.loadKwh);
+            btPctSum += pct(m.btToLoadKwh, m.loadKwh);
+        }
+
+        return new ChunkAgg(fromInclusive, ens, fuelSum, motoSum, wrePctSum, wtPctSum, dgPctSum, btPctSum);
+    }
+
+    private static final class ChunkAgg {
+        final int ensOffset;
+        final double[] ens;
+        final double fuelSum;
+        final double motoSum;
+        final double wrePctSum;
+        final double wtPctSum;
+        final double dgPctSum;
+        final double btPctSum;
+
+        ChunkAgg(int ensOffset,
+                 double[] ens,
+                 double fuelSum,
+                 double motoSum,
+                 double wrePctSum,
+                 double wtPctSum,
+                 double dgPctSum,
+                 double btPctSum) {
+            this.ensOffset = ensOffset;
+            this.ens = ens;
+            this.fuelSum = fuelSum;
+            this.motoSum = motoSum;
+            this.wrePctSum = wrePctSum;
+            this.wtPctSum = wtPctSum;
+            this.dgPctSum = dgPctSum;
+            this.btPctSum = btPctSum;
+        }
+    }
+
+    private static int estimateParallelism(ExecutorService executor) {
+        if (executor instanceof ForkJoinPool fjp) return Math.max(1, fjp.getParallelism());
+        return Math.max(1, Runtime.getRuntime().availableProcessors());
     }
 
     private static long seedFor(long mcBaseSeed, long sobolRowIdx, int mcIdx) {

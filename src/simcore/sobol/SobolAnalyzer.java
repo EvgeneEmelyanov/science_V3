@@ -30,8 +30,7 @@ public final class SobolAnalyzer {
             );
         }
 
-        // A/B from Sobol(2d)
-        double[][][] ab = generateABBySobolSequence(N, d);
+        double[][][] ab = generateABBySobolSequence(N, d /*, 1024*/);
         double[][] A = ab[0];
         double[][] B = ab[1];
 
@@ -40,7 +39,6 @@ public final class SobolAnalyzer {
         List<List<MonteCarloEstimate>> yAB = new ArrayList<>(d);
         for (int j = 0; j < d; j++) yAB.add(new ArrayList<>(N));
 
-        // A and B with independent random scenarios
         for (int i = 0; i < N; i++) {
             ParameterSet thetaA = buildThetaFromUnitRow(A[i], cfg);
             ParameterSet thetaB = buildThetaFromUnitRow(B[i], cfg);
@@ -60,7 +58,6 @@ public final class SobolAnalyzer {
             ));
         }
 
-        // AB_j with independent random scenarios vs A and B
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < N; i++) {
                 double[] row = new double[d];
@@ -68,7 +65,6 @@ public final class SobolAnalyzer {
                 row[j] = B[i][j];
 
                 ParameterSet thetaAB = buildThetaFromUnitRow(row, cfg);
-
                 long sobolRowIdx = i + (2L + j) * (long) N;
 
                 yAB.get(j).add(mcRunner.evaluateForTheta(
@@ -93,17 +89,6 @@ public final class SobolAnalyzer {
 
     private enum Metric { ENS, FUEL, MOTO }
 
-    /**
-     * More stable Saltelli (2010) estimators:
-     *
-     * First-order:
-     *   S_j = ( mean( f(A) * f(AB_j) ) - mean(f)^2 ) / Var(f)
-     *
-     * Total-order:
-     *   ST_j = mean( (f(A) - f(AB_j))^2 ) / (2*Var(f))
-     *
-     * where mean(f) and Var(f) are estimated from the pooled A and B samples.
-     */
     private static void computeSobolIndicesSaltelli2010(List<MonteCarloEstimate> yA,
                                                         List<MonteCarloEstimate> yB,
                                                         List<List<MonteCarloEstimate>> yAB,
@@ -140,6 +125,10 @@ public final class SobolAnalyzer {
             return;
         }
 
+        int stLessThanS = 0;
+        double sumS = 0.0;
+        double sumST = 0.0;
+
         for (int j = 0; j < d; j++) {
             double sumProd = 0.0;
             double sumSt = 0.0;
@@ -154,8 +143,20 @@ public final class SobolAnalyzer {
             }
 
             double meanProd = sumProd / N;
-            S[j]  = (meanProd - meanY * meanY) / varY;
-            ST[j] = (sumSt / (2.0 * N)) / varY;
+            double sj = (meanProd - meanY * meanY) / varY;
+            double stj = (sumSt / (2.0 * N)) / varY;
+
+            S[j] = sj;
+            ST[j] = stj;
+
+            sumS += sj;
+            sumST += stj;
+            if (stj + 1e-12 < sj) stLessThanS++;
+        }
+
+        if (printDiagnostics) {
+            System.out.printf("Sobol metric=%s: sumS=%.6f sumST=%.6f count(ST<S)=%d/%d%n",
+                    metric, sumS, sumST, stLessThanS, d);
         }
     }
 
@@ -167,8 +168,11 @@ public final class SobolAnalyzer {
         };
     }
 
-    private static double[][][] generateABBySobolSequence(int N, int d) {
+    private static double[][][] generateABBySobolSequence(int N, int d /*, int skip*/) {
         SobolSequenceGenerator sobol = new SobolSequenceGenerator(2 * d);
+
+        // optional (if you want): skip early points
+        // sobol.skip(skip);
 
         double[][] A = new double[N][d];
         double[][] B = new double[N][d];
@@ -200,14 +204,12 @@ public final class SobolAnalyzer {
     }
 
     private static double mean(double[] x) {
-        if (x.length == 0) return Double.NaN;
         double s = 0.0;
         for (double v : x) s += v;
         return s / x.length;
     }
 
     private static double variancePopulation(double[] x) {
-        if (x.length == 0) return Double.NaN;
         double m = mean(x);
         double s = 0.0;
         for (double v : x) {

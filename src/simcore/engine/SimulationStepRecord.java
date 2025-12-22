@@ -28,6 +28,10 @@ public class SimulationStepRecord {
     private final boolean[][] dgAvailable;      // true = доступна
     private final boolean[][] dgInMaintenance;  // true = ТО
 
+    // Состояние АКБ
+    private final double[] btActualCapacity;
+    private final double[] btActualSOC;
+
     public SimulationStepRecord(int timeIndex,
                                 double totalLoadKw,
                                 double totalDeficitKw,
@@ -43,7 +47,9 @@ public class SimulationStepRecord {
                                 double[][] busGenDgTimeWorked,
                                 double[][] busGenDgTotalTimeWorked,
                                 boolean[][] dgAvailable,
-                                boolean[][] dgInMaintenance) {
+                                boolean[][] dgInMaintenance,
+                                double[] btActualCapacity,
+                                double[] btActualSOC) {
 
         this.timeIndex = timeIndex;
         this.totalLoadKw = totalLoadKw;
@@ -63,6 +69,9 @@ public class SimulationStepRecord {
 
         this.dgAvailable = deepCopy(dgAvailable);
         this.dgInMaintenance = deepCopy(dgInMaintenance);
+
+        this.btActualCapacity = btActualCapacity.clone();
+        this.btActualSOC = btActualSOC.clone();
     }
 
     private static double[][] deepCopy(double[][] array) {
@@ -74,22 +83,74 @@ public class SimulationStepRecord {
     }
 
     // --- Геттеры ---
-    public int getTimeIndex() { return timeIndex; }
-    public double getTotalLoadKw() { return totalLoadKw; }
-    public double getTotalDeficitKw() { return totalDeficitKw; }
-    public double getTotalWreKw() { return totalWreKw; }
-    public boolean[] getBusStatus() { return busStatus.clone(); }
-    public double[] getBusLoadKw() { return busLoadKw.clone(); }
-    public double[] getBusGenWindKw() { return busGenWindKw.clone(); }
-    public double[] getBusGenDgKw() { return busGenDgKw.clone(); }
-    public double[] getBusGenBtKw() { return busGenBtKw.clone(); }
-    public double[] getBusDeficitKw() { return busDeficitKw.clone(); }
+    public int getTimeIndex() {
+        return timeIndex;
+    }
 
-    public double[][] getBusGenDgLoadKw() { return deepCopy(busGenDgLoadKw); }
-    public double[][] getBusGenDgHoursSinceMaintenance() { return deepCopy(busGenDgHoursSinceMaintenance); }
-    public double[][] getBusGenDgTimeWorked() { return deepCopy(busGenDgTimeWorked); }
-    public double[][] getBusGenDgTotalTimeWorked() { return deepCopy(busGenDgTotalTimeWorked); }
+    public double getTotalLoadKw() {
+        return totalLoadKw;
+    }
 
-    public boolean[][] getDgAvailable() { return deepCopy(dgAvailable); }
-    public boolean[][] getDgInMaintenance() { return deepCopy(dgInMaintenance); }
+    public double getTotalDeficitKw() {
+        return totalDeficitKw;
+    }
+
+    public double getTotalWreKw() {
+        return totalWreKw;
+    }
+
+    public boolean[] getBusStatus() {
+        return busStatus.clone();
+    }
+
+    public double[] getBusLoadKw() {
+        return busLoadKw.clone();
+    }
+
+    public double[] getBusGenWindKw() {
+        return busGenWindKw.clone();
+    }
+
+    public double[] getBusGenDgKw() {
+        return busGenDgKw.clone();
+    }
+
+    public double[] getBusGenBtKw() {
+        return busGenBtKw.clone();
+    }
+
+    public double[] getBusDeficitKw() {
+        return busDeficitKw.clone();
+    }
+
+    public double[][] getBusGenDgLoadKw() {
+        return deepCopy(busGenDgLoadKw);
+    }
+
+    public double[][] getBusGenDgHoursSinceMaintenance() {
+        return deepCopy(busGenDgHoursSinceMaintenance);
+    }
+
+    public double[][] getBusGenDgTimeWorked() {
+        return deepCopy(busGenDgTimeWorked);
+    }
+
+    public double[][] getBusGenDgTotalTimeWorked() {
+        return deepCopy(busGenDgTotalTimeWorked);
+    }
+
+    public boolean[][] getDgAvailable() {
+        return deepCopy(dgAvailable);
+    }
+
+    public boolean[][] getDgInMaintenance() {
+        return deepCopy(dgInMaintenance);
+    }
+
+    public double[] getBtActualCapacity() {
+        return btActualCapacity;
+    }
+    public double[] getBtActualSOC() {
+        return btActualSOC;
+    }
 }

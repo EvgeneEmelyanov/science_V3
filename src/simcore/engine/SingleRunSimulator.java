@@ -1,3 +1,4 @@
+// File: simcore/engine/SingleRunSimulator.java
 package simcore.engine;
 
 import simcore.config.SimulationConfig;
@@ -6,6 +7,7 @@ import simcore.config.SystemParameters;
 import simcore.model.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -18,6 +20,10 @@ public final class SingleRunSimulator {
     private static final double K12 = 5.3978;
     private static final double K22 = -11.4831;
     private static final double K32 = 11.6284;
+
+    // Буфер для сортировки ДГУ без new ArrayList каждый час.
+    // ThreadLocal нужен, потому что simulate() запускается параллельно в разных потоках.
+    private static final ThreadLocal<DieselGenerator[]> DG_SORT_BUF = new ThreadLocal<>();
 
     /**
      * Один прогон по всему временному ряду.
@@ -78,7 +84,6 @@ public final class SingleRunSimulator {
         for (int t = 0; t < n; t++) {
 
             double v = wind[t];
-            // ===== trace buffers for hour t =====
             final boolean doTrace = (trace != null);
 
             double totalLoadAtTime = 0.0;
@@ -98,6 +103,9 @@ public final class SingleRunSimulator {
             double[][] busGenDgTotalTimeWorked = null;
             boolean[][] dgAvailable = null;
             boolean[][] dgInMaintenance = null;
+            double[] btActualCapacity = null;
+            double[] btActualSOC = null;
+
 
             if (doTrace) {
                 busStatus = new boolean[busCount];
@@ -113,6 +121,9 @@ public final class SingleRunSimulator {
                 busGenDgTotalTimeWorked = new double[busCount][];
                 dgAvailable = new boolean[busCount][];
                 dgInMaintenance = new boolean[busCount][];
+                btActualCapacity = new double[busCount];
+                btActualSOC = new double[busCount];
+
             }
 
             // --- failures bus/breaker ---
@@ -168,10 +179,10 @@ public final class SingleRunSimulator {
                 double windPotKw = 0.0;
                 double windToLoadKw;
 
-                double dgProducedKw;     // фактическая генерация ДГУ (включая прожиг)
-                double dgToLoadKwLocal = 0.0;  // сколько из ДГУ пошло в нагрузку
+                double dgProducedKw;          // фактическая генерация ДГУ (включая прожиг)
+                double dgToLoadKwLocal = 0.0; // сколько из ДГУ пошло в нагрузку
 
-                double btNetKw = 0.0;          // +разряд, -заряд
+                double btNetKw = 0.0;         // +разряд, -заряд
                 double wreLocal = 0.0;
 
                 if (!busAlive[b]) {
@@ -179,7 +190,6 @@ public final class SingleRunSimulator {
                         dg.stopWork();
                         dg.setCurrentLoad(0.0);
                     }
-                    // supply=0 => весь load в ENS
                     ensKwh += loadKw;
                     continue;
                 }
@@ -237,12 +247,24 @@ public final class SingleRunSimulator {
                     double btDisCap = 0.0;
                     if (btAvail) btDisCap = battery.getDischargeCapacity(systemParameters);
 
-                    // сортировка ДГУ КАЖДЫЙ ЧАС
-                    List<DieselGenerator> dgs = new ArrayList<>(bus.getDieselGenerators());
-                    dgs.sort(DieselGenerator.DISPATCH_COMPARATOR);
+                    // ===== СОРТИРОВКА ДГУ БЕЗ new ArrayList КАЖДЫЙ ЧАС =====
+                    List<DieselGenerator> dgList = bus.getDieselGenerators();
+                    int dgCountAll = dgList.size();
+
+                    DieselGenerator[] dgs = DG_SORT_BUF.get();
+                    if (dgs == null || dgs.length != dgCountAll) {
+                        dgs = new DieselGenerator[dgCountAll];
+                        DG_SORT_BUF.set(dgs);
+                    }
+                    for (int k = 0; k < dgCountAll; k++) {
+                        dgs[k] = dgList.get(k);
+                    }
+                    Arrays.sort(dgs, DieselGenerator.DISPATCH_COMPARATOR);
+                    // ======================================================
 
                     int available = 0, ready = 0;
-                    for (DieselGenerator dg : dgs) {
+                    for (int k = 0; k < dgCountAll; k++) {
+                        DieselGenerator dg = dgs[k];
                         if (dg.isAvailable()) available++;
                         if (dg.isWorking()) ready++;
                     }
@@ -375,7 +397,8 @@ public final class SingleRunSimulator {
 
                         boolean anyBurnThisHour = false;
 
-                        for (DieselGenerator dg : dgs) {
+                        for (int k = 0; k < dgCountAll; k++) {
+                            DieselGenerator dg = dgs[k];
 
                             if (!dg.isAvailable() || used >= dgToUse) {
                                 dg.setCurrentLoad(0.0);
@@ -392,7 +415,6 @@ public final class SingleRunSimulator {
                                     : (perDgSteady * (1.0 - tau));
 
                             // --- low-load (<30%) + прожиг ---
-                            // Режим низкой загрузки общий: idleTime
                             if (genKw + SimulationConstants.EPSILON < dgMinKw) {
 
                                 if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
@@ -425,12 +447,9 @@ public final class SingleRunSimulator {
 
                         dgProducedKw = sumDiesel;
 
-                        // ---- заряд от ДГУ ---- //TODO ТУТ КАКТО НЕ ПРАВИЛЬНО РЕАЛИЗОВАНО ПЕРЕПРОВЕРИТЬ КАРОЧ!
-                        // 1) если considerChargeByDg=true — всегда, когда есть избыток
-                        // 2) если considerChargeByDg=false — всё равно заряжаем при прожиге (anyBurnThisHour)
+                        // ---- заряд от ДГУ ----
                         boolean allowChargeNow = canCharge && (considerChargeByDg || anyBurnThisHour);
 
-                        // Сколько реально надо в нагрузку с учётом ветра и разряда АКБ
                         double btDisToLoad = Math.max(0.0, btNetKw);
                         double needFromDieselToLoad = loadKw - windToLoadKw - btDisToLoad;
                         if (needFromDieselToLoad < 0.0) needFromDieselToLoad = 0.0;
@@ -451,7 +470,7 @@ public final class SingleRunSimulator {
                     }
                 }
 
-                // ---- Fuel per hour: по модулю текущей мощности ДГУ (учитывает отрицательные режимы, если появятся) ----
+                // ---- Fuel per hour ----
                 for (DieselGenerator dg : bus.getDieselGenerators()) {
                     if (!dg.isAvailable()) continue;
                     double pSigned = dg.getCurrentLoad();
@@ -479,9 +498,9 @@ public final class SingleRunSimulator {
                 if (doTrace) {
                     busStatus[b] = busAlive[b];
                     busLoadAtTime[b] = loadKw;
-                    busGenWindAtTime[b] = windToLoadKw;      // сколько ветра реально пошло в нагрузку
-                    busGenDgAtTime[b] = dgToLoadKwLocal;     // сколько ДГУ реально пошло в нагрузку
-                    busGenBtAtTime[b] = btNetKw;             // +разряд, -заряд (как у вас принято)
+                    busGenWindAtTime[b] = windToLoadKw;
+                    busGenDgAtTime[b] = dgToLoadKwLocal;
+                    busGenBtAtTime[b] = btNetKw;
                     busDefAtTime[b] = def;
 
                     totalLoadAtTime += loadKw;
@@ -489,8 +508,8 @@ public final class SingleRunSimulator {
                     totalWreAtTime += wreLocal;
 
                     // DG detail arrays (по всем ДГУ на шине)
-                    List<DieselGenerator> dgList = bus.getDieselGenerators();
-                    int dgCount = dgList.size();
+                    List<DieselGenerator> dgListTrace = bus.getDieselGenerators();
+                    int dgCount = dgListTrace.size();
 
                     busGenDgLoadKw[b] = new double[dgCount];
                     busGenDgHoursSinceMaintenance[b] = new double[dgCount];
@@ -500,7 +519,7 @@ public final class SingleRunSimulator {
                     dgInMaintenance[b] = new boolean[dgCount];
 
                     for (int i = 0; i < dgCount; i++) {
-                        DieselGenerator dg = dgList.get(i);
+                        DieselGenerator dg = dgListTrace.get(i);
                         busGenDgLoadKw[b][i] = dg.getCurrentLoad();
                         busGenDgHoursSinceMaintenance[b][i] = dg.getHoursSinceMaintenance();
                         busGenDgTimeWorked[b][i] = dg.getTimeWorked();
@@ -508,8 +527,18 @@ public final class SingleRunSimulator {
                         dgAvailable[b][i] = dg.isAvailable();
                         dgInMaintenance[b][i] = dg.isInMaintenance();
                     }
-                }
 
+                    Battery bt = bus.getBattery();
+                    if (bt != null) {
+                        btActualCapacity[b] = bt.getMaxCapacityKwh();
+                        btActualSOC[b] = bt.getStateOfCharge();
+                    } else {
+                        btActualCapacity[b] = Double.NaN; // или 0.0
+                        btActualSOC[b] = Double.NaN;      // или 0.0
+                    }
+
+
+                }
             }
 
             if (doTrace) {
@@ -529,10 +558,11 @@ public final class SingleRunSimulator {
                         busGenDgTimeWorked,
                         busGenDgTotalTimeWorked,
                         dgAvailable,
-                        dgInMaintenance
+                        dgInMaintenance,
+                        btActualCapacity,
+                        btActualSOC
                 ));
             }
-
         }
 
         long moto = 0;
