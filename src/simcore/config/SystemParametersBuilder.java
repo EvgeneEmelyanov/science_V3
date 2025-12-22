@@ -7,6 +7,10 @@ public class SystemParametersBuilder {
 
     private BusSystemType busSystemType;
 
+    private double firstCat;
+    private double secondCat;
+    private double thirdCat;
+
     private int totalWindTurbineCount;
     private double windTurbinePowerKw;
 
@@ -43,6 +47,10 @@ public class SystemParametersBuilder {
      */
     public static SystemParametersBuilder from(SystemParameters base) {
         SystemParametersBuilder b = new SystemParametersBuilder();
+        b.firstCat = base.getFirstCat();
+        b.secondCat = base.getSecondCat();
+        b.thirdCat = base.getThirdCat();
+
         b.busSystemType = base.getBusSystemType();
         b.totalWindTurbineCount = base.getTotalWindTurbineCount();
         b.windTurbinePowerKw = base.getWindTurbinePowerKw();
@@ -69,6 +77,10 @@ public class SystemParametersBuilder {
     public SystemParameters build() {
         return new SystemParameters(
                 busSystemType,
+                firstCat,
+                secondCat,
+                thirdCat,
+
                 totalWindTurbineCount,
                 windTurbinePowerKw,
                 totalDieselGeneratorCount,
@@ -99,6 +111,33 @@ public class SystemParametersBuilder {
 
     public SystemParametersBuilder setBusSystemType(BusSystemType busSystemType) {
         this.busSystemType = busSystemType;
+        return this;
+    }
+
+    public double getFirstCat() {
+        return firstCat;
+    }
+
+    public SystemParametersBuilder setFirstCat(double firstCat) {
+        this.firstCat = firstCat;
+        return this;
+    }
+
+    public double getSecondCat() {
+        return secondCat;
+    }
+
+    public SystemParametersBuilder setSecondCat(double secondCat) {
+        this.secondCat = secondCat;
+        return this;
+    }
+
+    public double getThirdCat() {
+        return thirdCat;
+    }
+
+    public SystemParametersBuilder setThirdCat(double thirdCat) {
+        this.thirdCat = thirdCat;
         return this;
     }
 
@@ -173,7 +212,6 @@ public class SystemParametersBuilder {
         this.nonReserveDischargeLevel = nonReserveDischargeLevel;
         return this;
     }
-
 
 
     public double getWindTurbineFailureRatePerYear() {

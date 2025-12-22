@@ -73,8 +73,12 @@ public final class SweepResultsCsvWriter {
 
     private static String buildPassport(SimulationConfig cfg, SystemParameters sp) {
         return String.format(RU,
-                "bus=%s; MC=%d; fail=%b; deg=%b; chargeDg=%b; WT=%dx%.0f; DG=%dx%.0f; BT_base=%.1f; Ib=%.2f/%.2f; nonRes=%.2f",
+                "bus=%s; I=%.2f; II=%.2f; III=%.2f; MC=%d; fail=%b; deg=%b; chargeDg=%b; WT=%dx%.0f; DG=%dx%.0f;" +
+                        " BT_base=%.1f; Ib=%.2f/%.2f; nonRes=%.2f",
                 sp.getBusSystemType(),
+                sp.getFirstCat(),
+                sp.getSecondCat(),
+                sp.getThirdCat(),
                 cfg.getIterations(),
                 cfg.isConsiderFailures(),
                 cfg.isConsiderBatteryDegradation(),

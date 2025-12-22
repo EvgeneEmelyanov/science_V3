@@ -21,8 +21,6 @@ public final class SingleRunSimulator {
     private static final double K22 = -11.4831;
     private static final double K32 = 11.6284;
 
-    // Буфер для сортировки ДГУ без new ArrayList каждый час.
-    // ThreadLocal нужен, потому что simulate() запускается параллельно в разных потоках.
     private static final ThreadLocal<DieselGenerator[]> DG_SORT_BUF = new ThreadLocal<>();
 
     /**
@@ -40,6 +38,10 @@ public final class SingleRunSimulator {
         boolean considerFailures = config.isConsiderFailures();
         boolean considerDegradation = config.isConsiderBatteryDegradation();
         boolean considerChargeByDg = config.isConsiderChargeByDg();
+
+        double cat1 = systemParameters.getFirstCat();
+        double cat2 = systemParameters.getSecondCat();
+        double cat3 = systemParameters.getThirdCat();
 
         PowerSystem powerSystem = new PowerSystemBuilder().build(systemParameters, input.getTotalLoadKw());
         List<PowerBus> buses = powerSystem.getBuses();
@@ -63,7 +65,6 @@ public final class SingleRunSimulator {
             if (bt != null) bt.initFailureModel(rndBT, considerFailures);
         }
 
-        // общие суммы (энергия за 1ч == мощность кВт при dt=1ч)
         double loadKwh = 0.0;
         double ensKwh = 0.0;
         double wreKwh = 0.0;
