@@ -38,6 +38,7 @@ public final class SingleRunSimulator {
         boolean considerFailures = config.isConsiderFailures();
         boolean considerDegradation = config.isConsiderBatteryDegradation();
         boolean considerChargeByDg = config.isConsiderChargeByDg();
+        boolean considerRotationReserve = config.isConsiderRotationReserve();
 
         double cat1 = systemParameters.getFirstCat();
         double cat2 = systemParameters.getSecondCat();
@@ -250,7 +251,7 @@ public final class SingleRunSimulator {
 
                         // pCrit и требуемый резерв на "потерю ветра"
                         double pCrit = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
-                        double windLoss = Math.min(windToLoadKw, pCrit); // здесь = min(loadKw, pCrit)
+                        double windLoss = Math.min(windToLoadKw, pCrit);
 
                         double btFirm = 0.0;
                         if (btAvail) btFirm = battery.getDischargeCapacity(systemParameters);
@@ -551,12 +552,7 @@ public final class SingleRunSimulator {
                                 DieselGenerator dg = dgs[k];
                                 if (!dg.isAvailable()) continue;
                                 if (!dg.isWorking()) continue;
-
-                                // Если ДГУ сейчас в ХХ (отрицательная нагрузка) — не считаем его как "firm работающий под нагрузкой".
-                                // Его вы учитываете отдельным механизмом ХХ.
                                 if (dg.getCurrentLoad() < -SimulationConstants.EPSILON) continue;
-
-                                // Если ДГУ работает (даже на малой нагрузке или прожиге) — в аварии она может быть поднята до dgMaxKw.
                                 dgFirm += dgMaxKw;
                             }
 
@@ -628,6 +624,116 @@ public final class SingleRunSimulator {
                                 idleNeed--;
                             }
                         }
+
+// ===== ROTATING RESERVE (N-1 по отказу 1 ДГУ) =====
+                        if (considerRotationReserve) {
+
+                            double btDisToLoadRR = Math.max(0.0, btNetKw);
+                            double needFromDieselNow = loadKw - windToLoadKw - btDisToLoadRR;
+                            if (needFromDieselNow < 0.0) needFromDieselNow = 0.0;
+
+                            // online = ДГУ под нагрузкой (p>0) + ДГУ в ХХ (p<0), т.к. ХХ может мгновенно перейти в генерацию
+                            int onlineCount = 0;
+                            for (int k = 0; k < dgCountAll; k++) {
+                                DieselGenerator dg = dgs[k];
+                                if (!dg.isAvailable()) continue;
+                                if (Math.abs(dg.getCurrentLoad()) > SimulationConstants.EPSILON) onlineCount++;
+                            }
+
+                            boolean nMinusOneOk = (onlineCount >= 2)
+                                    && ((onlineCount - 1) * dgMaxKw >= needFromDieselNow - SimulationConstants.EPSILON);
+
+                            if (!nMinusOneOk && needFromDieselNow > SimulationConstants.EPSILON) {
+
+                                int needOnline = (int) Math.ceil(needFromDieselNow / dgMaxKw) + 1;
+
+                                int avail = 0;
+                                for (int k = 0; k < dgCountAll; k++) if (dgs[k].isAvailable()) avail++;
+                                if (needOnline > avail) needOnline = avail;
+
+                                int add = needOnline - onlineCount;
+
+                                if (add > 0) {
+                                    // 1) сначала "горячие" (isWorking==true), но p==0
+                                    for (int k = 0; k < dgCountAll && add > 0; k++) {
+                                        DieselGenerator dg = dgs[k];
+                                        if (!dg.isAvailable()) continue;
+                                        if (!dg.isWorking()) continue;
+                                        if (Math.abs(dg.getCurrentLoad()) > SimulationConstants.EPSILON) continue;
+
+                                        dg.setCurrentLoad(dgMinKw);
+                                        dg.setIdle(false);
+                                        dg.resetIdleTime();
+
+                                        // ВАЖНО: здесь начисляем время, потому что этот DG реально включили дополнительно
+                                        dg.addWorkTime(1, 1);
+                                        dg.startWork();
+
+                                        add--;
+                                        onlineCount++;
+                                    }
+
+                                    // 2) затем запускаем новые (isWorking==false, p==0)
+                                    for (int k = 0; k < dgCountAll && add > 0; k++) {
+                                        DieselGenerator dg = dgs[k];
+                                        if (!dg.isAvailable()) continue;
+                                        if (dg.isWorking()) continue;
+                                        if (Math.abs(dg.getCurrentLoad()) > SimulationConstants.EPSILON) continue;
+
+                                        dg.startWork(); // запуск
+
+                                        dg.setCurrentLoad(dgMinKw);
+                                        dg.setIdle(false);
+                                        dg.resetIdleTime();
+
+                                        // ВАЖНО: начисляем время запуска/час работы для реально добавленного DG
+                                        dg.addWorkTime(1, 6);
+
+                                        add--;
+                                        onlineCount++;
+                                    }
+                                }
+
+                                // Перераспределяем нагрузку по всем online ДГУ (включая тех, кто был в ХХ),
+                                // НО НЕ начисляем addWorkTime второй раз (он уже был в основном распределении).
+                                if (onlineCount > 0) {
+                                    double per = needFromDieselNow / onlineCount;
+                                    if (per > dgMaxKw) per = dgMaxKw;
+
+                                    double sum = 0.0;
+                                    int usedRR = 0;
+
+                                    for (int k = 0; k < dgCountAll; k++) {
+                                        DieselGenerator dg = dgs[k];
+                                        if (!dg.isAvailable()) continue;
+
+                                        if (Math.abs(dg.getCurrentLoad()) <= SimulationConstants.EPSILON) continue; // не online
+                                        if (usedRR >= onlineCount) break;
+
+                                        double genKw = per;
+
+                                        // если из ХХ/прожига переводим в нагрузку — сбрасываем idle-флаги
+                                        if (genKw + SimulationConstants.EPSILON >= dgMinKw) {
+                                            dg.setIdle(false);
+                                            dg.resetIdleTime();
+                                        }
+
+                                        if (genKw > dgMaxKw) genKw = dgMaxKw;
+
+                                        dg.setCurrentLoad(genKw);
+                                        // НЕТ dg.addWorkTime(...) здесь специально
+                                        dg.startWork();
+
+                                        sum += genKw;
+                                        usedRR++;
+                                    }
+
+                                    // обновляем суммарную мощность ДГУ после перераспределения
+                                    sumDiesel = sum;
+                                }
+                            }
+                        }
+
 
                         // ===== Финализация статусов ДГУ за час =====
                         // Всё, что не под нагрузкой (p==0) и не в ХХ/прожиге (p!=0), выключаем.
@@ -790,4 +896,28 @@ public final class SingleRunSimulator {
 
         return Math.max(0.0, liters);
     }
+
+    private static boolean canBatteryBridge(
+            Battery battery,
+            SystemParameters sp,
+            double requiredPowerKw,
+            double durationHours,
+            double btDisCap // то, что у тебя уже считается через getDischargeCapacity(...)
+    ) {
+        if (battery == null || !battery.isAvailable()) return false;
+        if (requiredPowerKw <= SimulationConstants.EPSILON) return true;
+        if (durationHours <= 0.0) return true;
+
+        double requiredEnergyKwh = requiredPowerKw * durationHours;
+
+        // Ограничения по "току" (мощности) и по энергии (SOC)
+        boolean powerOk = btDisCap + SimulationConstants.EPSILON >= requiredPowerKw;
+        boolean energyOk = btDisCap + SimulationConstants.EPSILON >= requiredEnergyKwh;
+
+        if (!powerOk || !energyOk) return false;
+
+        // Доп. проверка вашей логикой useBattery (SOC/ограничения модели АКБ)
+        return Battery.useBattery(sp, battery, requiredEnergyKwh, btDisCap);
+    }
+
 }

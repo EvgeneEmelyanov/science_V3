@@ -56,7 +56,7 @@ public final class SimulationTraceExporter {
 
                 for (int b = 0; b < busCnt; b++) {
 
-                    s.append(';').append(f(r.getBusLoadKw()[b]));
+                    s.append(';').append(r.getBusStatus()[b] ? f(r.getBusLoadKw()[b]) : "OFF");
                     s.append(';').append(f(r.getBusDeficitKw()[b]));
                     s.append(';').append(f(r.getBusGenWindKw()[b]));
 

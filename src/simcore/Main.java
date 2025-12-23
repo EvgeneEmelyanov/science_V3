@@ -11,6 +11,10 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+    //TODO: 1. ЕСЛИ ДГУ УХОДИТ В ТО, ТО В ЭТОТ ЖЕ ЧАС ДРУГАЯ ДГУ ДОЛЖНА БЫТЬ ГОТОВА К ПУСКУ
+    //      2. МОЖНО СДЕЛАТЬ ТАК, ЧТОБЫ МОЖНО БЫЛО НЕСКОЛЬКО ТО ОДНОВРЕМЕННО
+    //      3.
+
 public class Main {
 
     private enum RunMode { SINGLE, SWEEP_1, SWEEP_2 }
