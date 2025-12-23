@@ -11,14 +11,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * CSV для пакетного запуска (несколько наборов SystemParameters без Соболя).
- *
- * Формат:
- *  - 1 строка: паспорт базового запуска
- *  - 2 строка: заголовок
- *  - далее по строке на каждый набор параметров
- */
 public final class SweepResultsCsvWriter {
 
     private static final Locale RU = new Locale("ru", "RU");
@@ -26,10 +18,13 @@ public final class SweepResultsCsvWriter {
     private SweepResultsCsvWriter() {}
 
     public static void write(String path,
+                             simcore.Main.RunMode mode,
                              SimulationConfig cfg,
                              SystemParameters baseParams,
                              List<SystemParameters> paramSets,
-                             List<MonteCarloEstimate> estimates) throws IOException {
+                             List<MonteCarloEstimate> estimates,
+                             double[] param1,
+                             double[] param2) throws IOException {
 
         if (paramSets.size() != estimates.size()) {
             throw new IllegalArgumentException("paramSets.size != estimates.size");
@@ -40,32 +35,51 @@ public final class SweepResultsCsvWriter {
             w.write(csvCell(buildPassport(cfg, baseParams)));
             w.newLine();
 
-            // k + меняемые параметры + метрики
-            w.write("k;BTcap;NRL;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
+            // Заголовок зависит от режима
+            if (mode == simcore.Main.RunMode.SWEEP_2) {
+                w.write("k;param1;param2;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
+            } else if (mode == simcore.Main.RunMode.SWEEP_1) {
+                w.write("k;param1;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
+            } else { // SINGLE
+                w.write("k;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
+            }
             w.newLine();
 
+            final int m2 = (param2 != null) ? param2.length : 0;
+
             for (int k = 0; k < estimates.size(); k++) {
-                SystemParameters p = paramSets.get(k);
+
                 MonteCarloEstimate e = estimates.get(k);
                 MonteCarloStats.Stats s = e.ensStats;
 
-                double fuelML = e.meanFuelLiters / 1_000_000.0; // тыс. тонн
-                double motoKh = e.meanMotoHours / 1_000.0;      // тыс. моточасов
+                double fuelML = e.meanFuelLiters / 1_000_000.0;
+                double motoKh = e.meanMotoHours / 1_000.0;
 
-                w.write(k + ";"
-                        + fmt1(p.getBatteryCapacityKwhPerBus()) + ";" // изменяемый 1 параметр
-                        + fmt2(p.getMaxDischargeCurrent()) + ";" // изменяемый 2 параметр
-                        + fmt1(s.getMean()) + ";"
-                        + fmt1(s.getCiLow()) + ";"
-                        + fmt1(s.getCiHigh()) + ";"
-                        + s.getRequiredSampleSize() + ";"
-                        + fmt2(fuelML) + ";"
-                        + fmt1(motoKh) + ";"
-                        + fmt2(e.meanWre) + ";"
-                        + fmt2(e.meanWtPct) + ";"
-                        + fmt2(e.meanDgPct) + ";"
-                        + fmt2(e.meanBtPct)
-                );
+                StringBuilder sb = new StringBuilder(256);
+                sb.append(k).append(';');
+
+                // Параметры зависят от режима
+                if (mode == simcore.Main.RunMode.SWEEP_2) {
+                    // порядок: for p1 in param1 { for p2 in param2 { ... } }
+                    int i1 = k / m2;
+                    int i2 = k % m2;
+                    sb.append(fmt1(param1[i1])).append(';')
+                            .append(fmt2(param2[i2])).append(';');
+                } else if (mode == simcore.Main.RunMode.SWEEP_1) {
+                    sb.append(fmt1(param1[k])).append(';');
+                } // SINGLE: параметров нет
+
+                sb.append(fmt1(s.getMean())).append(';')
+                        .append(fmt1(s.getCiLow())).append(';')
+                        .append(fmt1(s.getCiHigh())).append(';')
+                        .append(s.getRequiredSampleSize()).append(';')
+                        .append(fmt2(fuelML)).append(';')
+                        .append(fmt1(motoKh)).append(';')
+                        .append(fmt2(e.meanWre)).append(';')
+                        .append(fmt2(e.meanWtPct)).append(';')
+                        .append(fmt2(e.meanDgPct)).append(';');
+
+                w.write(sb.toString());
                 w.newLine();
             }
         }
@@ -95,10 +109,8 @@ public final class SweepResultsCsvWriter {
     }
 
     private static String csvCell(String s) {
-        // CSV экранирование: кавычки вокруг + " -> ""
         return "\"" + s.replace("\"", "\"\"") + "\"";
     }
-
 
     private static String fmt1(double v) { return String.format(RU, "%.1f", v); }
     private static String fmt2(double v) { return String.format(RU, "%.2f", v); }

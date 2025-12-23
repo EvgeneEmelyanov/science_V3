@@ -17,7 +17,7 @@ public final class SimulationConstants {
     public static final double MAX_LOAD = 1346;
 
     public static final double DG_IDLE_K2 = 1.0;        // 0..1: резервировать ли Cat2 (1.0 = да, 0.0 = только Cat1)
-    public static final double DG_IDLE_MARGIN_PCT = 0.10; // запас на резерв, например 10%
+    public static final double DG_IDLE_MARGIN_PCT = 0.0; // запас на резерв, например 10%
 
 
     // =========================================================================

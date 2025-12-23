@@ -30,8 +30,8 @@ public final class ScenarioFactory {
                 0.1, 0.4, 0.5,
                 8, 330.0,
                 8, 340.0,
-                0,
-                1.0, 2.0, 0.3,
+                336.5,
+                1.0, 2.0, 0.8,
                 1.94, 46,
                 4.75, 50,
                 0.575, 44,
@@ -50,7 +50,7 @@ public final class ScenarioFactory {
                 true,
                 false,
                 true,
-                false
+                true
         );
     }
 

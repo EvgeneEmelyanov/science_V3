@@ -11,13 +11,13 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-    //TODO: 1. ЕСЛИ ДГУ УХОДИТ В ТО, ТО В ЭТОТ ЖЕ ЧАС ДРУГАЯ ДГУ ДОЛЖНА БЫТЬ ГОТОВА К ПУСКУ
-    //      2. МОЖНО СДЕЛАТЬ ТАК, ЧТОБЫ МОЖНО БЫЛО НЕСКОЛЬКО ТО ОДНОВРЕМЕННО
-    //      3.
+    //TODO: 1. МОЖНО СДЕЛАТЬ ТАК, ЧТОБЫ МОЖНО БЫЛО НЕСКОЛЬКО ТО ОДНОВРЕМЕННО
+    //      2. СЕЙЧАС В ТО МОЖЕТ БЫТЬ СРАЗУ НЕСКОЛЬКО ДГУ
+    //      3. РОСТ ТОКА РАЗРЯДА НЕ ВЛИЯЕТ НА ENS + ПРИ РОСТЕ ЕМКОСТИ В КАКОЙ-ТО МОМЕНТ РАСТЕТ ENS
 
 public class Main {
 
-    private enum RunMode { SINGLE, SWEEP_1, SWEEP_2 }
+    public enum RunMode { SINGLE, SWEEP_1, SWEEP_2 }
 
     public static void main(String[] args) {
 
@@ -44,8 +44,8 @@ public class Main {
             SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
             // 3) сетка параметров
-            double[] param1 = new double[]{200.0, 336.5, 500.0, 800.0}; // BTcap
-            double[] param2 = new double[]{1.0, 1.5, 2.0};             // I_dis
+            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+            double[] param2 = new double[]{67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
 
             List<SystemParameters> paramSets = buildParamSets(mode, baseParams, param1, param2);
 
@@ -75,7 +75,7 @@ public class Main {
                     }
                 }
 
-                SweepResultsCsvWriter.write(resultsCsvPath, cfg, baseParams, paramSets, estimates);
+                SweepResultsCsvWriter.write(resultsCsvPath, mode, cfg, baseParams, paramSets, estimates, param1, param2);
                 System.out.println("Saved: " + resultsCsvPath);
 
             } finally {
@@ -88,6 +88,7 @@ public class Main {
         }
     }
 
+    // TODO ТУТ ЗАДАЮ КАКИЕ ПАРАМЕТРЫ МЕНЯТЬ В SWEEP
     private static List<SystemParameters> buildParamSets(RunMode mode,
                                                          SystemParameters baseParams,
                                                          double[] param1,
@@ -114,8 +115,8 @@ public class Main {
         for (double p1 : param1) {
             for (double p2 : param2) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setBatteryCapacityKwhPerBus(p1)
-                        .setMaxDischargeCurrent(p2)
+                        .setMaxDischargeCurrent(p1)
+                        .setBatteryCapacityKwhPerBus(p2)
                         .build();
                 paramSets.add(p);
             }

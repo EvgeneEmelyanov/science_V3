@@ -133,6 +133,9 @@ public class DieselGenerator extends Equipment {
         // Если отключён внешне — ничего не делаем
         if (!status) return;
 
+        // ЖЁСТКО разрешаем начинать ТО всегда
+        allowMaintenanceStart = true;
+
         // ТО: начинать можно только если allowMaintenanceStart == true
         if (allowMaintenanceStart && hoursSinceMaintenance >= MAINTENANCE_INTERVAL_HOURS) {
             status = false;

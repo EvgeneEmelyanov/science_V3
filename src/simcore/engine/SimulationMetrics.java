@@ -17,6 +17,12 @@ public final class SimulationMetrics {
 
     public final List<SimulationStepRecord> trace; // null если trace выключен
 
+    public final long failBus;
+    public final long failDg;
+    public final long failWt;
+    public final long failBt;
+    public final long failBrk;
+
     public SimulationMetrics(double loadKwh,
                              double ensKwh,
                              double wreKwh,
@@ -25,7 +31,13 @@ public final class SimulationMetrics {
                              double btToLoadKwh,
                              double fuelLiters,
                              long totalMotoHours,
-                             List<SimulationStepRecord> trace) {
+                             List<SimulationStepRecord> trace,
+                             long failBus,
+                             long failDg,
+                             long failWt,
+                             long failBt,
+                             long failBrk
+    ) {
         this.loadKwh = loadKwh;
         this.ensKwh = ensKwh;
         this.wreKwh = wreKwh;
@@ -35,5 +47,10 @@ public final class SimulationMetrics {
         this.fuelLiters = fuelLiters;
         this.totalMotoHours = totalMotoHours;
         this.trace = trace;
+        this.failBus = failBus;
+        this.failDg = failDg;
+        this.failWt = failWt;
+        this.failBt = failBt;
+        this.failBrk = failBrk;
     }
 }
