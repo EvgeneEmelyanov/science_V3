@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
 
     //TODO: 1. МОЖНО СДЕЛАТЬ ТАК, ЧТОБЫ МОЖНО БЫЛО НЕСКОЛЬКО ТО ОДНОВРЕМЕННО
     //      2. СЕЙЧАС В ТО МОЖЕТ БЫТЬ СРАЗУ НЕСКОЛЬКО ДГУ
-    //      3. РОСТ ТОКА РАЗРЯДА НЕ ВЛИЯЕТ НА ENS + ПРИ РОСТЕ ЕМКОСТИ В КАКОЙ-ТО МОМЕНТ РАСТЕТ ENS
+    //      3. ПРИ РОСТЕ ЕМКОСТИ В КАКОЙ-ТО МОМЕНТ РАСТЕТ ENS
 
 public class Main {
 
@@ -27,9 +27,9 @@ public class Main {
         String resultsCsvPath = "D:/simulation_results_batch.csv";
         String traceCsvPath = "D:/simulation_trace.csv";
 
-        RunMode mode = RunMode.SINGLE;
+        RunMode mode = RunMode.SWEEP_2;
 
-        int mcIterations = 1; // trace пишем только если mcIterations==1 и mode==SINGLE
+        int mcIterations = 100; // trace пишем только если mcIterations==1 и mode==SINGLE
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
 

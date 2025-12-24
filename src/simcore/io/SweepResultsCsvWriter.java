@@ -77,7 +77,8 @@ public final class SweepResultsCsvWriter {
                         .append(fmt1(motoKh)).append(';')
                         .append(fmt2(e.meanWre)).append(';')
                         .append(fmt2(e.meanWtPct)).append(';')
-                        .append(fmt2(e.meanDgPct)).append(';');
+                        .append(fmt2(e.meanDgPct)).append(';')
+                        .append(fmt2(e.meanBtPct)).append(';');
 
                 w.write(sb.toString());
                 w.newLine();
