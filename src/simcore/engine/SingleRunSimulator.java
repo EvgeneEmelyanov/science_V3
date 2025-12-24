@@ -41,6 +41,8 @@ public final class SingleRunSimulator {
 
         final double cat1 = sp.getFirstCat();
         final double cat2 = sp.getSecondCat();
+        @SuppressWarnings("unused")
+        final double cat3 = sp.getThirdCat(); // сохранено как в исходнике (пока не используется)
 
         final PowerSystem system = new PowerSystemBuilder().build(sp, input.getTotalLoadKw());
         final List<PowerBus> buses = system.getBuses();
@@ -301,6 +303,7 @@ public final class SingleRunSimulator {
                                     && btDisCapKw > btEnergyKwh - SimulationConstants.EPSILON
                                     && Battery.useBattery(sp, battery, btEnergyKwh, btDisCapKw);
 
+                            // IMPORTANT: логика как у пользователя (без условия startEnergy > EPSILON)
                             boolean allowStartBridge = (i > 0)
                                     && btAvail
                                     && (steadyDefKw <= SimulationConstants.EPSILON)
@@ -368,6 +371,8 @@ public final class SingleRunSimulator {
                         for (int k = 0; k < dgCountAll; k++) {
                             DieselGenerator dg = dgs[k];
 
+                            // ВАЖНО: здесь НЕ гасим неиспользованные (stopWork/resetIdleTime),
+                            // иначе ломаем логику ХХ/wasWorking/idleTime.
                             if (!dg.isAvailable() || used >= dgToUse) {
                                 dg.setCurrentLoad(0.0);
                                 dg.setIdle(false);
@@ -404,7 +409,7 @@ public final class SingleRunSimulator {
                             dg.addWorkTime(1, wasWorking ? 1 : 6);
                             dg.startWork();
 
-                            sumDieselKw += genKw; // важно: как в исходнике, учитываем и p<0 для ХХ // todo нужно только плюсовые учитывать
+                            sumDieselKw += genKw; // важно: как в исходнике, учитываем и p<0 для ХХ
                             used++;
                         }
 

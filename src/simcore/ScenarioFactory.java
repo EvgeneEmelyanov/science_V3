@@ -35,7 +35,7 @@ public final class ScenarioFactory {
                 1.94, 46,
                 4.75, 50,
                 0.575, 44,
-                0.016, 12,
+                0.16, 12,
                 0.05, 10
         );
     }
