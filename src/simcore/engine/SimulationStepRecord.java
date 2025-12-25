@@ -11,6 +11,10 @@ public class SimulationStepRecord {
     private final double totalLoadKw;
     private final double totalDeficitKw;
     private final double totalWreKw;
+
+    /** null если межсекционного автомата нет */
+    private final Boolean breakerClosed;
+
     private final boolean[] busStatus;
     private final double[] busLoadKw;
     private final double[] busGenWindKw;
@@ -32,10 +36,14 @@ public class SimulationStepRecord {
     private final double[] btActualCapacity;
     private final double[] btActualSOC;
 
+    // Наработка АКБ (часы)
+    private final double[] btTimeWorked;
+
     public SimulationStepRecord(int timeIndex,
                                 double totalLoadKw,
                                 double totalDeficitKw,
                                 double totalWreKw,
+                                Boolean breakerClosed,
                                 boolean[] busStatus,
                                 double[] busLoadKw,
                                 double[] busGenWindKw,
@@ -49,12 +57,15 @@ public class SimulationStepRecord {
                                 boolean[][] dgAvailable,
                                 boolean[][] dgInMaintenance,
                                 double[] btActualCapacity,
-                                double[] btActualSOC) {
+                                double[] btActualSOC,
+                                double[] btTimeWorked) {
 
         this.timeIndex = timeIndex;
         this.totalLoadKw = totalLoadKw;
         this.totalDeficitKw = totalDeficitKw;
         this.totalWreKw = totalWreKw;
+        this.breakerClosed = breakerClosed;
+
         this.busStatus = busStatus.clone();
         this.busLoadKw = busLoadKw.clone();
         this.busGenWindKw = busGenWindKw.clone();
@@ -72,6 +83,7 @@ public class SimulationStepRecord {
 
         this.btActualCapacity = btActualCapacity.clone();
         this.btActualSOC = btActualSOC.clone();
+        this.btTimeWorked = btTimeWorked.clone();
     }
 
     private static double[][] deepCopy(double[][] array) {
@@ -97,6 +109,10 @@ public class SimulationStepRecord {
 
     public double getTotalWreKw() {
         return totalWreKw;
+    }
+
+    public Boolean getBreakerClosed() {
+        return breakerClosed;
     }
 
     public boolean[] getBusStatus() {
@@ -148,9 +164,14 @@ public class SimulationStepRecord {
     }
 
     public double[] getBtActualCapacity() {
-        return btActualCapacity;
+        return btActualCapacity.clone();
     }
+
     public double[] getBtActualSOC() {
-        return btActualSOC;
+        return btActualSOC.clone();
+    }
+
+    public double[] getBtTimeWorked() {
+        return btTimeWorked.clone();
     }
 }

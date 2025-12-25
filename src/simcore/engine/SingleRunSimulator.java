@@ -5,6 +5,10 @@ import simcore.config.SimulationConstants;
 import simcore.config.SystemParameters;
 import simcore.config.BusSystemType;
 import simcore.model.*;
+import simcore.engine.failures.FailureStepper;
+import simcore.engine.trace.ArrayTraceSession;
+import simcore.engine.trace.NoTraceSession;
+import simcore.engine.trace.TraceSession;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,10 +59,10 @@ public final class SingleRunSimulator {
         final int busCount = buses.size();
         final Breaker breaker = system.getTieBreaker();
 
-        initFailureModels(seed, considerFailures, buses, breaker);
+        FailureStepper.initFailureModels(seed, considerFailures, buses, breaker);
 
         final Totals totals = new Totals();
-        final List<SimulationStepRecord> trace = traceEnabled ? new ArrayList<>() : null;
+        final TraceSession trace = traceEnabled ? new ArrayTraceSession() : new NoTraceSession();
 
         final boolean[] busAvailBefore = new boolean[busCount];
         final boolean[] busAvailAfter = new boolean[busCount];
@@ -75,24 +79,8 @@ public final class SingleRunSimulator {
         for (int t = 0; t < hours; t++) {
 
             final double windV = windMs[t];
-            final boolean doTrace = (trace != null);
-
-            // ===== Trace buffers per hour (создаём только при doTrace) =====
-            boolean[] trBusStatus = null;
-            double[] trBusLoadKw = null;
-            double[] trBusWindToLoadKw = null;
-            double[] trBusDgToLoadKw = null;
-            double[] trBusBtNetKw = null;
-            double[] trBusDefKw = null;
-
-            double[][] trDgLoadsKw = null;
-            double[][] trDgHoursSinceMaintenance = null;
-            double[][] trDgTimeWorked = null;
-            double[][] trDgTotalTimeWorked = null;
-            boolean[][] trDgAvailable = null;
-            boolean[][] trDgInMaintenance = null;
-            double[] trBtActualCapacity = null;
-            double[] trBtActualSoc = null;
+            final boolean doTrace = trace.enabled();
+            trace.startHour(busCount);
 
             double totalLoadAtTime = 0.0;
             double totalDefAtTime = 0.0;
@@ -100,26 +88,7 @@ public final class SingleRunSimulator {
             final double[] hourWreRef = doTrace ? new double[]{0.0} : null;
 
 
-            if (doTrace) {
-                trBusStatus = new boolean[busCount];
-                trBusLoadKw = new double[busCount];
-                trBusWindToLoadKw = new double[busCount];
-                trBusDgToLoadKw = new double[busCount];
-                trBusBtNetKw = new double[busCount];
-                trBusDefKw = new double[busCount];
-
-                trDgLoadsKw = new double[busCount][];
-                trDgHoursSinceMaintenance = new double[busCount][];
-                trDgTimeWorked = new double[busCount][];
-                trDgTotalTimeWorked = new double[busCount][];
-                trDgAvailable = new boolean[busCount][];
-                trDgInMaintenance = new boolean[busCount][];
-                trBtActualCapacity = new double[busCount];
-                trBtActualSoc = new double[busCount];
-            }
-
-            // ===== Failures: buses + breaker + cascade logic =====
-            updateNetworkFailuresOneHour(
+            FailureStepper.updateNetworkFailuresOneHour(
                     considerFailures,
                     buses,
                     breaker,
@@ -129,8 +98,7 @@ public final class SingleRunSimulator {
                     busAlive
             );
 
-            // equipment failures on alive buses
-            updateEquipmentFailuresOneHour(considerFailures, buses, busAlive);
+            FailureStepper.updateEquipmentFailuresOneHour(considerFailures, buses, busAlive);
 
             if (breaker != null && breaker.isAvailable()) breaker.addWorkTime(1);
 
@@ -160,9 +128,10 @@ public final class SingleRunSimulator {
             } else {
                 if (breaker != null) breaker.setClosed(false);
             }
-
+            // ===== Sectional-closed dispatch (если секционник закрыт) =====
             if (sectionalClosedThisHour) {
-                double[] loads = (effectiveLoadKw != null)
+
+                final double[] loads = (effectiveLoadKw != null)
                         ? effectiveLoadKw
                         : new double[]{buses.get(0).getLoadKw()[t], buses.get(1).getLoadKw()[t]};
 
@@ -183,6 +152,7 @@ public final class SingleRunSimulator {
                         dgStartDelayHours
                 );
 
+                // totals: полностью за час (в этом режиме per-bus dispatch ниже НЕ выполняем)
                 totals.loadKwh += r.loadKwh;
                 totals.ensKwh += r.ensKwh;
                 totals.wreKwh += r.wreKwh;
@@ -192,52 +162,30 @@ public final class SingleRunSimulator {
                 totals.fuelLiters += r.fuelLiters;
 
                 if (doTrace) {
-                    for (int b = 0; b < busCount; b++) {
-                        trBusStatus[b] = true;
-                        trBusLoadKw[b] = loads[b];
-                        trBusWindToLoadKw[b] = r.windToLoadByBus[b];
-                        trBusDgToLoadKw[b] = r.dgToLoadByBus[b];
-                        trBusBtNetKw[b] = r.btNetByBus[b];
-                        trBusDefKw[b] = r.defByBus[b];
-
-                        totalLoadAtTime += loads[b];
-                        totalDefAtTime += r.defByBus[b];
-                    }
+                    totalLoadAtTime = r.loadKwh;
+                    totalDefAtTime = r.ensKwh;
                     totalWreAtTime = r.wreKwh;
 
                     for (int b = 0; b < busCount; b++) {
-                        fillDgTrace(buses.get(b), b,
-                                trDgLoadsKw,
-                                trDgHoursSinceMaintenance,
-                                trDgTimeWorked,
-                                trDgTotalTimeWorked,
-                                trDgAvailable,
-                                trDgInMaintenance
+                        trace.setBusValues(
+                                b,
+                                true,
+                                loads[b],
+                                r.windToLoadByBus[b],
+                                r.dgToLoadByBus[b],
+                                r.btNetByBus[b],
+                                r.defByBus[b]
                         );
-                        fillBatteryTrace(buses.get(b).getBattery(), b, trBtActualCapacity, trBtActualSoc);
+                        trace.fillDgState(b, buses.get(b));
+                        trace.fillBatteryState(b, buses.get(b).getBattery());
                     }
 
-                    trace.add(new SimulationStepRecord(
-                            t,
-                            totalLoadAtTime,
-                            totalDefAtTime,
-                            totalWreAtTime,
-                            trBusStatus,
-                            trBusLoadKw,
-                            trBusWindToLoadKw,
-                            trBusDgToLoadKw,
-                            trBusBtNetKw,
-                            trBusDefKw,
-                            trDgLoadsKw,
-                            trDgHoursSinceMaintenance,
-                            trDgTimeWorked,
-                            trDgTotalTimeWorked,
-                            trDgAvailable,
-                            trDgInMaintenance,
-                            trBtActualCapacity,
-                            trBtActualSoc
-                    ));
+                    Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
+                    trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
+
                 }
+
+                // ВАЖНО: чтобы не было двойного учета — пропускаем обычный per-bus dispatch
                 continue;
             }
 
@@ -265,52 +213,23 @@ public final class SingleRunSimulator {
                         dgStartDelayHours,
                         totals,
                         hourWreRef,
-                        doTrace,
-                        trBusStatus,
-                        trBusLoadKw,
-                        trBusWindToLoadKw,
-                        trBusDgToLoadKw,
-                        trBusBtNetKw,
-                        trBusDefKw,
-                        trDgLoadsKw,
-                        trDgHoursSinceMaintenance,
-                        trDgTimeWorked,
-                        trDgTotalTimeWorked,
-                        trDgAvailable,
-                        trDgInMaintenance,
-                        trBtActualCapacity,
-                        trBtActualSoc
+                        trace
                 );
 
-                if (doTrace) {
-                    totalLoadAtTime += trBusLoadKw[b];
-                    totalDefAtTime += trBusDefKw[b];
-                }
+            // totalLoadAtTime/totalDefAtTime считаем после цикла по данным trace (ниже)
+
             }
 
             if (doTrace) {
+                for (int b = 0; b < busCount; b++) {
+                    totalLoadAtTime += buses.get(b).getLoadKw()[t]; // или effectiveLoadKw[b] если он не null — ниже см.
+                }
                 totalWreAtTime = hourWreRef[0];
-                trace.add(new SimulationStepRecord(
-                        t,
-                        totalLoadAtTime,
-                        totalDefAtTime,
-                        totalWreAtTime,
-                        trBusStatus,
-                        trBusLoadKw,
-                        trBusWindToLoadKw,
-                        trBusDgToLoadKw,
-                        trBusBtNetKw,
-                        trBusDefKw,
-                        trDgLoadsKw,
-                        trDgHoursSinceMaintenance,
-                        trDgTimeWorked,
-                        trDgTotalTimeWorked,
-                        trDgAvailable,
-                        trDgInMaintenance,
-                        trBtActualCapacity,
-                        trBtActualSoc
-                ));
+                Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
+                trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
+
             }
+
         }
 
         // ===== total failures by internal counters =====
@@ -343,7 +262,7 @@ public final class SingleRunSimulator {
                 totals.btToLoadKwh,
                 totals.fuelLiters,
                 moto,
-                trace,
+                trace.records(),
                 failBus,
                 failDg,
                 failWt,
@@ -424,49 +343,23 @@ public final class SingleRunSimulator {
             double dgStartDelayHours,
             Totals totals,
             double[] hourWreRef,
-            boolean doTrace,
-            boolean[] trBusStatus,
-            double[] trBusLoadKw,
-            double[] trBusWindToLoadKw,
-            double[] trBusDgToLoadKw,
-            double[] trBusBtNetKw,
-            double[] trBusDefKw,
-            double[][] trDgLoadsKw,
-            double[][] trDgHoursSinceMaintenance,
-            double[][] trDgTimeWorked,
-            double[][] trDgTotalTimeWorked,
-            boolean[][] trDgAvailable,
-            boolean[][] trDgInMaintenance,
-            double[] trBtActualCapacity,
-            double[] trBtActualSoc
+            TraceSession trace
     ) {
 
         totals.loadKwh += loadKw;
 
         if (!busAlive) {
-            stopAllDgOnBus(bus);
+            stopAllDieselsOnBus(bus);
 
             final double defKw = loadKw;
             totals.ensKwh += defKw;
 
-            if (doTrace) {
-                trBusStatus[b] = false;
-                trBusLoadKw[b] = loadKw;
-                trBusWindToLoadKw[b] = 0.0;
-                trBusDgToLoadKw[b] = 0.0;
-                trBusBtNetKw[b] = 0.0;
-                trBusDefKw[b] = defKw;
-
-                fillDgTrace(bus, b,
-                        trDgLoadsKw,
-                        trDgHoursSinceMaintenance,
-                        trDgTimeWorked,
-                        trDgTotalTimeWorked,
-                        trDgAvailable,
-                        trDgInMaintenance
-                );
-                fillBatteryTrace(bus.getBattery(), b, trBtActualCapacity, trBtActualSoc);
+            if (trace.enabled()) {
+                trace.setBusDown(b, loadKw, defKw);
+                trace.fillDgState(b, bus);
+                trace.fillBatteryState(b, bus.getBattery());
             }
+
             return;
         }
 
@@ -785,25 +678,20 @@ public final class SingleRunSimulator {
         if (defKw < 0.0) defKw = 0.0;
         totals.ensKwh += defKw;
 
-        // ===== trace =====
-        if (doTrace) {
-            trBusStatus[b] = true;
-            trBusLoadKw[b] = loadKw;
-            trBusWindToLoadKw[b] = windToLoadKw;
-            trBusDgToLoadKw[b] = dgToLoadKwLocal;
-            trBusBtNetKw[b] = btNetKw;
-            trBusDefKw[b] = defKw;
-
-            fillDgTrace(bus, b,
-                    trDgLoadsKw,
-                    trDgHoursSinceMaintenance,
-                    trDgTimeWorked,
-                    trDgTotalTimeWorked,
-                    trDgAvailable,
-                    trDgInMaintenance
+        if (trace.enabled()) {
+            trace.setBusValues(
+                    b,
+                    true,
+                    loadKw,
+                    windToLoadKw,
+                    dgToLoadKwLocal,
+                    btNetKw,
+                    defKw
             );
-            fillBatteryTrace(bus.getBattery(), b, trBtActualCapacity, trBtActualSoc);
+            trace.fillDgState(b, bus);
+            trace.fillBatteryState(b, bus.getBattery());
         }
+
     }
 
     private static double[] computeEffectiveLoadsForSectional(SystemParameters sp,
@@ -857,6 +745,15 @@ public final class SingleRunSimulator {
         double pot = 0.0;
         for (WindTurbine wt : bus.getWindTurbines()) {
             if (wt.isAvailable()) pot += wt.getPotentialGenerationKw(windV);
+        }
+        return pot;
+    }
+
+    private static double computeWindPotential(PowerBus bus, double windV) {
+        double pot = 0.0;
+        for (WindTurbine wt : bus.getWindTurbines()) {
+            if (!wt.isAvailable()) continue;
+            pot += wt.getPotentialGenerationKw(windV);
         }
         return pot;
     }
@@ -1204,91 +1101,6 @@ public final class SingleRunSimulator {
         );
     }
 
-    private static void initFailureModels(long seed, boolean considerFailures, List<PowerBus> buses, Breaker breaker) {
-        Random rndWT = new Random(seed + 10);
-        Random rndDG = new Random(seed + 2);
-        Random rndBT = new Random(seed + 3);
-        Random rndBUS = new Random(seed + 4);
-        Random rndBRK = new Random(seed + 5);
-
-        if (breaker != null) breaker.initFailureModel(rndBRK, considerFailures);
-
-        for (PowerBus bus : buses) {
-            bus.initFailureModel(rndBUS, considerFailures);
-            for (WindTurbine wt : bus.getWindTurbines()) wt.initFailureModel(rndWT, considerFailures);
-            for (DieselGenerator dg : bus.getDieselGenerators()) dg.initFailureModel(rndDG, considerFailures);
-            Battery bt = bus.getBattery();
-            if (bt != null) bt.initFailureModel(rndBT, considerFailures);
-        }
-    }
-
-    private static void updateNetworkFailuresOneHour(
-            boolean considerFailures,
-            List<PowerBus> buses,
-            Breaker breaker,
-            boolean[] busAvailBefore,
-            boolean[] busAvailAfter,
-            boolean[] busFailedThisHour,
-            boolean[] busAlive
-    ) {
-        final int busCount = buses.size();
-
-        for (int b = 0; b < busCount; b++) busAvailBefore[b] = buses.get(b).isAvailable();
-
-        boolean brAvailBefore = breaker != null && breaker.isAvailable();
-        boolean brClosedBefore = breaker != null && breaker.isClosed();
-
-        if (breaker != null) breaker.updateFailureOneHour(considerFailures);
-        for (PowerBus bus : buses) bus.updateFailureOneHour(considerFailures);
-
-        boolean anyBusFailed = false;
-        for (int b = 0; b < busCount; b++) {
-            PowerBus bus = buses.get(b);
-            busAvailAfter[b] = bus.isAvailable();
-            busFailedThisHour[b] = busAvailBefore[b] && !busAvailAfter[b];
-            anyBusFailed |= busFailedThisHour[b];
-        }
-
-        boolean brAvailAfter = breaker != null && breaker.isAvailable();
-        boolean brFailedThisHour = breaker != null && brAvailBefore && !brAvailAfter;
-
-        if (breaker != null && brClosedBefore && brFailedThisHour && anyBusFailed) {
-            for (PowerBus bus : buses) if (bus.isAvailable()) bus.forceFailNow();
-        } else if (breaker != null && brClosedBefore && anyBusFailed && !brFailedThisHour) {
-            breaker.setClosed(false);
-        }
-
-        for (int b = 0; b < busCount; b++) busAlive[b] = buses.get(b).isAvailable();
-    }
-
-    private static void updateEquipmentFailuresOneHour(boolean considerFailures, List<PowerBus> buses, boolean[] busAlive) {
-        for (int b = 0; b < buses.size(); b++) {
-            if (!busAlive[b]) continue;
-
-            PowerBus bus = buses.get(b);
-            for (WindTurbine wt : bus.getWindTurbines()) wt.updateFailureOneHour(considerFailures);
-            for (DieselGenerator dg : bus.getDieselGenerators()) dg.updateFailureOneHour(considerFailures);
-            Battery bt = bus.getBattery();
-            if (bt != null) bt.updateFailureOneHour(considerFailures);
-        }
-    }
-
-    private static void stopAllDgOnBus(PowerBus bus) {
-        for (DieselGenerator dg : bus.getDieselGenerators()) {
-            dg.stopWork();
-            dg.setCurrentLoad(0.0);
-        }
-    }
-
-    private static double computeWindPotential(PowerBus bus, double windV) {
-        double pot = 0.0;
-        for (WindTurbine wt : bus.getWindTurbines()) {
-            pot += wt.getPotentialGenerationKw(windV);
-            if (wt.isAvailable()) wt.addWorkTime(1);
-        }
-        return pot;
-    }
-
     private static DieselGenerator[] getSortedDgs(PowerBus bus) {
         List<DieselGenerator> dgList = bus.getDieselGenerators();
         int n = dgList.size();
@@ -1303,6 +1115,22 @@ public final class SingleRunSimulator {
         Arrays.sort(buf, DieselGenerator.DISPATCH_COMPARATOR);
         return buf;
     }
+
+    private static void stopAllDieselsOnBus(PowerBus bus) {
+        for (DieselGenerator dg : bus.getDieselGenerators()) {
+            if (!dg.isAvailable()) {
+                // если недоступен — приводим к безопасному состоянию
+                hardStopDg(dg);
+                continue;
+            }
+
+            dg.stopWork();
+            dg.setCurrentLoad(0.0);
+            dg.setIdle(false);
+            dg.resetIdleTime();
+        }
+    }
+
 
     private static boolean isMaintenanceStartedThisHour(DieselGenerator[] dgs) {
         for (DieselGenerator dg : dgs) {
@@ -1671,47 +1499,6 @@ public final class SingleRunSimulator {
         }
 
         return liters;
-    }
-
-    private static void fillDgTrace(
-            PowerBus bus,
-            int busIndex,
-            double[][] dgLoadKw,
-            double[][] dgHoursSinceMaintenance,
-            double[][] dgTimeWorked,
-            double[][] dgTotalTimeWorked,
-            boolean[][] dgAvailable,
-            boolean[][] dgInMaintenance
-    ) {
-        List<DieselGenerator> dgList = bus.getDieselGenerators();
-        int n = dgList.size();
-
-        dgLoadKw[busIndex] = new double[n];
-        dgHoursSinceMaintenance[busIndex] = new double[n];
-        dgTimeWorked[busIndex] = new double[n];
-        dgTotalTimeWorked[busIndex] = new double[n];
-        dgAvailable[busIndex] = new boolean[n];
-        dgInMaintenance[busIndex] = new boolean[n];
-
-        for (int i = 0; i < n; i++) {
-            DieselGenerator dg = dgList.get(i);
-            dgLoadKw[busIndex][i] = dg.getCurrentLoad();
-            dgHoursSinceMaintenance[busIndex][i] = dg.getHoursSinceMaintenance();
-            dgTimeWorked[busIndex][i] = dg.getTimeWorked();
-            dgTotalTimeWorked[busIndex][i] = dg.getTotalTimeWorked();
-            dgAvailable[busIndex][i] = dg.isAvailable();
-            dgInMaintenance[busIndex][i] = dg.isInMaintenance();
-        }
-    }
-
-    private static void fillBatteryTrace(Battery bt, int busIndex, double[] btActualCapacity, double[] btActualSoc) {
-        if (bt != null) {
-            btActualCapacity[busIndex] = bt.getMaxCapacityKwh();
-            btActualSoc[busIndex] = bt.getStateOfCharge();
-        } else {
-            btActualCapacity[busIndex] = Double.NaN;
-            btActualSoc[busIndex] = Double.NaN;
-        }
     }
 
     // ======================================================================

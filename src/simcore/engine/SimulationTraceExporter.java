@@ -24,7 +24,7 @@ public final class SimulationTraceExporter {
         try (BufferedWriter w = new BufferedWriter(new FileWriter(path))) {
 
             /* ---------- HEADER ---------- */
-            StringBuilder h = new StringBuilder("t;L");
+            StringBuilder h = new StringBuilder("t;L;BRK");
             for (int b = 0; b < busCnt; b++) {
                 int bi = b + 1;
                 h.append(";B").append(bi).append("_L");
@@ -41,7 +41,7 @@ public final class SimulationTraceExporter {
                 h.append(";B").append(bi).append("_B");
                 h.append(";B").append(bi).append("_C");
                 h.append(";B").append(bi).append("_SOC");
-
+                h.append(";B").append(bi).append("_H");
             }
 
             w.write(h.toString());
@@ -52,37 +52,58 @@ public final class SimulationTraceExporter {
 
                 StringBuilder s = new StringBuilder();
                 s.append(r.getTimeIndex()).append(';')
-                        .append(f(r.getTotalLoadKw()));
+                        .append(f(r.getTotalLoadKw()))
+                        .append(';')
+                        .append(brk(r.getBreakerClosed()));
+
+                boolean[] busStatus = r.getBusStatus();
+                double[] busLoad = r.getBusLoadKw();
+                double[] busDef = r.getBusDeficitKw();
+                double[] busW = r.getBusGenWindKw();
+                double[] busB = r.getBusGenBtKw();
+
+                double[][] dgLoad = r.getBusGenDgLoadKw();
+                boolean[][] dgAvail = r.getDgAvailable();
+                boolean[][] dgMaint = r.getDgInMaintenance();
+                double[][] dgTotalT = r.getBusGenDgTotalTimeWorked();
+
+                double[] btCap = r.getBtActualCapacity();
+                double[] btSoc = r.getBtActualSOC();
+                double[] btH = r.getBtTimeWorked();
 
                 for (int b = 0; b < busCnt; b++) {
 
-                    s.append(';').append(r.getBusStatus()[b] ? f(r.getBusLoadKw()[b]) : "OFF");
-                    s.append(';').append(f(r.getBusDeficitKw()[b]));
-                    s.append(';').append(f(r.getBusGenWindKw()[b]));
+                    s.append(';').append(busStatus[b] ? f(busLoad[b]) : "OFF");
+                    s.append(';').append(f(busDef[b]));
+                    s.append(';').append(f(busW[b]));
 
-                    int dgCnt = r.getBusGenDgLoadKw()[b].length;
+                    int dgCnt = dgLoad[b].length;
                     for (int i = 0; i < dgCnt; i++) {
 
-                        if (!r.getDgAvailable()[b][i]) {
-                            s.append(r.getDgInMaintenance()[b][i] ? ";TO" : ";OFF");
+                        if (!dgAvail[b][i]) {
+                            s.append(dgMaint[b][i] ? ";TO" : ";OFF");
                         } else {
-                            s.append(';').append(f(r.getBusGenDgLoadKw()[b][i]));
+                            s.append(';').append(f(dgLoad[b][i]));
                         }
 
-                        s.append(';')
-                                .append(f(r.getBusGenDgTotalTimeWorked()[b][i]));
+                        s.append(';').append(f(dgTotalT[b][i]));
                     }
 
-                    s.append(';').append(f(r.getBusGenBtKw()[b]));
-                    s.append(';').append(f(r.getBtActualCapacity()[b]));
-                    s.append(';').append(f(r.getBtActualSOC()[b]));
-
+                    s.append(';').append(f(busB[b]));
+                    s.append(';').append(f(btCap[b]));
+                    s.append(';').append(f(btSoc[b]));
+                    s.append(';').append(f(btH[b]));
                 }
 
                 w.write(s.toString());
                 w.newLine();
             }
         }
+    }
+
+    private static String brk(Boolean closed) {
+        if (closed == null) return "";
+        return closed ? "CLOSED" : "OPEN";
     }
 
     private static String f(double v) {
