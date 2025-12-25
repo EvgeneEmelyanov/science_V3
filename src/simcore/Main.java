@@ -29,7 +29,7 @@ public class Main {
 
         RunMode mode = RunMode.SINGLE;
 
-        int mcIterations = 1; // trace пишем только если mcIterations==1 и mode==SINGLE
+        int mcIterations = 10000; // trace пишем только если mcIterations==1 и mode==SINGLE
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
 
