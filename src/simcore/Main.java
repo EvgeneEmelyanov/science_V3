@@ -5,15 +5,17 @@ import simcore.config.SystemParameters;
 import simcore.config.SystemParametersBuilder;
 import simcore.engine.*;
 import simcore.io.SweepResultsCsvWriter;
+import simcore.io.SweepResultsExcelWriter;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-    //TODO: 1. МОЖНО СДЕЛАТЬ ТАК, ЧТОБЫ МОЖНО БЫЛО НЕСКОЛЬКО ТО ОДНОВРЕМЕННО
-    //      2. СЕЙЧАС В ТО МОЖЕТ БЫТЬ СРАЗУ НЕСКОЛЬКО ДГУ
-    //      3. ПРИ РОСТЕ ЕМКОСТИ В КАКОЙ-ТО МОМЕНТ РАСТЕТ ENS
+
+//    TODO: 1. СЕЙЧАС В ТО МОЖЕТ БЫТЬ СРАЗУ НЕСКОЛЬКО ДГУ
+//          2. ПРИ РОСТЕ ЕМКОСТИ В КАКОЙ-ТО МОМЕНТ РАСТЕТ ENS
+
 
 public class Main {
 
@@ -24,12 +26,13 @@ public class Main {
         String loadFilePath = "D:/01_Load.txt";
         String windFilePath = "D:/02_Wind.txt";
 
-        String resultsCsvPath = "D:/simulation_results_batch.csv";
+        String resultsCsvPath = "D:/simulation_results_batch1.csv";
+        String resultsXlsxPath = "D:/simulation_results_batch2.xlsx";
         String traceCsvPath = "D:/simulation_trace.csv";
 
-        RunMode mode = RunMode.SINGLE;
+        RunMode mode = RunMode.SWEEP_2;
 
-        int mcIterations = 1; // trace пишем только если mcIterations==1 и mode==SINGLE
+        int mcIterations = 1000; // trace пишем только если mcIterations==1 и mode==SINGLE
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
 
@@ -75,8 +78,10 @@ public class Main {
                     }
                 }
 
-                SweepResultsCsvWriter.write(resultsCsvPath, mode, cfg, baseParams, paramSets, estimates, param1, param2);
-                System.out.println("Saved: " + resultsCsvPath);
+//                SweepResultsCsvWriter.write(resultsCsvPath, mode, cfg, baseParams, paramSets, estimates, param1, param2);
+                SweepResultsExcelWriter.writeXlsx(resultsXlsxPath, mode, cfg, baseParams, paramSets, estimates, param1, param2);
+//                System.out.println("Saved: " + resultsCsvPath);
+                System.out.println("Saved: " + resultsXlsxPath);
 
             } finally {
                 ex.shutdown();
