@@ -13,7 +13,7 @@ import simcore.engine.trace.TraceSession;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
+
 
 public final class SingleRunSimulator {
 
@@ -27,15 +27,6 @@ public final class SingleRunSimulator {
 
     private static final ThreadLocal<DieselGenerator[]> DG_SORT_BUF = new ThreadLocal<>();
 
-    /**
-     * Один прогон по всему временному ряду.
-     * seed задаёт идентичные RNG последовательности для всех наборов параметров (common random numbers).
-     */
-
-    /**
-     * Один прогон по всему временному ряду.
-     * seed задаёт идентичные RNG последовательности для всех наборов параметров (common random numbers).
-     */
     public SimulationMetrics simulate(SimInput input, long seed, boolean traceEnabled) {
 
         final SimulationConfig config = input.getConfig();
@@ -87,6 +78,7 @@ public final class SingleRunSimulator {
             double totalWreAtTime = 0.0;
             final double[] hourWreRef = doTrace ? new double[]{0.0} : null;
 
+            final boolean tieWasClosedAtHourStart = (breaker != null && breaker.isClosed());
 
             FailureStepper.updateNetworkFailuresOneHour(
                     considerFailures,
@@ -99,6 +91,33 @@ public final class SingleRunSimulator {
             );
 
             FailureStepper.updateEquipmentFailuresOneHour(considerFailures, buses, busAlive);
+
+            if (tieWasClosedAtHourStart && breaker != null) {
+
+                boolean breakerFailed = !breaker.isAvailable();
+                boolean anyBusFailed = false;
+                for (int i = 0; i < busCount; i++) {
+                    if (!busAlive[i]) { anyBusFailed = true; break; }
+                }
+
+                if (breakerFailed && anyBusFailed) {
+                    // отказал автомат + отказала шина => падают обе шины
+                    for (int i = 0; i < busCount; i++) busAlive[i] = false;
+
+                    // (желательно) отметить отказ в массивах, чтобы trace/статистика видели событие
+                    for (int i = 0; i < busCount; i++) busFailedThisHour[i] = true;
+
+                    breaker.setClosed(false);
+
+                } else if (breakerFailed) {
+                    // отказал только автомат => разомкнуть, шины остаются как есть
+                    breaker.setClosed(false);
+
+                } else if (anyBusFailed) {
+                    // отказала шина, автомат жив => разомкнуть, шины остаются как есть (одна уже dead)
+                    breaker.setClosed(false);
+                }
+            }
 
             if (breaker != null && breaker.isAvailable()) breaker.addWorkTime(1);
 
@@ -184,8 +203,6 @@ public final class SingleRunSimulator {
                     trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
 
                 }
-
-                // ВАЖНО: чтобы не было двойного учета — пропускаем обычный per-bus dispatch
                 continue;
             }
 
@@ -215,9 +232,6 @@ public final class SingleRunSimulator {
                         hourWreRef,
                         trace
                 );
-
-            // totalLoadAtTime/totalDefAtTime считаем после цикла по данным trace (ниже)
-
             }
 
             if (doTrace) {
