@@ -51,8 +51,9 @@ public class Main {
 //            double[] param1 = new double[]{0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45,
 //                    0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00};
 //            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
-            double[] param2 = new double[]{67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
-            double[] param1 = new double[]{67.3, 134.6, 269.2, 403.8, 538.4, 673.0};
+            double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
+            double[] param1 = new double[]{67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
+
 
 
             List<SystemParameters> paramSets = buildParamSets(mode, baseParams, param1, param2);
@@ -134,8 +135,8 @@ public class Main {
         for (double p1 : param1) {
             for (double p2 : param2) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setMaxDischargeCurrent(p1)
-                        .setBatteryCapacityKwhPerBus(p2)
+                        .setBatteryCapacityKwhPerBus(p1)
+                        .setNonReserveDischargeLevel(p2)
                         .build();
                 paramSets.add(p);
             }
