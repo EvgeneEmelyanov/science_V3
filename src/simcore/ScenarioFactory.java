@@ -1,5 +1,6 @@
 package simcore;
 
+import simcore.Main;
 import simcore.config.*;
 import simcore.io.InputData;
 import simcore.io.InputDataLoader;
@@ -26,17 +27,19 @@ public final class ScenarioFactory {
 
     public static SystemParameters defaultParams() {
         return new SystemParameters(
-                BusSystemType.SINGLE_SECTIONAL_BUS,
+                BusSystemType.DOUBLE_BUS,
                 0.1, 0.4, 0.5,
                 8, 330.0,
-                8, 340.0,
+                6, 420.0,
                 336.5,
                 1.0, 2.0, 0.8,
                 1.94, 46,
                 4.75, 50,
                 0.575, 44,
-                0.16, 12,
-                0.5, 10
+                0.02, 12,
+                0.15, 10,
+                0.0, 36,
+                0.20, 0.0
         );
     }
 
@@ -47,7 +50,7 @@ public final class ScenarioFactory {
                 threads,
                 true,
                 true,
-                true,
+                false,
                 false,
                 true,
                 true

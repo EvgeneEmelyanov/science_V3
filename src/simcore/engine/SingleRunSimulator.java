@@ -42,15 +42,15 @@ public final class SingleRunSimulator {
 
         final double cat1 = sp.getFirstCat();
         final double cat2 = sp.getSecondCat();
-        @SuppressWarnings("unused")
-        final double cat3 = sp.getThirdCat();
 
         final PowerSystem system = new PowerSystemBuilder().build(sp, input.getTotalLoadKw());
         final List<PowerBus> buses = system.getBuses();
         final int busCount = buses.size();
         final Breaker breaker = system.getTieBreaker();
+        final List<SwitchgearRoom> rooms = system.getRooms();
+        final int[] roomIndexByBus = system.getRoomIndexByBus();
 
-        FailureStepper.initFailureModels(seed, considerFailures, buses, breaker);
+        FailureStepper.initFailureModels(seed, considerFailures, buses, breaker, rooms);
 
         final Totals totals = new Totals();
         final TraceSession trace = traceEnabled ? new ArrayTraceSession() : new NoTraceSession();
@@ -75,7 +75,7 @@ public final class SingleRunSimulator {
 
             double totalLoadAtTime = 0.0;
             double totalDefAtTime = 0.0;
-            double totalWreAtTime = 0.0;
+            double totalWreAtTime;
             final double[] hourWreRef = doTrace ? new double[]{0.0} : null;
 
             final boolean tieWasClosedAtHourStart = (breaker != null && breaker.isClosed());
@@ -84,6 +84,8 @@ public final class SingleRunSimulator {
                     considerFailures,
                     buses,
                     breaker,
+                    rooms,
+                    roomIndexByBus,
                     busAvailBefore,
                     busAvailAfter,
                     busFailedThisHour,
@@ -124,9 +126,18 @@ public final class SingleRunSimulator {
             // ===== Bus system logic (SINGLE_SECTIONAL_BUS) =====
             final BusSystemType busType = sp.getBusSystemType();
 
-            final double[] effectiveLoadKw = (busType == BusSystemType.SINGLE_SECTIONAL_BUS && busCount == 2)
-                    ? computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2)
-                    : null;
+            final double[] effectiveLoadKw;
+            if (busCount == 2 && (busType == BusSystemType.SINGLE_SECTIONAL_BUS || busType == BusSystemType.DOUBLE_BUS)) {
+                if (busType == BusSystemType.SINGLE_SECTIONAL_BUS) {
+                    // Перенос 1/2 категории только при отказе секции (если одна секция недоступна)
+                    effectiveLoadKw = computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2);
+                } else {
+                    // DOUBLE_BUS: перенос 1/2 категории при отказе шины И при дефиците мощности на одной из шин
+                    effectiveLoadKw = computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw);
+                }
+            } else {
+                effectiveLoadKw = null;
+            }
 
             boolean sectionalClosedThisHour = false;
             if (busType == BusSystemType.SINGLE_SECTIONAL_BUS
@@ -179,6 +190,21 @@ public final class SingleRunSimulator {
                 totals.dgToLoadKwh += r.dgToLoadKwh;
                 totals.btToLoadKwh += r.btToLoadKwh;
                 totals.fuelLiters += r.fuelLiters;
+
+                // ENS по категориям: учитываем нюанс задержки пуска ДГУ.
+                // - часть ENS из-за задержки пуска (кратковременный провал) распределяем пропорционально категориям
+                // - остаток ENS (сброс нагрузки при дефиците) распределяем приоритетно: III -> II -> I
+                for (int b = 0; b < busCount; b++) {
+                    double startEns = (r.startEnsByBus != null) ? r.startEnsByBus[b] : 0.0;
+                    double totalEnsBus = r.defByBus[b];
+                    if (startEns > SimulationConstants.EPSILON) {
+                        addEnsByCategoryProportional(totals, loads[b], startEns, cat1, cat2);
+                    }
+                    double restEns = Math.max(0.0, totalEnsBus - startEns);
+                    if (restEns > SimulationConstants.EPSILON) {
+                        addEnsByCategory(totals, loads[b], restEns, cat1, cat2);
+                    }
+                }
 
                 if (doTrace) {
                     totalLoadAtTime = r.loadKwh;
@@ -270,6 +296,8 @@ public final class SingleRunSimulator {
         return new SimulationMetrics(
                 totals.loadKwh,
                 totals.ensKwh,
+                totals.ensCat1Kwh,
+                totals.ensCat2Kwh,
                 totals.wreKwh,
                 totals.wtToLoadKwh,
                 totals.dgToLoadKwh,
@@ -292,11 +320,64 @@ public final class SingleRunSimulator {
     private static final class Totals {
         double loadKwh;
         double ensKwh;
+        double ensCat1Kwh;
+        double ensCat2Kwh;
         double wreKwh;
         double wtToLoadKwh;
         double dgToLoadKwh;
         double btToLoadKwh;
         double fuelLiters;
+    }
+
+    /**
+     * Разложение ENS по категориям при порядке сброса: III -> II -> I.
+     * cat1/cat2 задаются как доли нагрузки (0..1).
+     */
+    private static void addEnsByCategory(Totals totals, double loadKw, double ensKw, double cat1, double cat2) {
+        if (ensKw <= SimulationConstants.EPSILON || loadKw <= SimulationConstants.EPSILON) return;
+
+        double k1 = Math.max(0.0, Math.min(1.0, cat1));
+        double k2 = Math.max(0.0, Math.min(1.0 - k1, cat2));
+        double k3 = Math.max(0.0, 1.0 - k1 - k2);
+
+        double load1 = loadKw * k1;
+        double load2 = loadKw * k2;
+        double load3 = loadKw * k3;
+
+        double rem = ensKw;
+        // Сначала недоотпуск III категории
+        double ens3 = Math.min(rem, load3);
+        rem -= ens3;
+        // Затем II категории
+        double ens2 = Math.min(rem, load2);
+        rem -= ens2;
+        // Затем I категории
+        double ens1 = Math.min(rem, load1);
+
+        totals.ensCat1Kwh += ens1;
+        totals.ensCat2Kwh += ens2;
+    }
+
+    /**
+     * Разложение ENS по категориям пропорционально нагрузкам категорий.
+     * Используется для событий типа "кратковременный провал/задержка пуска ДГУ" и "полное отключение шины",
+     * когда недоотпуск возникает одновременно у всех категорий, а не как результат приоритетного отключения.
+     */
+    private static void addEnsByCategoryProportional(Totals totals, double loadKw, double ensKwh, double cat1, double cat2) {
+        if (ensKwh <= SimulationConstants.EPSILON || loadKw <= SimulationConstants.EPSILON) return;
+
+        double k1 = Math.max(0.0, Math.min(1.0, cat1));
+        double k2 = Math.max(0.0, Math.min(1.0 - k1, cat2));
+
+        double load1 = loadKw * k1;
+        double load2 = loadKw * k2;
+
+        double f = ensKwh / loadKw;
+        if (f < 0.0) f = 0.0;
+        if (f > 1.0) f = 1.0;
+
+        totals.ensCat1Kwh += f * load1;
+        totals.ensCat2Kwh += f * load2;
     }
 
     private static final class SectionalClosedResult {
@@ -312,6 +393,7 @@ public final class SingleRunSimulator {
         final double[] dgToLoadByBus;
         final double[] btNetByBus;
         final double[] defByBus;
+        final double[] startEnsByBus;
 
         SectionalClosedResult(double loadKwh,
                               double ensKwh,
@@ -323,7 +405,8 @@ public final class SingleRunSimulator {
                               double[] windToLoadByBus,
                               double[] dgToLoadByBus,
                               double[] btNetByBus,
-                              double[] defByBus) {
+                              double[] defByBus,
+                              double[] startEnsByBus) {
             this.loadKwh = loadKwh;
             this.ensKwh = ensKwh;
             this.wreKwh = wreKwh;
@@ -335,6 +418,7 @@ public final class SingleRunSimulator {
             this.dgToLoadByBus = dgToLoadByBus;
             this.btNetByBus = btNetByBus;
             this.defByBus = defByBus;
+            this.startEnsByBus = startEnsByBus;
         }
     }
 
@@ -367,6 +451,8 @@ public final class SingleRunSimulator {
 
             final double defKw = loadKw;
             totals.ensKwh += defKw;
+            // Полное отключение шины: недоотпуск у всех категорий одновременно
+            addEnsByCategoryProportional(totals, loadKw, defKw, cat1, cat2);
 
             if (trace.enabled()) {
                 trace.setBusDown(b, loadKw, defKw);
@@ -391,6 +477,8 @@ public final class SingleRunSimulator {
         double dgToLoadKwLocal = 0.0;
         double btNetKw = 0.0; // >0 discharge, <0 charge
         double wreLocal = 0.0;
+        // Оценка энергии недоотпуска именно из-за задержки пуска ДГУ (кратковременный провал в начале часа)
+        double startDelayEnsEstimateKwh = 0.0;
 
         if (windPotentialKw >= loadKw - SimulationConstants.EPSILON) {
             // ===== Wind surplus case =====
@@ -553,6 +641,13 @@ public final class SingleRunSimulator {
                     if (canUseOptimal && perDgSteadyKw > perDgOptimalKw) perDgSteadyKw = perDgOptimalKw;
                 }
 
+                // Если в этом часу реально запускаем ДГУ (есть неготовые агрегаты) и tauEff>0,
+                // то часть недоотпуска относится к задержке пуска.
+                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
+                    double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
+                    startDelayEnsEstimateKwh = startDefKw * tauEff;
+                }
+
                 boolean canCharge = btAvail
                         && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON;
 
@@ -650,13 +745,24 @@ public final class SingleRunSimulator {
 
                 dgProducedKw = sumDieselKw;
 
+                // ===== ENS из-за задержки пуска ДГУ =====
+                // Если часть ДГУ была не "readyWorking" и есть tauEff>0, то в интервал tauEff
+                // мощность ограничена только уже работающими ДГУ. Энергетический недоотпуск этого типа
+                // распределяем пропорционально категориям.
+                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
+                    double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
+                    startDelayEnsEstimateKwh = startDefKw * tauEff;
+                }
+
                 // ---- заряд от ДГУ ----
                 boolean allowChargeNow = canCharge && (considerChargeByDg || anyBurnThisHour);
 
+                // 1) сначала считаем, сколько дизеля реально нужно на нагрузку при текущем btNetKw
                 double btDisToLoadKw = Math.max(0.0, btNetKw);
                 double needFromDieselToLoadKw = loadKw - windToLoadKw - btDisToLoadKw;
                 if (needFromDieselToLoadKw < 0.0) needFromDieselToLoadKw = 0.0;
 
+                // 2) считаем реальный surplus дизеля
                 double dieselSurplusKw = dgProducedKw - needFromDieselToLoadKw;
                 if (dieselSurplusKw < 0.0) dieselSurplusKw = 0.0;
 
@@ -665,12 +771,14 @@ public final class SingleRunSimulator {
                     double ch = Math.min(dieselSurplusKw, chargeCapKw);
                     if (ch > SimulationConstants.EPSILON) {
                         battery.adjustCapacity(battery, +ch, ch, true, considerDegradation);
-                        btNetKw -= ch;
+                        btNetKw -= ch;               // заряд уменьшает net (разряд)
                         extraForChargeKw = ch;
                     }
                 }
 
+                // 3) dgToLoad — это то, что осталось после заряда
                 dgToLoadKwLocal = Math.max(0.0, dgProducedKw - extraForChargeKw);
+
             }
         }
 
@@ -691,6 +799,19 @@ public final class SingleRunSimulator {
         double defKw = loadKw - suppliedKw;
         if (defKw < 0.0) defKw = 0.0;
         totals.ensKwh += defKw;
+
+        // Разложение ENS по категориям с учётом задержки пуска ДГУ:
+        // - часть startDelayEnsEstimateKwh распределяем пропорционально категориям
+        // - остаток распределяем приоритетно (III -> II -> I)
+        double startEns = Math.min(defKw, Math.max(0.0, startDelayEnsEstimateKwh));
+        if (startEns > SimulationConstants.EPSILON) {
+            addEnsByCategoryProportional(totals, loadKw, startEns, cat1, cat2);
+        }
+        double restEns = Math.max(0.0, defKw - startEns);
+        if (restEns > SimulationConstants.EPSILON) {
+            addEnsByCategory(totals, loadKw, restEns, cat1, cat2);
+        }
+
 
         if (trace.enabled()) {
             trace.setBusValues(
@@ -735,11 +856,74 @@ public final class SingleRunSimulator {
         return out;
     }
 
+
+    private static double[] computeEffectiveLoadsForDoubleBus(SystemParameters sp,
+                                                              List<PowerBus> buses,
+                                                              boolean[] busAlive,
+                                                              int t,
+                                                              double cat1,
+                                                              double cat2,
+                                                              double windV,
+                                                              double dgMaxKw) {
+        // Базовая нагрузка по шинам
+        double[] out = new double[buses.size()];
+        for (int i = 0; i < buses.size(); i++) out[i] = buses.get(i).getLoadKw()[t];
+
+        if (buses.size() != 2) return out;
+
+        // Если одна шина недоступна — используем ту же логику переноса (1-я сразу, 2-я с задержкой)
+        if (busAlive[0] != busAlive[1]) {
+            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2);
+        }
+
+        // Если обе недоступны или обе доступны — работаем далее только для случая "обе доступны"
+        if (!busAlive[0] && !busAlive[1]) return out;
+
+        // Перенос при дефиците: если на одной шине не хватает потенциальной генерации (WT + DGmax + АКБ),
+        // а на другой есть запас, переносим часть двухвводных потребителей (cat1+cat2) на другую шину.
+        double[] pot = new double[2];
+        for (int b = 0; b < 2; b++) {
+            PowerBus bus = buses.get(b);
+            double windPot = windPotentialNoSideEffects(bus, windV);
+            double dgPot = dieselPotential(bus, dgMaxKw);
+            Battery bt = bus.getBattery();
+            double btPot = (bt != null && bt.isAvailable()) ? bt.getDischargeCapacity(sp) : 0.0;
+            pot[b] = windPot + dgPot + btPot;
+        }
+
+        double deficit0 = Math.max(0.0, out[0] - pot[0]);
+        double deficit1 = Math.max(0.0, out[1] - pot[1]);
+        double surplus0 = Math.max(0.0, pot[0] - out[0]);
+        double surplus1 = Math.max(0.0, pot[1] - out[1]);
+
+        // Для DOUBLE_BUS при дефиците разрешаем переносить и III категорию (если требуется),
+        // т.е. теоретически переносима вся нагрузка. Перенос I/II при отказе шины остаётся
+        // в computeEffectiveLoadsForSectional(...).
+        double movableRatio = 1.0;
+
+        if (deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON) {
+            double maxMovable = out[0] * movableRatio;
+            double transfer = Math.min(deficit0, Math.min(surplus1, maxMovable));
+            out[0] = Math.max(0.0, out[0] - transfer);
+            out[1] += transfer;
+        } else if (deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON) {
+            double maxMovable = out[1] * movableRatio;
+            double transfer = Math.min(deficit1, Math.min(surplus0, maxMovable));
+            out[1] = Math.max(0.0, out[1] - transfer);
+            out[0] += transfer;
+        }
+
+        return out;
+    }
+
     private static boolean shouldCloseTieBreakerThisHour(SystemParameters sp,
                                                          List<PowerBus> buses,
                                                          double[] loads,
                                                          double windV,
                                                          double dgMaxKw) {
+        double[] deficit = new double[2];
+        double[] surplus = new double[2];
+
         for (int b = 0; b < 2; b++) {
             PowerBus bus = buses.get(b);
             double load = loads[b];
@@ -750,10 +934,19 @@ public final class SingleRunSimulator {
             Battery bt = bus.getBattery();
             double btPot = (bt != null && bt.isAvailable()) ? bt.getDischargeCapacity(sp) : 0.0;
 
-            if (windPot + dgPot + btPot + SimulationConstants.EPSILON < load) return true;
+            double pot = windPot + dgPot + btPot;
+
+            deficit[b] = Math.max(0.0, load - pot);
+            surplus[b] = Math.max(0.0, pot - load);
         }
-        return false;
+
+        // Замыкать межсекционный имеет смысл только если на одной секции есть дефицит,
+        // а на другой есть запас для покрытия (иначе объединение не помогает).
+        boolean close01 = deficit[0] > SimulationConstants.EPSILON && surplus[1] > SimulationConstants.EPSILON;
+        boolean close10 = deficit[1] > SimulationConstants.EPSILON && surplus[0] > SimulationConstants.EPSILON;
+        return close01 || close10;
     }
+
 
     private static double windPotentialNoSideEffects(PowerBus bus, double windV) {
         double pot = 0.0;
@@ -898,6 +1091,9 @@ public final class SingleRunSimulator {
         double dgToLoadTotal = 0.0;
         double wre = 0.0;
 
+        // Оценка энергии недоотпуска из-за задержки пуска ДГУ (для корректного разложения ENS по категориям)
+        double startDelayEnsEstimateKwh = 0.0;
+
         if (windPot >= totalLoad - SimulationConstants.EPSILON) {
             // wind already covers total load; remaining is WRE after battery charge below
             double surplusKw = Math.max(0.0, windPot - totalLoad);
@@ -956,6 +1152,11 @@ public final class SingleRunSimulator {
                             ? (deficitAfterWindBt / dgToUse)
                             : Math.min(deficitAfterWindBt / dgToUse, dgMaxKw);
                     if (canUseOptimal && perDgSteadyKw > perDgOptimalKw) perDgSteadyKw = perDgOptimalKw;
+                }
+
+                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
+                    double startDefKw = Math.max(0.0, deficitAfterWindBt - readyLoadStartKw);
+                    startDelayEnsEstimateKwh = startDefKw * tauEff;
                 }
 
                 boolean anyBurnThisHour = false;
@@ -1097,6 +1298,14 @@ public final class SingleRunSimulator {
 
         double ens = def[0] + def[1];
 
+        // Разложение "start-delay ENS" по шинам пропорционально текущим дефицитам.
+        double[] startEnsByBus = new double[2];
+        if (ens > SimulationConstants.EPSILON && startDelayEnsEstimateKwh > SimulationConstants.EPSILON) {
+            double startEnsTotal = Math.min(ens, startDelayEnsEstimateKwh);
+            startEnsByBus[0] = startEnsTotal * (def[0] / ens);
+            startEnsByBus[1] = startEnsTotal * (def[1] / ens);
+        }
+
         double fuel = computeFuelLitersOneHour(b0.getDieselGenerators(), dgRatedKw)
                 + computeFuelLitersOneHour(b1.getDieselGenerators(), dgRatedKw);
 
@@ -1111,7 +1320,8 @@ public final class SingleRunSimulator {
                 windToLoad,
                 dgToLoad,
                 btNet,
-                def
+                def,
+                startEnsByBus
         );
     }
 

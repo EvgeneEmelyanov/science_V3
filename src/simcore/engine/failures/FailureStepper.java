@@ -10,12 +10,15 @@ public final class FailureStepper {
     private FailureStepper() {
     }
 
-    public static void initFailureModels(long seed, boolean considerFailures, List<PowerBus> buses, Breaker breaker) {
-        Random rndWT = new Random(seed + 10);
+    public static void initFailureModels(long seed, boolean considerFailures, List<PowerBus> buses, Breaker breaker, List<SwitchgearRoom> rooms) {
+        Random rndWT = new Random(seed + 1);
         Random rndDG = new Random(seed + 2);
         Random rndBT = new Random(seed + 3);
         Random rndBUS = new Random(seed + 4);
         Random rndBRK = new Random(seed + 5);
+        Random rndROOM = new Random(seed + 6);
+
+        for (SwitchgearRoom room : rooms) room.initFailureModel(rndROOM, considerFailures);
 
         if (breaker != null) breaker.initFailureModel(rndBRK, considerFailures);
 
@@ -32,6 +35,8 @@ public final class FailureStepper {
             boolean considerFailures,
             List<PowerBus> buses,
             Breaker breaker,
+            List<SwitchgearRoom> rooms,
+            int[] roomIndexByBus,
             boolean[] busAvailBefore,
             boolean[] busAvailAfter,
             boolean[] busFailedThisHour,
@@ -41,11 +46,24 @@ public final class FailureStepper {
 
         for (int b = 0; b < busCount; b++) busAvailBefore[b] = buses.get(b).isAvailable();
 
+        final int roomCount = rooms.size();
+        boolean[] roomAvailBefore = new boolean[roomCount];
+        boolean[] roomAvailAfter = new boolean[roomCount];
+        boolean[] roomFailedThisHour = new boolean[roomCount];
+        for (int r = 0; r < roomCount; r++) roomAvailBefore[r] = rooms.get(r).isAvailable();
+
+
         boolean brAvailBefore = breaker != null && breaker.isAvailable();
         boolean brClosedBefore = breaker != null && breaker.isClosed();
 
+        for (SwitchgearRoom room : rooms) room.updateFailureOneHour(considerFailures);
         if (breaker != null) breaker.updateFailureOneHour(considerFailures);
         for (PowerBus bus : buses) bus.updateFailureOneHour(considerFailures);
+
+        for (int r = 0; r < roomCount; r++) {
+            roomAvailAfter[r] = rooms.get(r).isAvailable();
+            roomFailedThisHour[r] = roomAvailBefore[r] && !roomAvailAfter[r];
+        }
 
         boolean anyBusFailed = false;
         for (int b = 0; b < busCount; b++) {
@@ -64,7 +82,16 @@ public final class FailureStepper {
             breaker.setClosed(false);
         }
 
-        for (int b = 0; b < busCount; b++) busAlive[b] = buses.get(b).isAvailable();
+        for (int b = 0; b < busCount; b++) {
+            int rIdx = roomIndexByBus[b];
+            boolean roomOk = rooms.get(rIdx).isAvailable();
+            busAlive[b] = buses.get(b).isAvailable() && roomOk;
+
+            // если шина формально исправна, но помещение отказало в этот час — пометим как отказ для статистики/trace
+            if (roomFailedThisHour[rIdx] && buses.get(b).isAvailable()) {
+                busFailedThisHour[b] = true;
+            }
+        }
     }
 
     public static void updateEquipmentFailuresOneHour(boolean considerFailures, List<PowerBus> buses, boolean[] busAlive) {

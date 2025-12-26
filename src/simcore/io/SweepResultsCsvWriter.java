@@ -37,11 +37,11 @@ public final class SweepResultsCsvWriter {
 
             // Заголовок зависит от режима
             if (mode == simcore.Main.RunMode.SWEEP_2) {
-                w.write("k;param1;param2;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
+                w.write("k;param1;param2;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;ENS1_mean;ENS2_mean;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
             } else if (mode == simcore.Main.RunMode.SWEEP_1) {
-                w.write("k;param1;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
+                w.write("k;param1;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;ENS1_mean;ENS2_mean;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
             } else { // SINGLE
-                w.write("k;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
+                w.write("k;ENS_mean;ENS_ciLo;ENS_ciHi;ENS_reqN;ENS1_mean;ENS2_mean;Fuel_ML;Moto_kh;WRE_% ;WT_% ;DG_% ;BT_%");
             }
             w.newLine();
 
@@ -73,6 +73,8 @@ public final class SweepResultsCsvWriter {
                         .append(fmt1(s.getCiLow())).append(';')
                         .append(fmt1(s.getCiHigh())).append(';')
                         .append(s.getRequiredSampleSize()).append(';')
+                        .append(fmt1(e.meanEnsCat1Kwh)).append(';')
+                        .append(fmt1(e.meanEnsCat2Kwh)).append(';')
                         .append(fmt2(fuelML)).append(';')
                         .append(fmt1(motoKh)).append(';')
                         .append(fmt2(e.meanWre)).append(';')

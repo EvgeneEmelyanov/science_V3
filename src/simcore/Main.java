@@ -1,5 +1,6 @@
 package simcore;
 
+import simcore.config.BusSystemType;
 import simcore.config.SimulationConfig;
 import simcore.config.SystemParameters;
 import simcore.config.SystemParametersBuilder;
@@ -19,7 +20,7 @@ import java.util.concurrent.Executors;
 
 public class Main {
 
-    public enum RunMode { SINGLE, SWEEP_1, SWEEP_2 }
+    public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
 
     public static void main(String[] args) {
 
@@ -32,7 +33,7 @@ public class Main {
 
         RunMode mode = RunMode.SWEEP_2;
 
-        int mcIterations = 1000; // trace пишем только если mcIterations==1 и mode==SINGLE
+        int mcIterations = 250; // trace пишем только если mcIterations==1 и mode==SINGLE
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
 
@@ -47,8 +48,12 @@ public class Main {
             SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
             // 3) сетка параметров
-            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+//            double[] param1 = new double[]{0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45,
+//                    0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00};
+//            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
             double[] param2 = new double[]{67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
+            double[] param1 = new double[]{67.3, 134.6, 269.2, 403.8, 538.4, 673.0};
+
 
             List<SystemParameters> paramSets = buildParamSets(mode, baseParams, param1, param2);
 
@@ -77,16 +82,14 @@ public class Main {
                         SimulationTraceExporter.exportToCsv(traceCsvPath, est.singleRun.trace);
                     }
                 }
-
-//                SweepResultsCsvWriter.write(resultsCsvPath, mode, cfg, baseParams, paramSets, estimates, param1, param2);
                 SweepResultsExcelWriter.writeXlsx(resultsXlsxPath, mode, cfg, baseParams, paramSets, estimates, param1, param2);
-//                System.out.println("Saved: " + resultsCsvPath);
                 System.out.println("Saved: " + resultsXlsxPath);
+                //                SweepResultsCsvWriter.write(resultsCsvPath, mode, cfg, baseParams, paramSets, estimates, param1, param2);
+                //                System.out.println("Saved: " + resultsCsvPath);
 
             } finally {
                 ex.shutdown();
             }
-
         } catch (Exception e) {
             System.err.println("Ошибка: " + e.getMessage());
             e.printStackTrace();
@@ -115,6 +118,17 @@ public class Main {
             }
             return paramSets;
         }
+
+//        if (mode == RunMode.SWEEP_1) {
+//            for (double p1 : param1) {
+//                SystemParameters p = SystemParametersBuilder.from(baseParams)
+//                        .setSecondCat(p1)
+//                        .setThirdCat(1 - p1)
+//                        .build();
+//                paramSets.add(p);
+//            }
+//            return paramSets;
+//        }
 
         // SWEEP_2
         for (double p1 : param1) {

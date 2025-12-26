@@ -29,37 +29,81 @@ public final class SweepResultsExcelWriter {
         }
 
         try (Workbook wb = new XSSFWorkbook()) {
+
+            // ===== Styles =====
+            DataFormat df = wb.createDataFormat();
+
+            CellStyle passportStyle = wb.createCellStyle();
+            passportStyle.setWrapText(false);
+            passportStyle.setVerticalAlignment(VerticalAlignment.TOP);
+
+
+            CellStyle headerStyle = wb.createCellStyle();
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+            CellStyle centeredTextStyle = wb.createCellStyle();
+            centeredTextStyle.setAlignment(HorizontalAlignment.CENTER);
+            centeredTextStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+            CellStyle centeredNumberStyle = wb.createCellStyle();
+            centeredNumberStyle.setAlignment(HorizontalAlignment.CENTER);
+            centeredNumberStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            centeredNumberStyle.setDataFormat(df.getFormat("0.00"));
+
+            // ===== RAW sheet =====
             Sheet raw = wb.createSheet("RAW");
 
-            // ---- RAW: passport in A1
             int r = 0;
-            Row row0 = raw.createRow(r++);
-            row0.createCell(0).setCellValue(buildPassport(cfg, baseParams));
 
-            // ---- RAW headers
+            Row row0 = raw.createRow(r++);
+            Cell passportCell = row0.createCell(0);
+            passportCell.setCellValue(buildPassport(cfg, baseParams));
+            passportCell.setCellStyle(passportStyle);
+
+            // фиксированная ширина
+            raw.setColumnWidth(0, 10 * 256);
+
+            // высота строки под перенос
+            row0.setHeightInPoints(14);
+
+
+            // Headers
             Row hdr = raw.createRow(r++);
             int c = 0;
-            hdr.createCell(c++).setCellValue("k");
+
+            // NOTE: "k" removed
             if (mode == simcore.Main.RunMode.SWEEP_2) {
-                hdr.createCell(c++).setCellValue("param1");
-                hdr.createCell(c++).setCellValue("param2");
+                Cell h1 = hdr.createCell(c++);
+                h1.setCellValue("param1");
+                h1.setCellStyle(headerStyle);
+
+                Cell h2 = hdr.createCell(c++);
+                h2.setCellValue("param2");
+                h2.setCellStyle(headerStyle);
+
             } else if (mode == simcore.Main.RunMode.SWEEP_1) {
-                hdr.createCell(c++).setCellValue("param1");
+                Cell h1 = hdr.createCell(c++);
+                h1.setCellValue("param1");
+                h1.setCellStyle(headerStyle);
             }
-            hdr.createCell(c++).setCellValue("ENS_mean");
-            hdr.createCell(c++).setCellValue("ENS_ciLo");
-            hdr.createCell(c++).setCellValue("ENS_ciHi");
-            hdr.createCell(c++).setCellValue("ENS_reqN");
-            hdr.createCell(c++).setCellValue("Fuel_ML");
-            hdr.createCell(c++).setCellValue("Moto_kh");
-            hdr.createCell(c++).setCellValue("WRE_%");
-            hdr.createCell(c++).setCellValue("WT_%");
-            hdr.createCell(c++).setCellValue("DG_%");
-            hdr.createCell(c++).setCellValue("BT_%");
+
+            c = writeHeader(hdr, c, "ENS_mean", headerStyle);
+            c = writeHeader(hdr, c, "ENS_ciLo", headerStyle);
+            c = writeHeader(hdr, c, "ENS_ciHi", headerStyle);
+            c = writeHeader(hdr, c, "ENS_reqN", headerStyle);
+            c = writeHeader(hdr, c, "ENS1_mean", headerStyle);
+            c = writeHeader(hdr, c, "ENS2_mean", headerStyle);
+            c = writeHeader(hdr, c, "Fuel_ML", headerStyle);
+            c = writeHeader(hdr, c, "Moto_kh", headerStyle);
+            c = writeHeader(hdr, c, "WRE_%", headerStyle);
+            c = writeHeader(hdr, c, "WT_%", headerStyle);
+            c = writeHeader(hdr, c, "DG_%", headerStyle);
+            c = writeHeader(hdr, c, "BT_%", headerStyle);
 
             final int m2 = (param2 != null) ? param2.length : 0;
 
-            // ---- RAW rows
+            // RAW rows
             for (int k = 0; k < estimates.size(); k++) {
                 MonteCarloEstimate e = estimates.get(k);
                 MonteCarloStats.Stats s = e.ensStats;
@@ -69,42 +113,76 @@ public final class SweepResultsExcelWriter {
 
                 Row rr = raw.createRow(r++);
                 int cc = 0;
-                rr.createCell(cc++).setCellValue(k);
 
+                // NOTE: no "k" written
                 if (mode == simcore.Main.RunMode.SWEEP_2) {
                     int i1 = k / m2;
                     int i2 = k % m2;
-                    rr.createCell(cc++).setCellValue(param1[i1]);
-                    rr.createCell(cc++).setCellValue(param2[i2]);
+
+                    Cell p1 = rr.createCell(cc++);
+                    p1.setCellValue(param1[i1]);
+                    p1.setCellStyle(centeredNumberStyle);
+
+                    Cell p2 = rr.createCell(cc++);
+                    p2.setCellValue(param2[i2]);
+                    p2.setCellStyle(centeredNumberStyle);
+
                 } else if (mode == simcore.Main.RunMode.SWEEP_1) {
-                    rr.createCell(cc++).setCellValue(param1[k]);
+                    Cell p1 = rr.createCell(cc++);
+                    p1.setCellValue(param1[k]);
+                    p1.setCellStyle(centeredNumberStyle);
                 }
 
-                rr.createCell(cc++).setCellValue(s.getMean());
-                rr.createCell(cc++).setCellValue(s.getCiLow());
-                rr.createCell(cc++).setCellValue(s.getCiHigh());
-                rr.createCell(cc++).setCellValue(s.getRequiredSampleSize());
-                rr.createCell(cc++).setCellValue(fuelML);
-                rr.createCell(cc++).setCellValue(motoKh);
-                rr.createCell(cc++).setCellValue(e.meanWre);
-                rr.createCell(cc++).setCellValue(e.meanWtPct);
-                rr.createCell(cc++).setCellValue(e.meanDgPct);
-                rr.createCell(cc++).setCellValue(e.meanBtPct);
+                writeNumber(rr, cc++, s.getMean(), centeredNumberStyle);
+                writeNumber(rr, cc++, s.getCiLow(), centeredNumberStyle);
+                writeNumber(rr, cc++, s.getCiHigh(), centeredNumberStyle);
+                writeNumber(rr, cc++, s.getRequiredSampleSize(), centeredNumberStyle);
+
+                writeNumber(rr, cc++, e.meanEnsCat1Kwh, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsCat2Kwh, centeredNumberStyle);
+                writeNumber(rr, cc++, fuelML, centeredNumberStyle);
+                writeNumber(rr, cc++, motoKh, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanWre, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanWtPct, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanDgPct, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanBtPct, centeredNumberStyle);
             }
 
-            autosize(raw, 14);
+            // Autosize all RAW columns except A (passport/param1)
+            int rawCols = hdr.getLastCellNum(); // number of columns in header
+            autosizeFrom(raw, rawCols, 1);
 
-            // ---- Only for SWEEP_2: build grids with formulas
+            // ===== SWEEP_2 grid (only for SWEEP_2) =====
             if (mode == simcore.Main.RunMode.SWEEP_2) {
                 Sheet grid = wb.createSheet("SWEEP_2");
 
-                // blocks: ENS, Fuel, Moto
                 int top = 0;
-                top = writeGridBlock(grid, "ENS_mean", top, param1, param2, "RAW!$D:$D");
-                top = writeGridBlock(grid, "Fuel_ML",  top + 2, param1, param2, "RAW!$H:$H");
-                top = writeGridBlock(grid, "Moto_kh",  top + 2, param1, param2, "RAW!$I:$I");
 
-                autosize(grid, Math.max(2, param2.length + 1));
+                // RAW columns after removing "k":
+                // A=param1, B=param2, C=ENS_mean, ... I=Fuel_ML, J=Moto_kh
+                top = writeGridBlock(grid, "ENS_mean", top, param1, param2,
+                        "RAW!$C:$C", // value
+                        "RAW!$A:$A", // crit param1
+                        "RAW!$B:$B", // crit param2
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "Fuel_ML", top + 2, param1, param2,
+                        "RAW!$I:$I",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "Moto_kh", top + 2, param1, param2,
+                        "RAW!$J:$J",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                // Autosize grid columns (safe here)
+                autosizeFrom(grid, Math.max(2, param2.length + 1), 0);
             }
 
             try (FileOutputStream out = new FileOutputStream(path)) {
@@ -113,41 +191,72 @@ public final class SweepResultsExcelWriter {
         }
     }
 
+    private static int writeHeader(Row hdr, int col, String text, CellStyle headerStyle) {
+        Cell cell = hdr.createCell(col);
+        cell.setCellValue(text);
+        cell.setCellStyle(headerStyle);
+        return col + 1;
+    }
+
+    private static void writeNumber(Row row, int col, double value, CellStyle numStyle) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(numStyle);
+    }
+
     private static int writeGridBlock(Sheet sh,
                                       String title,
                                       int topRow,
                                       double[] param1,
                                       double[] param2,
-                                      String valueRange /* e.g. RAW!$D:$D */) {
+                                      String valueRange,   // e.g. RAW!$C:$C
+                                      String critRangeP1,  // e.g. RAW!$A:$A
+                                      String critRangeP2,  // e.g. RAW!$B:$B
+                                      CellStyle numStyle,
+                                      CellStyle headerStyle) {
 
         // Title
         Row t = sh.createRow(topRow++);
-        t.createCell(0).setCellValue(title);
+        Cell titleCell = t.createCell(0);
+        titleCell.setCellValue(title);
+        titleCell.setCellStyle(headerStyle);
 
         // Header row: param2 across
         Row hdr = sh.createRow(topRow++);
-//        hdr.createCell(0).setCellValue("param1 \\ param2");
+        // top-left cell empty (or label)
+        Cell corner = hdr.createCell(0);
+        corner.setCellValue("");
+        corner.setCellStyle(headerStyle);
+
         for (int j = 0; j < param2.length; j++) {
-            hdr.createCell(1 + j).setCellValue(param2[j]);
+            Cell cell = hdr.createCell(1 + j);
+            cell.setCellValue(param2[j]);
+            cell.setCellStyle(numStyle);
         }
 
         // Data rows: param1 down + formulas
         for (int i = 0; i < param1.length; i++) {
             Row r = sh.createRow(topRow + i);
-            r.createCell(0).setCellValue(param1[i]);
 
-            // Excel cell refs: $A(row) and (col)(rowHeader)
-            int rowExcel = (topRow + i) + 1;         // 1-based
-            int hdrExcel = (topRow - 1) + 1;         // header row (param2) 1-based
+            Cell p1 = r.createCell(0);
+            p1.setCellValue(param1[i]);
+            p1.setCellStyle(numStyle);
+
+            // Excel row numbers (1-based)
+            int rowExcel = (topRow + i) + 1;
+            int hdrExcel = (topRow - 1) + 1; // header row with param2
 
             for (int j = 0; j < param2.length; j++) {
-                String colParam2 = colLetter(1 + j + 1); // +1 because first col is A, grid starts at B
-                // AVERAGEIFS(valueRange, RAW!$B:$B, $A{row}, RAW!$C:$C, {col}{hdrRow})
+                // cell containing param2 in header
+                String colParam2 = colLetter(1 + j + 1); // grid starts at B
                 String f = "AVERAGEIFS(" + valueRange
-                        + ",RAW!$B:$B,$A" + rowExcel
-                        + ",RAW!$C:$C," + colParam2 + "$" + hdrExcel
+                        + "," + critRangeP1 + ",$A" + rowExcel
+                        + "," + critRangeP2 + "," + colParam2 + "$" + hdrExcel
                         + ")";
-                r.createCell(1 + j).setCellFormula(f);
+
+                Cell cell = r.createCell(1 + j);
+                cell.setCellFormula(f);
+                cell.setCellStyle(numStyle);
             }
         }
 
@@ -155,7 +264,6 @@ public final class SweepResultsExcelWriter {
     }
 
     private static String colLetter(int col1Based) {
-        // 1->A, 2->B ...
         int col = col1Based;
         StringBuilder sb = new StringBuilder();
         while (col > 0) {
@@ -166,8 +274,8 @@ public final class SweepResultsExcelWriter {
         return sb.toString();
     }
 
-    private static void autosize(Sheet sh, int cols) {
-        for (int i = 0; i < cols; i++) sh.autoSizeColumn(i);
+    private static void autosizeFrom(Sheet sh, int cols, int fromCol) {
+        for (int i = fromCol; i < cols; i++) sh.autoSizeColumn(i);
     }
 
     private static String buildPassport(SimulationConfig cfg, SystemParameters sp) {

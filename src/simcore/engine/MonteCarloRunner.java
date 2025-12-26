@@ -87,6 +87,8 @@ public final class MonteCarloRunner {
             return new MonteCarloEstimate(
                     theta,
                     ensStats,
+                    m.ensCat1Kwh,
+                    m.ensCat2Kwh,
                     m.fuelLiters,
                     (double) m.totalMotoHours,
                     wrePct,
@@ -114,6 +116,8 @@ public final class MonteCarloRunner {
         }
 
         double[] ens = new double[mcIterations];
+        double ens1Sum = 0.0;
+        double ens2Sum = 0.0;
         double fuelSum = 0.0;
         double motoSum = 0.0;
 
@@ -126,6 +130,8 @@ public final class MonteCarloRunner {
             ChunkAgg a = f.get();
             fuelSum += a.fuelSum;
             motoSum += a.motoSum;
+            ens1Sum += a.ens1Sum;
+            ens2Sum += a.ens2Sum;
             wrePctSum += a.wrePctSum;
             wtPctSum += a.wtPctSum;
             dgPctSum += a.dgPctSum;
@@ -141,6 +147,8 @@ public final class MonteCarloRunner {
         return new MonteCarloEstimate(
                 theta,
                 ensStats,
+                ens1Sum * inv,
+                ens2Sum * inv,
                 fuelSum * inv,
                 motoSum * inv,
                 wrePctSum * inv,
@@ -162,6 +170,8 @@ public final class MonteCarloRunner {
 
         double fuelSum = 0.0;
         double motoSum = 0.0;
+        double ens1Sum = 0.0;
+        double ens2Sum = 0.0;
         double wrePctSum = 0.0;
         double wtPctSum = 0.0;
         double dgPctSum = 0.0;
@@ -173,6 +183,8 @@ public final class MonteCarloRunner {
 
             int k = mcIdx - fromInclusive;
             ens[k] = m.ensKwh;
+            ens1Sum += m.ensCat1Kwh;
+            ens2Sum += m.ensCat2Kwh;
 
             fuelSum += m.fuelLiters;
             motoSum += (double) m.totalMotoHours;
@@ -183,12 +195,14 @@ public final class MonteCarloRunner {
             btPctSum += pct(m.btToLoadKwh, m.loadKwh);
         }
 
-        return new ChunkAgg(fromInclusive, ens, fuelSum, motoSum, wrePctSum, wtPctSum, dgPctSum, btPctSum);
+        return new ChunkAgg(fromInclusive, ens, ens1Sum, ens2Sum, fuelSum, motoSum, wrePctSum, wtPctSum, dgPctSum, btPctSum);
     }
 
     private static final class ChunkAgg {
         final int ensOffset;
         final double[] ens;
+        final double ens1Sum;
+        final double ens2Sum;
         final double fuelSum;
         final double motoSum;
         final double wrePctSum;
@@ -198,6 +212,8 @@ public final class MonteCarloRunner {
 
         ChunkAgg(int ensOffset,
                  double[] ens,
+                 double ens1Sum,
+                 double ens2Sum,
                  double fuelSum,
                  double motoSum,
                  double wrePctSum,
@@ -206,6 +222,8 @@ public final class MonteCarloRunner {
                  double btPctSum) {
             this.ensOffset = ensOffset;
             this.ens = ens;
+            this.ens1Sum = ens1Sum;
+            this.ens2Sum = ens2Sum;
             this.fuelSum = fuelSum;
             this.motoSum = motoSum;
             this.wrePctSum = wrePctSum;

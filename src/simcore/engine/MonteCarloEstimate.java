@@ -17,6 +17,12 @@ public final class MonteCarloEstimate {
     /** Статистика ENS по MC-выборке. */
     public final MonteCarloStats.Stats ensStats;
 
+    /** Средний ENS 1 категории по MC-выборке, кВт·ч. */
+    public final double meanEnsCat1Kwh;
+
+    /** Средний ENS 2 категории по MC-выборке, кВт·ч. */
+    public final double meanEnsCat2Kwh;
+
     /** Средний расход топлива за горизонт, литры. */
     public final double meanFuelLiters;
 
@@ -41,6 +47,8 @@ public final class MonteCarloEstimate {
 
     public MonteCarloEstimate(ParameterSet theta,
                               MonteCarloStats.Stats ensStats,
+                              double meanEnsCat1Kwh,
+                              double meanEnsCat2Kwh,
                               double meanFuelLiters,
                               double meanMotoHours,
                               double meanWre,
@@ -50,6 +58,8 @@ public final class MonteCarloEstimate {
                               SingleRunMetrics singleRun) {
         this.theta = theta;
         this.ensStats = ensStats;
+        this.meanEnsCat1Kwh = meanEnsCat1Kwh;
+        this.meanEnsCat2Kwh = meanEnsCat2Kwh;
         this.meanFuelLiters = meanFuelLiters;
         this.meanMotoHours = meanMotoHours;
         this.meanWre = meanWre;

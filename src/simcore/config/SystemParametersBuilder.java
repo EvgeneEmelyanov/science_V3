@@ -39,6 +39,12 @@ public class SystemParametersBuilder {
     private double breakerFailureRatePerYear;
     private int breakerRepairTimeHours;
 
+    private double switchgearRoomFailureRatePerYear;
+    private int switchgearRoomRepairTimeHours;
+
+    private double busCcfBetaSectional;
+    private double busCcfBetaDouble;
+
     public SystemParametersBuilder() {
     }
 
@@ -71,6 +77,10 @@ public class SystemParametersBuilder {
         b.busRepairTimeHours = base.getBusRepairTimeHours();
         b.breakerFailureRatePerYear = base.getBreakerFailureRatePerYear();
         b.breakerRepairTimeHours = base.getBreakerRepairTimeHours();
+        b.switchgearRoomFailureRatePerYear = base.getSwitchgearRoomFailureRatePerYear();
+        b.switchgearRoomRepairTimeHours = base.getSwitchgearRoomRepairTimeHours();
+        b.busCcfBetaSectional = base.getBusCcfBetaSectional();
+        b.busCcfBetaDouble = base.getBusCcfBetaDouble();
         return b;
     }
 
@@ -99,7 +109,11 @@ public class SystemParametersBuilder {
                 busFailureRatePerYear,
                 busRepairTimeHours,
                 breakerFailureRatePerYear,
-                breakerRepairTimeHours
+                breakerRepairTimeHours,
+                switchgearRoomFailureRatePerYear,
+                switchgearRoomRepairTimeHours,
+                busCcfBetaSectional,
+                busCcfBetaDouble
         );
     }
 
@@ -301,6 +315,44 @@ public class SystemParametersBuilder {
 
     public SystemParametersBuilder setBreakerRepairTimeHours(int breakerRepairTimeHours) {
         this.breakerRepairTimeHours = breakerRepairTimeHours;
+        return this;
+    }
+
+
+    public double getSwitchgearRoomFailureRatePerYear() {
+        return switchgearRoomFailureRatePerYear;
+    }
+
+    public SystemParametersBuilder setSwitchgearRoomFailureRatePerYear(double switchgearRoomFailureRatePerYear) {
+        this.switchgearRoomFailureRatePerYear = switchgearRoomFailureRatePerYear;
+        return this;
+    }
+
+    public int getSwitchgearRoomRepairTimeHours() {
+        return switchgearRoomRepairTimeHours;
+    }
+
+    public SystemParametersBuilder setSwitchgearRoomRepairTimeHours(int switchgearRoomRepairTimeHours) {
+        this.switchgearRoomRepairTimeHours = switchgearRoomRepairTimeHours;
+        return this;
+    }
+
+
+    public double getBusCcfBetaSectional() {
+        return busCcfBetaSectional;
+    }
+
+    public SystemParametersBuilder setBusCcfBetaSectional(double busCcfBetaSectional) {
+        this.busCcfBetaSectional = busCcfBetaSectional;
+        return this;
+    }
+
+    public double getBusCcfBetaDouble() {
+        return busCcfBetaDouble;
+    }
+
+    public SystemParametersBuilder setBusCcfBetaDouble(double busCcfBetaDouble) {
+        this.busCcfBetaDouble = busCcfBetaDouble;
         return this;
     }
 }

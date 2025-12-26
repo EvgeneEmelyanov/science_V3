@@ -96,6 +96,30 @@ public class SystemParameters {
      */
     private final int breakerRepairTimeHours;
 
+    /**
+     * Частота отказов помещения/РУ (общая причина), 1/год.
+     * Для SINGLE_SECTIONAL_BUS обычно означает отказ общего помещения на две секции.
+     * Для DOUBLE_BUS (если шины в разных РУ) — отказ помещения конкретной шины.
+     */
+    private final double switchgearRoomFailureRatePerYear;
+
+    /**
+     * Время ремонта/восстановления помещения/РУ, ч.
+     */
+    private final int switchgearRoomRepairTimeHours;
+
+    /**
+     * β для разложения отказов шин на независимую часть и общую (CCF) для SINGLE_SECTIONAL_BUS.
+     * λ_ind = λ_bus*(1-β), λ_room = λ_bus*β
+     */
+    private final double busCcfBetaSectional;
+
+    /**
+     * β для разложения отказов шин на независимую часть и общую (CCF) для DOUBLE_BUS.
+     * Обычно меньше, чем для секционированной (если разные РУ/помещения).
+     */
+    private final double busCcfBetaDouble;
+
     // ---------- Параметры АКБ ----------
 
     /**
@@ -136,7 +160,11 @@ public class SystemParameters {
                             double busFailureRatePerYear,
                             int busRepairTimeHours,
                             double breakerFailureRatePerYear,
-                            int breakerRepairTimeHours) {
+                            int breakerRepairTimeHours,
+                            double switchgearRoomFailureRatePerYear,
+                            int switchgearRoomRepairTimeHours,
+                            double busCcfBetaSectional,
+                            double busCcfBetaDouble) {
 
         this.busSystemType = busSystemType;
         this.firstCat = firstCat;
@@ -162,6 +190,10 @@ public class SystemParameters {
         this.busRepairTimeHours = busRepairTimeHours;
         this.breakerFailureRatePerYear = breakerFailureRatePerYear;
         this.breakerRepairTimeHours = breakerRepairTimeHours;
+        this.switchgearRoomFailureRatePerYear = switchgearRoomFailureRatePerYear;
+        this.switchgearRoomRepairTimeHours = switchgearRoomRepairTimeHours;
+        this.busCcfBetaSectional = busCcfBetaSectional;
+        this.busCcfBetaDouble = busCcfBetaDouble;
     }
 
     // --------- Copy helpers ---------
@@ -189,7 +221,11 @@ public class SystemParameters {
                 busFailureRatePerYear,
                 busRepairTimeHours,
                 breakerFailureRatePerYear,
-                breakerRepairTimeHours
+                breakerRepairTimeHours,
+                switchgearRoomFailureRatePerYear,
+                switchgearRoomRepairTimeHours,
+                busCcfBetaSectional,
+                busCcfBetaDouble
         );
     }
 
@@ -281,5 +317,21 @@ public class SystemParameters {
 
     public int getBreakerRepairTimeHours() {
         return breakerRepairTimeHours;
+    }
+
+    public double getSwitchgearRoomFailureRatePerYear() {
+        return switchgearRoomFailureRatePerYear;
+    }
+
+    public int getSwitchgearRoomRepairTimeHours() {
+        return switchgearRoomRepairTimeHours;
+    }
+
+    public double getBusCcfBetaSectional() {
+        return busCcfBetaSectional;
+    }
+
+    public double getBusCcfBetaDouble() {
+        return busCcfBetaDouble;
     }
 }

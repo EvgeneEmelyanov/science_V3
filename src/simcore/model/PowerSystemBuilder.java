@@ -23,6 +23,29 @@ public class PowerSystemBuilder {
         // Распределение нагрузки по шинам
         double[][] busLoads = splitLoad(totalLoadKw, busCount);
 
+        // ===== Разложение отказов: независимый отказ секции + отказ помещения/РУ (CCF) =====
+        // Если switchgearRoomFailureRatePerYear задан явно (>0) — используем его.
+        // Иначе вычисляем λ_room = λ_bus * β (β зависит от типа шин), а λ_bus_ind = λ_bus*(1-β).
+        double beta;
+        if (busType == BusSystemType.SINGLE_SECTIONAL_BUS) {
+            beta = params.getBusCcfBetaSectional();
+        } else if (busType == BusSystemType.DOUBLE_BUS) {
+            beta = params.getBusCcfBetaDouble();
+        } else {
+            beta = 0.0;
+        }
+        if (beta < 0.0) beta = 0.0;
+        if (beta > 0.9) beta = 0.9;
+
+        double baseBusLambda = params.getBusFailureRatePerYear();
+        double busLambdaInd = baseBusLambda * (1.0 - beta);
+
+        double roomLambdaEffective = params.getSwitchgearRoomFailureRatePerYear();
+        if (roomLambdaEffective <= 0.0) {
+            roomLambdaEffective = baseBusLambda * beta;
+        }
+
+
         List<PowerBus> buses = new ArrayList<>(busCount);
 
         int wtIdCounter = 1;
@@ -99,7 +122,37 @@ public class PowerSystemBuilder {
             );
         }
 
-        return new PowerSystem(buses, breaker);
+        // ===== Отказ помещения/РУ =====
+        // Для SINGLE_SECTIONAL_BUS: одно помещение на две секции.
+        // Для DOUBLE_BUS: отдельное помещение на каждую шину (если busCount==2).
+        // Для SINGLE_NOT_SECTIONAL_BUS: одно помещение.
+        List<SwitchgearRoom> rooms = new ArrayList<>();
+        int[] roomIndexByBus = new int[buses.size()];
+
+        double roomLambda = roomLambdaEffective;
+        int roomRepair = params.getSwitchgearRoomRepairTimeHours();
+
+        if (roomLambda > 0.0 && roomRepair > 0) {
+            if (busType == BusSystemType.SINGLE_SECTIONAL_BUS && buses.size() == 2) {
+                rooms.add(new SwitchgearRoom(1, roomLambda, roomRepair));
+                roomIndexByBus[0] = 0;
+                roomIndexByBus[1] = 0;
+            } else if (busType == BusSystemType.DOUBLE_BUS && buses.size() == 2) {
+                rooms.add(new SwitchgearRoom(1, roomLambda, roomRepair));
+                rooms.add(new SwitchgearRoom(2, roomLambda, roomRepair));
+                roomIndexByBus[0] = 0;
+                roomIndexByBus[1] = 1;
+            } else {
+                rooms.add(new SwitchgearRoom(1, roomLambda, roomRepair));
+                for (int i = 0; i < buses.size(); i++) roomIndexByBus[i] = 0;
+            }
+        } else {
+            // если не задано — считаем, что помещения не отказывают
+            rooms.add(new SwitchgearRoom(1, 0.0, 0));
+            for (int i = 0; i < buses.size(); i++) roomIndexByBus[i] = 0;
+        }
+
+        return new PowerSystem(buses, breaker, rooms, roomIndexByBus);
     }
 
     /**
