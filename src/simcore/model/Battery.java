@@ -70,7 +70,7 @@ public class Battery extends Equipment {
         double minAllowed = SimulationConstants.BATTERY_DEGRADATION_THRESHOLD * nominalCapacityKwh;
         if (maxCapacityKwh <= minAllowed) {
             status = false;
-            failureCount++;
+//            failureCount++;
             replacementCount++;
             repairDurationHours = getRepairTimeHours();
             replaceOnRepair = true;   // отметить, что это именно замена

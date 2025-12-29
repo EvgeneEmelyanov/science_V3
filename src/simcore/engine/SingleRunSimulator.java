@@ -290,7 +290,10 @@ public final class SingleRunSimulator {
             for (WindTurbine wt : bus.getWindTurbines()) failWt += wt.getFailureCount();
             for (DieselGenerator dg : bus.getDieselGenerators()) failDg += dg.getFailureCount();
             Battery bt = bus.getBattery();
-            if (bt != null){ failBt += bt.getFailureCount(); repBt += bt.getFailureCount(); }
+            if (bt != null){
+                failBt += bt.getFailureCount();
+                repBt  += bt.getReplacementCount();
+            }
         }
         if (breaker != null) failBrk += breaker.getFailureCount();
 
@@ -597,7 +600,6 @@ public final class SingleRunSimulator {
                             && btDisCapKw > btEnergyKwh - SimulationConstants.EPSILON
                             && Battery.useBattery(sp, battery, btEnergyKwh, btDisCapKw);
 
-                    // IMPORTANT: логика как у пользователя (без условия startEnergy > EPSILON)
                     boolean allowStartBridge = (i > 0)
                             && btAvail
                             && (steadyDefKw <= SimulationConstants.EPSILON)

@@ -26,7 +26,7 @@ public final class ScenarioFactory {
 
     public static SystemParameters defaultParams() {
         return new SystemParameters(
-                BusSystemType.SINGLE_SECTIONAL_BUS,
+                BusSystemType.DOUBLE_BUS,
                 0.1, 0.3,0.6,
                 8, 330.0,
                 8, 315,
@@ -37,8 +37,8 @@ public final class ScenarioFactory {
                 0.575, 44,
                 0.015, 12,
                 0.15, 10,
-                0.005, 46,
-                0, 0
+                0, 46,
+                0.2, 0.05
         );
     }
 
