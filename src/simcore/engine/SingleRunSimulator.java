@@ -961,6 +961,7 @@ public final class SingleRunSimulator {
         for (WindTurbine wt : bus.getWindTurbines()) {
             if (!wt.isAvailable()) continue;
             pot += wt.getPotentialGenerationKw(windV);
+            wt.addWorkTime(1);
         }
         return pot;
     }

@@ -92,6 +92,12 @@ public final class FailureStepper {
                 busFailedThisHour[b] = true;
             }
         }
+
+        for (SwitchgearRoom room : rooms) {
+            if (room.isAvailable()) {
+                room.addWorkTime(1);
+            }
+        }
     }
 
     public static void updateEquipmentFailuresOneHour(boolean considerFailures, List<PowerBus> buses, boolean[] busAlive) {

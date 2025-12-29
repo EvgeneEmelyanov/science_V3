@@ -150,7 +150,7 @@ public class Battery extends Equipment {
         }
 
         // Наработка как у тебя
-        if (!doubleTime && Math.abs(energyDelta) > 0.005 * nominalCapacityKwh) {
+        if (!doubleTime && Math.abs(energyDelta) > 0.0005 * nominalCapacityKwh) {
             battery.timeWorked++;
         }
 
