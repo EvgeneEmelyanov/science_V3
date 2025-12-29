@@ -273,18 +273,24 @@ public final class SingleRunSimulator {
         }
 
         // ===== total failures by internal counters =====
+        long failRoom = 0;
         long failBus = 0;
         long failDg = 0;
         long failWt = 0;
         long failBt = 0;
         long failBrk = 0;
+        long repBt = 0;
+
+        for(SwitchgearRoom room : rooms) {
+            failRoom += room.getFailureCount();
+        }
 
         for (PowerBus bus : buses) {
             failBus += bus.getFailureCount();
             for (WindTurbine wt : bus.getWindTurbines()) failWt += wt.getFailureCount();
             for (DieselGenerator dg : bus.getDieselGenerators()) failDg += dg.getFailureCount();
             Battery bt = bus.getBattery();
-            if (bt != null) failBt += bt.getFailureCount();
+            if (bt != null){ failBt += bt.getFailureCount(); repBt += bt.getFailureCount(); }
         }
         if (breaker != null) failBrk += breaker.getFailureCount();
 
@@ -309,7 +315,9 @@ public final class SingleRunSimulator {
                 failDg,
                 failWt,
                 failBt,
-                failBrk
+                failBrk,
+                failRoom,
+                repBt
         );
     }
 

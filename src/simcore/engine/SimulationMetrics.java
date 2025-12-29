@@ -24,6 +24,8 @@ public final class SimulationMetrics {
     public final long failWt;
     public final long failBt;
     public final long failBrk;
+    public final long failRoom;
+    public final long repBt;
 
     public SimulationMetrics(double loadKwh,
                              double ensKwh,
@@ -40,7 +42,9 @@ public final class SimulationMetrics {
                              long failDg,
                              long failWt,
                              long failBt,
-                             long failBrk
+                             long failBrk,
+                             long failRoom,
+                             long repBt
     ) {
         this.loadKwh = loadKwh;
         this.ensKwh = ensKwh;
@@ -53,10 +57,12 @@ public final class SimulationMetrics {
         this.fuelLiters = fuelLiters;
         this.totalMotoHours = totalMotoHours;
         this.trace = trace;
+        this.failRoom = failRoom;
         this.failBus = failBus;
         this.failDg = failDg;
         this.failWt = failWt;
         this.failBt = failBt;
         this.failBrk = failBrk;
+        this.repBt = repBt;
     }
 }

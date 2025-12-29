@@ -20,12 +20,16 @@ public class Battery extends Equipment {
     private double soc;                      // SOC (0..1) относительно maxCapacityKwh
     private double efcEff = 0.0; // накопленный эффективный EFC (0..)
     private boolean replaceOnRepair = false;
+    private long replacementCount = 0; // количество замен АКБ после деградации ниже указанного уровна
 
     public Battery(int id, double capacityKwh, double failureRatePerYear, int repairTimeHours) {
         super("BT", id, failureRatePerYear, repairTimeHours);
         this.nominalCapacityKwh = capacityKwh;
         this.maxCapacityKwh = capacityKwh;
         this.soc = SimulationConstants.BATTERY_START_SOC;
+    }
+    public long getReplacementCount() {
+        return replacementCount;
     }
 
     public double getNominalCapacityKwh() { return nominalCapacityKwh; }
@@ -67,6 +71,7 @@ public class Battery extends Equipment {
         if (maxCapacityKwh <= minAllowed) {
             status = false;
             failureCount++;
+            replacementCount++;
             repairDurationHours = getRepairTimeHours();
             replaceOnRepair = true;   // отметить, что это именно замена
             return;

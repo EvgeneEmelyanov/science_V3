@@ -95,7 +95,14 @@ public final class MonteCarloRunner {
                     wtPct,
                     dgPct,
                     btPct,
-                    singleRun
+                    singleRun,
+                    (double) m.failRoom,
+                    (double) m.failBus,
+                    (double) m.failDg,
+                    (double) m.failWt,
+                    (double) m.failBt,
+                    (double) m.failBrk,
+                    (double) m.repBt
             );
         }
 
@@ -126,6 +133,14 @@ public final class MonteCarloRunner {
         double dgPctSum = 0.0;
         double btPctSum = 0.0;
 
+        double failRoomSum = 0.0;
+        double failBusSum = 0.0;
+        double failDgSum = 0.0;
+        double failWtSum = 0.0;
+        double failBtSum = 0.0;
+        double failBrkSum = 0.0;
+        double repBtSum = 0.0;
+
         for (Future<ChunkAgg> f : futures) {
             ChunkAgg a = f.get();
             fuelSum += a.fuelSum;
@@ -136,6 +151,14 @@ public final class MonteCarloRunner {
             wtPctSum += a.wtPctSum;
             dgPctSum += a.dgPctSum;
             btPctSum += a.btPctSum;
+            failRoomSum += a.failRoomSum;
+            failBusSum  += a.failBusSum;
+            failDgSum   += a.failDgSum;
+            failWtSum   += a.failWtSum;
+            failBtSum   += a.failBtSum;
+            failBrkSum  += a.failBrkSum;
+            repBtSum += a.repBtSum;
+
 
             System.arraycopy(a.ens, 0, ens, a.ensOffset, a.ens.length);
         }
@@ -155,8 +178,16 @@ public final class MonteCarloRunner {
                 wtPctSum * inv,
                 dgPctSum * inv,
                 btPctSum * inv,
-                null
+                null,
+                failRoomSum * inv,
+                failBusSum * inv,
+                failDgSum * inv,
+                failWtSum * inv,
+                failBtSum * inv,
+                failBrkSum * inv,
+                repBtSum * inv
         );
+
     }
 
     private ChunkAgg runChunk(SimInput input,
@@ -176,6 +207,14 @@ public final class MonteCarloRunner {
         double wtPctSum = 0.0;
         double dgPctSum = 0.0;
         double btPctSum = 0.0;
+        double failRoomSum = 0.0;
+        double failBusSum = 0.0;
+        double failDgSum = 0.0;
+        double failWtSum = 0.0;
+        double failBtSum = 0.0;
+        double failBrkSum = 0.0;
+        double repBtSum = 0.0;
+
 
         for (int mcIdx = fromInclusive; mcIdx < toExclusive; mcIdx++) {
             long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
@@ -193,9 +232,20 @@ public final class MonteCarloRunner {
             wtPctSum += pct(m.wtToLoadKwh, m.loadKwh);
             dgPctSum += pct(m.dgToLoadKwh, m.loadKwh);
             btPctSum += pct(m.btToLoadKwh, m.loadKwh);
+            failRoomSum += m.failRoom;
+            failBusSum  += m.failBus;
+            failDgSum   += m.failDg;
+            failWtSum   += m.failWt;
+            failBtSum   += m.failBt;
+            failBrkSum  += m.failBrk;
+            repBtSum += m.repBt;
+
         }
 
-        return new ChunkAgg(fromInclusive, ens, ens1Sum, ens2Sum, fuelSum, motoSum, wrePctSum, wtPctSum, dgPctSum, btPctSum);
+        return new ChunkAgg(fromInclusive, ens, ens1Sum, ens2Sum, fuelSum, motoSum,
+                wrePctSum, wtPctSum, dgPctSum, btPctSum,
+                failRoomSum, failBusSum, failDgSum, failWtSum, failBtSum, failBrkSum, repBtSum);
+
     }
 
     private static final class ChunkAgg {
@@ -209,6 +259,13 @@ public final class MonteCarloRunner {
         final double wtPctSum;
         final double dgPctSum;
         final double btPctSum;
+        final double failRoomSum;
+        final double failBusSum;
+        final double failDgSum;
+        final double failWtSum;
+        final double failBtSum;
+        final double failBrkSum;
+        final double repBtSum;
 
         ChunkAgg(int ensOffset,
                  double[] ens,
@@ -219,7 +276,14 @@ public final class MonteCarloRunner {
                  double wrePctSum,
                  double wtPctSum,
                  double dgPctSum,
-                 double btPctSum) {
+                 double btPctSum,
+                 double failRoomSum,
+                 double failBusSum,
+                 double failDgSum,
+                 double failWtSum,
+                 double failBtSum,
+                 double failBrkSum,
+                 double repBtSum) {
             this.ensOffset = ensOffset;
             this.ens = ens;
             this.ens1Sum = ens1Sum;
@@ -230,6 +294,13 @@ public final class MonteCarloRunner {
             this.wtPctSum = wtPctSum;
             this.dgPctSum = dgPctSum;
             this.btPctSum = btPctSum;
+            this.failRoomSum = failRoomSum;
+            this.failBusSum = failBusSum;
+            this.failDgSum = failDgSum;
+            this.failWtSum = failWtSum;
+            this.failBtSum = failBtSum;
+            this.failBrkSum = failBrkSum;
+            this.repBtSum = repBtSum;
         }
     }
 

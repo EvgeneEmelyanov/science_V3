@@ -35,7 +35,7 @@ public class Main {
 
         RunMode mode = RunMode.SWEEP_2;
 
-        int mcIterations = 50; // trace пишем только если mcIterations==1 и mode==SINGLE
+        int mcIterations = 5; // trace пишем только если mcIterations==1 и mode==SINGLE
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
 
@@ -49,9 +49,11 @@ public class Main {
             // 3) сетка параметров
 //            double[] param1 = new double[]{0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45,
 //                    0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00};
-            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+//            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+            double[] param1 = new double[]{0.5, 1, 1.5};
 //            double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
-            double[] param2 = new double[]{0.0, 67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
+//            double[] param2 = new double[]{0.0, 67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
+            double[] param2 = new double[]{0.0, 67.3, 134.6};
 
             List<SystemParameters> paramSets = buildParamSets(mode, baseParams, param1, param2);
 

@@ -37,19 +37,21 @@ public final class SweepResultsExcelWriter {
             passportStyle.setWrapText(false);
             passportStyle.setVerticalAlignment(VerticalAlignment.TOP);
 
-
             CellStyle headerStyle = wb.createCellStyle();
             headerStyle.setAlignment(HorizontalAlignment.CENTER);
             headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
 
-            CellStyle centeredTextStyle = wb.createCellStyle();
-            centeredTextStyle.setAlignment(HorizontalAlignment.CENTER);
-            centeredTextStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-
+            // numbers for RAW: keep numeric cells for charts
             CellStyle centeredNumberStyle = wb.createCellStyle();
             centeredNumberStyle.setAlignment(HorizontalAlignment.CENTER);
             centeredNumberStyle.setVerticalAlignment(VerticalAlignment.CENTER);
             centeredNumberStyle.setDataFormat(df.getFormat("0.00"));
+
+            // integers: no decimals ever
+            CellStyle centeredIntStyle = wb.createCellStyle();
+            centeredIntStyle.setAlignment(HorizontalAlignment.CENTER);
+            centeredIntStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            centeredIntStyle.setDataFormat(df.getFormat("0"));
 
             // ===== RAW sheet =====
             Sheet raw = wb.createSheet("RAW");
@@ -61,18 +63,14 @@ public final class SweepResultsExcelWriter {
             passportCell.setCellValue(buildPassport(cfg, baseParams));
             passportCell.setCellStyle(passportStyle);
 
-            // фиксированная ширина
+            // IMPORTANT: keep narrow column A (passport does NOT define width)
             raw.setColumnWidth(0, 10 * 256);
-
-            // высота строки под перенос
             row0.setHeightInPoints(14);
-
 
             // Headers
             Row hdr = raw.createRow(r++);
             int c = 0;
 
-            // NOTE: "k" removed
             if (mode == simcore.Main.RunMode.SWEEP_2) {
                 Cell h1 = hdr.createCell(c++);
                 h1.setCellValue("param1");
@@ -88,6 +86,7 @@ public final class SweepResultsExcelWriter {
                 h1.setCellStyle(headerStyle);
             }
 
+            // Outputs
             c = writeHeader(hdr, c, "ENS_mean", headerStyle);
             c = writeHeader(hdr, c, "ENS_ciLo", headerStyle);
             c = writeHeader(hdr, c, "ENS_ciHi", headerStyle);
@@ -100,6 +99,15 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "WT_%", headerStyle);
             c = writeHeader(hdr, c, "DG_%", headerStyle);
             c = writeHeader(hdr, c, "BT_%", headerStyle);
+
+            // Failures + replacements
+            c = writeHeader(hdr, c, "FailRoom", headerStyle);
+            c = writeHeader(hdr, c, "FailBus", headerStyle);
+            c = writeHeader(hdr, c, "FailDg", headerStyle);
+            c = writeHeader(hdr, c, "FailWt", headerStyle);
+            c = writeHeader(hdr, c, "FailBt", headerStyle);
+            c = writeHeader(hdr, c, "BtRepl", headerStyle);
+            c = writeHeader(hdr, c, "FailBrk", headerStyle);
 
             final int m2 = (param2 != null) ? param2.length : 0;
 
@@ -114,7 +122,6 @@ public final class SweepResultsExcelWriter {
                 Row rr = raw.createRow(r++);
                 int cc = 0;
 
-                // NOTE: no "k" written
                 if (mode == simcore.Main.RunMode.SWEEP_2) {
                     int i1 = k / m2;
                     int i2 = k % m2;
@@ -136,7 +143,8 @@ public final class SweepResultsExcelWriter {
                 writeNumber(rr, cc++, s.getMean(), centeredNumberStyle);
                 writeNumber(rr, cc++, s.getCiLow(), centeredNumberStyle);
                 writeNumber(rr, cc++, s.getCiHigh(), centeredNumberStyle);
-                writeNumber(rr, cc++, s.getRequiredSampleSize(), centeredNumberStyle);
+
+                writeInt(rr, cc++, s.getRequiredSampleSize(), centeredIntStyle);
 
                 writeNumber(rr, cc++, e.meanEnsCat1Kwh, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsCat2Kwh, centeredNumberStyle);
@@ -146,10 +154,18 @@ public final class SweepResultsExcelWriter {
                 writeNumber(rr, cc++, e.meanWtPct, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanDgPct, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanBtPct, centeredNumberStyle);
+
+                writeNumber(rr, cc++, e.meanFailRoom, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailBus, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailDg, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailWt, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailBt, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanRepBt, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailBrk, centeredNumberStyle);
             }
 
             // Autosize all RAW columns except A (passport/param1)
-            int rawCols = hdr.getLastCellNum(); // number of columns in header
+            int rawCols = hdr.getLastCellNum();
             autosizeFrom(raw, rawCols, 1);
 
             // ===== SWEEP_2 grid (only for SWEEP_2) =====
@@ -158,12 +174,10 @@ public final class SweepResultsExcelWriter {
 
                 int top = 0;
 
-                // RAW columns after removing "k":
-                // A=param1, B=param2, C=ENS_mean, ... I=Fuel_ML, J=Moto_kh
                 top = writeGridBlock(grid, "ENS_mean", top, param1, param2,
-                        "RAW!$C:$C", // value
-                        "RAW!$A:$A", // crit param1
-                        "RAW!$B:$B", // crit param2
+                        "RAW!$C:$C",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
                         centeredNumberStyle,
                         headerStyle);
 
@@ -181,7 +195,69 @@ public final class SweepResultsExcelWriter {
                         centeredNumberStyle,
                         headerStyle);
 
-                // Autosize grid columns (safe here)
+                top = writeGridBlock(grid, "ENS1_mean", top + 2, param1, param2,
+                        "RAW!$G:$G",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "ENS2_mean", top + 2, param1, param2,
+                        "RAW!$H:$H",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "FailRoom", top + 2, param1, param2,
+                        "RAW!$O:$O",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "FailBus", top + 2, param1, param2,
+                        "RAW!$P:$P",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "FailDg", top + 2, param1, param2,
+                        "RAW!$Q:$Q",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "FailWt", top + 2, param1, param2,
+                        "RAW!$R:$R",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "FailBt", top + 2, param1, param2,
+                        "RAW!$S:$S",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "BtRepl", top + 2, param1, param2,
+                        "RAW!$T:$T",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
+                top = writeGridBlock(grid, "FailBrk", top + 2, param1, param2,
+                        "RAW!$U:$U",
+                        "RAW!$A:$A",
+                        "RAW!$B:$B",
+                        centeredNumberStyle,
+                        headerStyle);
+
                 autosizeFrom(grid, Math.max(2, param2.length + 1), 0);
             }
 
@@ -204,14 +280,20 @@ public final class SweepResultsExcelWriter {
         cell.setCellStyle(numStyle);
     }
 
+    private static void writeInt(Row row, int col, long value, CellStyle intStyle) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(intStyle);
+    }
+
     private static int writeGridBlock(Sheet sh,
                                       String title,
                                       int topRow,
                                       double[] param1,
                                       double[] param2,
-                                      String valueRange,   // e.g. RAW!$C:$C
-                                      String critRangeP1,  // e.g. RAW!$A:$A
-                                      String critRangeP2,  // e.g. RAW!$B:$B
+                                      String valueRange,
+                                      String critRangeP1,
+                                      String critRangeP2,
                                       CellStyle numStyle,
                                       CellStyle headerStyle) {
 
@@ -221,37 +303,37 @@ public final class SweepResultsExcelWriter {
         titleCell.setCellValue(title);
         titleCell.setCellStyle(headerStyle);
 
-        // Header row: param2 across
+        // Header row: param2 across (WRITE AS TEXT)
         Row hdr = sh.createRow(topRow++);
-        // top-left cell empty (or label)
-        Cell corner = hdr.createCell(0);
+        Cell corner = hdr.createCell(0, CellType.STRING);
         corner.setCellValue("");
         corner.setCellStyle(headerStyle);
 
         for (int j = 0; j < param2.length; j++) {
-            Cell cell = hdr.createCell(1 + j);
-            cell.setCellValue(param2[j]);
-            cell.setCellStyle(numStyle);
+            Cell cell = hdr.createCell(1 + j, CellType.STRING);
+            cell.setCellValue(Double.toString(param2[j]).replace('.', ','));
+
+            cell.setCellStyle(headerStyle);
         }
 
-        // Data rows: param1 down + formulas
+        // Data rows: param1 down (WRITE AS TEXT) + formulas
         for (int i = 0; i < param1.length; i++) {
             Row r = sh.createRow(topRow + i);
 
-            Cell p1 = r.createCell(0);
-            p1.setCellValue(param1[i]);
-            p1.setCellStyle(numStyle);
+            Cell p1 = r.createCell(0, CellType.STRING);
+            p1.setCellValue(Double.toString(param1[i]).replace('.', ','));  // ВАЖНО: тоже запятая
+            p1.setCellStyle(headerStyle);
+
 
             // Excel row numbers (1-based)
             int rowExcel = (topRow + i) + 1;
-            int hdrExcel = (topRow - 1) + 1; // header row with param2
+            int hdrExcel = (topRow - 1) + 1;
 
             for (int j = 0; j < param2.length; j++) {
-                // cell containing param2 in header
                 String colParam2 = colLetter(1 + j + 1); // grid starts at B
                 String f = "AVERAGEIFS(" + valueRange
-                        + "," + critRangeP1 + ",$A" + rowExcel
-                        + "," + critRangeP2 + "," + colParam2 + "$" + hdrExcel
+                        + "," + critRangeP1 + ",VALUE($A" + rowExcel + ")"
+                        + "," + critRangeP2 + ",VALUE(" + colParam2 + "$" + hdrExcel + ")"
                         + ")";
 
                 Cell cell = r.createCell(1 + j);

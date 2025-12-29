@@ -44,6 +44,14 @@ public final class MonteCarloEstimate {
     /** Отладочные данные одного single-run (только при iterations==1 и включён trace). */
     public final SingleRunMetrics singleRun;
 
+    public final double meanFailRoom;
+    public final double meanFailBus;
+    public final double meanFailDg;
+    public final double meanFailWt;
+    public final double meanFailBt;
+    public final double meanFailBrk;
+    public final double meanRepBt;
+
 
     public MonteCarloEstimate(ParameterSet theta,
                               MonteCarloStats.Stats ensStats,
@@ -55,7 +63,15 @@ public final class MonteCarloEstimate {
                               double meanWtPct,
                               double meanDgPct,
                               double meanBtPct,
-                              SingleRunMetrics singleRun) {
+                              SingleRunMetrics singleRun,
+                              double meanFailRoom,
+                              double meanFailBus,
+                              double meanFailDg,
+                              double meanFailWt,
+                              double meanFailBt,
+                              double meanFailBrk,
+                              double meanRepBt
+    ) {
         this.theta = theta;
         this.ensStats = ensStats;
         this.meanEnsCat1Kwh = meanEnsCat1Kwh;
@@ -67,5 +83,12 @@ public final class MonteCarloEstimate {
         this.meanDgPct = meanDgPct;
         this.meanBtPct = meanBtPct;
         this.singleRun = singleRun;
+        this.meanFailRoom = meanFailRoom;
+        this.meanFailBus = meanFailBus;
+        this.meanFailDg = meanFailDg;
+        this.meanFailWt = meanFailWt;
+        this.meanFailBt = meanFailBt;
+        this.meanFailBrk = meanFailBrk;
+        this.meanRepBt = meanRepBt;
     }
 }
