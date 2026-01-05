@@ -59,6 +59,7 @@ public final class SingleRunSimulator {
         final boolean[] busAvailAfter = new boolean[busCount];
         final boolean[] busFailedThisHour = new boolean[busCount];
         final boolean[] busAlive = new boolean[busCount];
+        final double[] windPotentialBuf = new double[busCount];
 
         // часто используемые параметры ДГУ
         final double dgRatedKw = sp.getDieselGeneratorPowerKw();
@@ -93,6 +94,8 @@ public final class SingleRunSimulator {
             );
 
             FailureStepper.updateEquipmentFailuresOneHour(considerFailures, buses, busAlive);
+
+            fillWindPotentialsNoSideEffects(buses, windV, windPotentialBuf);
 
             if (tieWasClosedAtHourStart && breaker != null) {
 
@@ -133,7 +136,7 @@ public final class SingleRunSimulator {
                     effectiveLoadKw = computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2);
                 } else {
                     // DOUBLE_BUS: перенос 1/2 категории при отказе шины И при дефиците мощности на одной из шин
-                    effectiveLoadKw = computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw);
+                    effectiveLoadKw = computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windPotentialBuf, dgMaxKw);
                 }
             } else {
                 effectiveLoadKw = null;
@@ -151,7 +154,7 @@ public final class SingleRunSimulator {
                         : new double[]{buses.get(0).getLoadKw()[t], buses.get(1).getLoadKw()[t]};
 
                 sectionalClosedThisHour = shouldCloseTieBreakerThisHour(
-                        sp, buses, loadsForDecision, windV, dgMaxKw
+                        sp, buses, loadsForDecision, windPotentialBuf, dgMaxKw
                 );
 
                 breaker.setClosed(sectionalClosedThisHour);
@@ -839,6 +842,14 @@ public final class SingleRunSimulator {
 
     }
 
+    private static void fillWindPotentialsNoSideEffects(List<PowerBus> buses,
+                                                       double windV,
+                                                       double[] out) {
+        for (int i = 0; i < buses.size(); i++) {
+            out[i] = windPotentialNoSideEffects(buses.get(i), windV);
+        }
+    }
+
     private static double[] computeEffectiveLoadsForSectional(SystemParameters sp,
                                                               List<PowerBus> buses,
                                                               boolean[] busAlive,
@@ -873,7 +884,7 @@ public final class SingleRunSimulator {
                                                               int t,
                                                               double cat1,
                                                               double cat2,
-                                                              double windV,
+                                                              double[] windPotentials,
                                                               double dgMaxKw) {
         // Базовая нагрузка по шинам
         double[] out = new double[buses.size()];
@@ -894,7 +905,7 @@ public final class SingleRunSimulator {
         double[] pot = new double[2];
         for (int b = 0; b < 2; b++) {
             PowerBus bus = buses.get(b);
-            double windPot = windPotentialNoSideEffects(bus, windV);
+            double windPot = windPotentials[b];
             double dgPot = dieselPotential(bus, dgMaxKw);
             Battery bt = bus.getBattery();
             double btPot = (bt != null && bt.isAvailable()) ? bt.getDischargeCapacity(sp) : 0.0;
@@ -929,7 +940,7 @@ public final class SingleRunSimulator {
     private static boolean shouldCloseTieBreakerThisHour(SystemParameters sp,
                                                          List<PowerBus> buses,
                                                          double[] loads,
-                                                         double windV,
+                                                         double[] windPotentials,
                                                          double dgMaxKw) {
         double[] deficit = new double[2];
         double[] surplus = new double[2];
@@ -938,7 +949,7 @@ public final class SingleRunSimulator {
             PowerBus bus = buses.get(b);
             double load = loads[b];
 
-            double windPot = windPotentialNoSideEffects(bus, windV);
+            double windPot = windPotentials[b];
             double dgPot = dieselPotential(bus, dgMaxKw);
 
             Battery bt = bus.getBattery();
