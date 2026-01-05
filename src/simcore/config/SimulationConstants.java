@@ -19,7 +19,6 @@ public final class SimulationConstants {
     public static final double DG_IDLE_K2 = 1.0;        // 0..1: резервировать ли Cat2 (1.0 = да, 0.0 = только Cat1)
     public static final double DG_IDLE_MARGIN_PCT = 0.0; // запас на резерв, например 10%
 
-
     // =========================================================================
     // ===========================    ВЕТРЯК  ==================================
     // =========================================================================
@@ -44,38 +43,15 @@ public final class SimulationConstants {
     /** КПД заряда/разряда */
     public static final double BATTERY_EFFICIENCY = 0.93;
 
-    /**
-     * Саморазряд: 3% в месяц => 0.03/720 в долях в час.
-     * В твоей постановке это эквивалентно "3/720 % от nominalCapacityKwh в час".
-     */
     public static final double BATTERY_SELF_DISCHARGE_PER_HOUR = 0.03 / 720.0;
 
-    /** Порог деградации до "замены" (ёмкость упала до 80%) */
     public static final double BATTERY_DEGRADATION_THRESHOLD = 0.80;
-
-    /**
-     * Базовая потеря ёмкости на 1 EFC при "средних" условиях.
-     * Калибровка под 20% за ~2000 EFC: 0.20/2000 = 1e-4.
-     */
-    public static final double BATTERY_CAPACITY_LOSS_PER_EFC = 1.0e-4;
-
-    /**
-     * Вес влияния C-rate на циклическую деградацию (мягкий множитель).
-     * wC = 1 + BATTERY_CRATE_WEIGHT * min(1, C-rate)
-     */
-    public static final double BATTERY_CRATE_WEIGHT = 0.30;
-
-    /**
-     * Вес влияния DoD шага разряда на циклическую деградацию (мягкий множитель).
-     * wDoD = 1 + BATTERY_DOD_WEIGHT * min(1, DoD_step)
-     */
-    public static final double BATTERY_DOD_WEIGHT = 0.50;
 
     /**
      * Ослабление влияния C-rate в режиме "короткого мостика" (0..1).
      * 0.5 означает "в 2 раза слабее токовый штраф".
      */
-    public static final double BATTERY_BRIDGE_CRATE_RELIEF = 0.50;
+    public static final double BATTERY_BRIDGE_CRATE_RELIEF = 1;
 
     /**
      * Календарная деградация (опционально), доля от nominalCapacityKwh в год.
@@ -85,13 +61,10 @@ public final class SimulationConstants {
     // ===== Throughput power-law degradation =====
     public static final double BATTERY_DEG_Z = 0.57;          // степень (типично 0.5..0.7)
     public static final double BATTERY_DEG_H = 0.35;          // чувствительность к C-rate (калибруется)
-    public static final double BATTERY_DEG_BETA_DOD = 1;    // влияние DoD (мягко), 0..1
-    public static final double BATTERY_DOD_REF = 0.80;        // опорная DoD для нормировки
 
     // Калибровка "20% потери на 2000 EFC при базовых условиях (C≈0, DoD≈DOD_REF)"
     public static final double BATTERY_DEG_K =
             0.20 / Math.pow(2000.0, BATTERY_DEG_Z);
-
 
     // =========================================================================
     // ===========================    ДИЗЕЛЬ  ==================================
@@ -102,6 +75,7 @@ public final class SimulationConstants {
     public static final double DG_OPTIMAL_POWER = 0.8;
     public static final double DG_START_DELAY_HOURS = 0.1;
     public static final int DG_MAX_IDLE_HOURS = 4;
+    public static final int DG_MAX_START_FACTOR = 0;
 
     private SimulationConstants() {}
 }

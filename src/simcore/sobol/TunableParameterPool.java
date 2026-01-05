@@ -15,8 +15,6 @@ public final class TunableParameterPool {
         Map<TunableParamId, TunableParameter> m = new EnumMap<>(TunableParamId.class);
 
         // ----- Частоты отказов (интенсивности), 1/год -----
-// Рекомендуемая постановка для Sobol при отсутствии точной статистики:
-// одинаковая мультипликативная неопределённость вокруг базового значения (×0.5..×2).
 
         m.put(TunableParamId.WT_FAILURE_RATE,
                 new TunableParameter(

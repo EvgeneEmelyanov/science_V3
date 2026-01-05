@@ -596,16 +596,21 @@ public final class SingleRunSimulator {
                         btCurrentKw = Math.max(startDefKw, steadyDefKw);
                     }
 
-                    boolean useBatteryBase = btAvail
-                            && btDisCapKw > btEnergyKwh - SimulationConstants.EPSILON
-                            && Battery.useBattery(sp, battery, btEnergyKwh, btDisCapKw);
+                    // TODO СЮДА МОЖНО/ НУЖНО ДОБАВИТЬ ПРОВЕРКУ, ЧТО ДГУ НЕ РАБОТАЛА В ПРОШЛЫЙ ЧАС
 
-                    boolean allowStartBridge = (i > 0)
-                            && btAvail
-                            && (steadyDefKw <= SimulationConstants.EPSILON)
-                            && (btDisCapKw > startEnergyKwh - SimulationConstants.EPSILON);
+                    boolean useBatteryBase =
+                            btAvail
+                                    && canBatteryBridge(battery, sp, btCurrentKw, 1.0, btDisCapKw)   // проверка по току/энергии на час
+                                    && Battery.useBattery(sp, battery, btEnergyKwh, btDisCapKw);     // твой nonReserve-правил
+
+                    boolean allowStartBridge =
+                            (i > 0)
+                                    && btAvail
+                                    && (steadyDefKw <= SimulationConstants.EPSILON)
+                                    && canBatteryBridge(battery, sp, startDefKw, tauEff, btDisCapKw); // проверка по току/энергии на tauEff
 
                     boolean useBattery = useBatteryBase || allowStartBridge;
+
 
                     if (useBattery) {
                         double dischargeEnergyKwh = btEnergyKwh;
@@ -707,7 +712,7 @@ public final class SingleRunSimulator {
                     if (genKw > dgMaxKw) genKw = dgMaxKw;
 
                     dg.setCurrentLoad(genKw);
-                    dg.addWorkTime(1, wasWorking ? 1 : 6);
+                    dg.addWorkTime(1, wasWorking ? 1 : 1+ SimulationConstants.DG_MAX_START_FACTOR);
                     dg.startWork();
 
                     sumDieselKw += genKw;
@@ -1205,7 +1210,7 @@ public final class SingleRunSimulator {
                     if (genKw > dgMaxKw) genKw = dgMaxKw;
 
                     dg.setCurrentLoad(genKw);
-                    dg.addWorkTime(1, wasWorking ? 1 : 6);
+                    dg.addWorkTime(1, wasWorking ? 1 : 1+ SimulationConstants.DG_MAX_START_FACTOR);
                     dg.startWork();
 
                     sumDieselKw += genKw;
@@ -1451,7 +1456,7 @@ public final class SingleRunSimulator {
 
             double genKw = idleOrBurnGenKw(dg, dgRatedKw, dgMinKw);
             dg.setCurrentLoad(genKw);
-            dg.addWorkTime(1, 6);
+            dg.addWorkTime(1, 1+ SimulationConstants.DG_MAX_START_FACTOR);
 
             keepOn[k] = true;
             idleNeed--;
@@ -1553,7 +1558,7 @@ public final class SingleRunSimulator {
 
             double genKw = idleOrBurnGenKw(dg, dgRatedKw, dgMinKw);
             dg.setCurrentLoad(genKw);
-            dg.addWorkTime(1, 6);
+            dg.addWorkTime(1, 1+ SimulationConstants.DG_MAX_START_FACTOR);
 
             idleNeed--;
         }
@@ -1638,7 +1643,7 @@ public final class SingleRunSimulator {
                     dg.setIdle(false);
                     dg.resetIdleTime();
 
-                    dg.addWorkTime(1, 6);
+                    dg.addWorkTime(1, 1+ SimulationConstants.DG_MAX_START_FACTOR);
 
                     add--;
                     onlineCount++;

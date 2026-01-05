@@ -28,17 +28,17 @@ public final class ScenarioFactory {
         return new SystemParameters(
                 BusSystemType.DOUBLE_BUS,
                 0.1, 0.3,0.6,
-                8, 330.0,
-                8, 315,
-                336.5,
+                4, 250,
+                6, 160,
+                125,
                 1.0, 2.0, 0.8,
                 1.94, 46,
                 4.75, 50,
                 0.575, 44,
                 0.015, 12,
-                0.15, 10,
-                0, 46,
-                0.2, 0.05
+                0.1, 10,
+                0.005, 24,
+                0, 0
         );
     }
 
