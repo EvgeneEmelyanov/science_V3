@@ -12,7 +12,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 //    TODO: 1. СЕЙЧАС В ТО МОЖЕТ БЫТЬ СРАЗУ НЕСКОЛЬКО ДГУ ИЛИ УЖЕ НЕТ ХУЙ ЗНАЕТ
-//          2. подумать как задавать 3 категория как 1-к1-к2
 //          4. горячего резерва нет + зярад от дгу не работает нормально вроде как
 //          5. как управлять в соболе интенсивностью отказов комнаты? отдельно от шин?
 
@@ -29,7 +28,7 @@ public class Main {
         String loadFilePath;
         String windFilePath = "D:/02_Wind.txt";
 
-        LoadType loadType = LoadType.GOK;
+        LoadType loadType = LoadType.KOMUNAL;
 
         switch (loadType) {
             case GOK:
@@ -61,7 +60,7 @@ public class Main {
 
         RunMode mode = RunMode.SWEEP_2;
 
-        int mcIterations = 750;
+        int mcIterations = 1000;
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
 
@@ -74,6 +73,7 @@ public class Main {
             SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
             // 3) сетка параметров
 
+            // ===== Прямоугольные сетки (оставлены как у вас) =====
 //            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //            double[] param2 = new double[]{0.0, 67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
             double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
@@ -81,11 +81,22 @@ public class Main {
 //            double[] param2 = new double[]{0.0, 134.6, 269.2, 403.8, 538.4, 673.0};
             double[] param2 = new double[]{0.0, 50, 100, 150, 200, 250};
 
+            // ===== Треугольная сетка категорий (k1,k2,k3) =====
+            // Если включено — строим param1/param2 как сетки 0..1 с шагом, а paramSets как треугольник.
 
-            List<SystemParameters> paramSets = buildParamSets(mode, baseParams, param1, param2);
+            final boolean sweepCatsTriangle = true;
+            final double catStep = 0.05; // 0.05 = 5%, 0.025 = 2.5%
+
+            if (mode == RunMode.SWEEP_2 && sweepCatsTriangle) {
+                param1 = buildGrid01(catStep); // k1
+                param2 = buildGrid01(catStep); // k2
+            }
+
+            List<SystemParameters> paramSets = buildParamSets(mode, baseParams, param1, param2, sweepCatsTriangle, catStep);
 
             // trace: только 1 набор и mcIterations==1
             boolean allowTrace = (mcIterations == 1) && (paramSets.size() == 1);
+
             // 4) общий пул
             ExecutorService ex = Executors.newFixedThreadPool(threads);
             try {
@@ -93,10 +104,12 @@ public class Main {
                 MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.10);
                 SimulationEngine engine = new SimulationEngine(mc);
                 List<MonteCarloEstimate> estimates = new ArrayList<>(paramSets.size());
+
                 for (int k = 0; k < paramSets.size(); k++) {
                     SimInput in = baseInput.withSystemParameters(paramSets.get(k));
                     MonteCarloEstimate est = engine.runMonteCarlo(in, mcIterations, mcBaseSeed, allowTrace);
                     estimates.add(est);
+
                     if (allowTrace
                             && est.singleRun != null
                             && est.singleRun.trace != null
@@ -104,6 +117,8 @@ public class Main {
                         SimulationTraceExporter.exportToCsv(traceCsvPath, est.singleRun.trace);
                     }
                 }
+
+                // Передаём param1/param2 как оси: для треугольника это сетки k1,k2.
                 SweepResultsExcelWriter.writeXlsx(resultsXlsxPath, mode, cfg, baseParams, paramSets, estimates, param1, param2);
                 System.out.println("Saved: " + resultsXlsxPath);
 
@@ -116,11 +131,25 @@ public class Main {
         }
     }
 
+    private static double[] buildGrid01(double step) {
+        if (step <= 0) throw new IllegalArgumentException("step must be > 0");
+        int n = (int) Math.round(1.0 / step);
+        double check = n * step;
+        if (Math.abs(check - 1.0) > 1e-9) {
+            throw new IllegalArgumentException("step must divide 1.0 exactly (e.g. 0.05, 0.025). step=" + step);
+        }
+        double[] grid = new double[n + 1];
+        for (int i = 0; i <= n; i++) grid[i] = i * step;
+        return grid;
+    }
+
     // TODO ТУТ ЗАДАЮ КАКИЕ ПАРАМЕТРЫ МЕНЯТЬ В SWEEP
     private static List<SystemParameters> buildParamSets(RunMode mode,
                                                          SystemParameters baseParams,
                                                          double[] param1,
-                                                         double[] param2) {
+                                                         double[] param2,
+                                                         boolean sweepCatsTriangle,
+                                                         double catStep) {
 
         List<SystemParameters> paramSets = new ArrayList<>();
 
@@ -151,6 +180,7 @@ public class Main {
 //        }
 
         // SWEEP_2
+
 //        for (double p1 : param1) {
 //            for (double p2 : param2) {
 //                SystemParameters p = SystemParametersBuilder.from(baseParams)
@@ -161,15 +191,54 @@ public class Main {
 //            }
 //        }
 
-        for (double p1 : param1) {
-            for (double p2 : param2) {
-                SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setNonReserveDischargeLevel(p1)
-                        .setBatteryCapacityKwhPerBus(p2)
-                        .build();
-                paramSets.add(p);
+//        for (double p1 : param1) {
+//            for (double p2 : param2) {
+//                SystemParameters p = SystemParametersBuilder.from(baseParams)
+//                        .setNonReserveDischargeLevel(p1)
+//                        .setBatteryCapacityKwhPerBus(p2)
+//                        .build();
+//                paramSets.add(p);
+//            }
+//        }
+
+        if (sweepCatsTriangle) {
+            // Треугольник категорий: k1,k2 сетка 0..1, берём только пары k1+k2<=1.
+            // k3 считаем как 1-k1-k2.
+            int n = (int) Math.round(1.0 / catStep);
+            for (int i = 0; i <= n; i++) {
+                double k1 = i * catStep;
+                for (int j = 0; j <= n - i; j++) {
+                    double k2 = j * catStep;
+                    double k3 = 1.0 - k1 - k2;
+
+                    SystemParameters p = SystemParametersBuilder.from(baseParams)
+                            .setFirstCat(k1)
+                            .setSecondCat(k2)
+                            .setThirdCat(k3)
+                            .build();
+                    paramSets.add(p);
+                }
+            }
+        } else {
+            // Прямоугольник (ваш старый вариант категорий по двум массивам)
+            for (double p1 : param1) {
+                for (double p2 : param2) {
+                    double k1 = p1;
+                    double k2 = p2;
+                    double k3 = 1.0 - (k1 + k2);
+                    if (k3 < -1e-12) continue;
+                    if (k3 < 0) k3 = 0.0;
+
+                    SystemParameters p = SystemParametersBuilder.from(baseParams)
+                            .setFirstCat(k1)
+                            .setSecondCat(k2)
+                            .setThirdCat(k3)
+                            .build();
+                    paramSets.add(p);
+                }
             }
         }
+
         return paramSets;
     }
 }
