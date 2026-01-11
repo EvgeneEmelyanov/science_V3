@@ -105,10 +105,37 @@ public final class FailureStepper {
             if (!busAlive[b]) continue;
 
             PowerBus bus = buses.get(b);
+
+            // WT
             for (WindTurbine wt : bus.getWindTurbines()) wt.updateFailureOneHour(considerFailures);
-            for (DieselGenerator dg : bus.getDieselGenerators()) dg.updateFailureOneHour(considerFailures);
+
+            // ===== DG: только одна ДГУ может начать/быть в ТО на шине =====
+
+            // (A) Есть ли уже ДГУ в ТО с прошлого часа?
+            boolean maintenanceOnBus = false;
+            for (DieselGenerator dg : bus.getDieselGenerators()) {
+                if (dg.isInMaintenance()) { // это true, пока идёт ТО (repairDurationHours тикает)
+                    maintenanceOnBus = true;
+                    break;
+                }
+            }
+
+            // (B) Обновляем ДГУ по очереди; только первой разрешаем старт ТО.
+            for (DieselGenerator dg : bus.getDieselGenerators()) {
+                boolean allowMaintenanceStart = !maintenanceOnBus;
+
+                dg.updateFailureOneHour(considerFailures, allowMaintenanceStart);
+
+                // Если эта ДГУ вошла в ТО в этом часу (или уже была) — дальше запрещаем старт
+                if (dg.isInMaintenance()) {
+                    maintenanceOnBus = true;
+                }
+            }
+
+            // BT
             Battery bt = bus.getBattery();
             if (bt != null) bt.updateFailureOneHour(considerFailures);
         }
     }
+
 }

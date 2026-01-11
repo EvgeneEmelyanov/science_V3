@@ -17,7 +17,6 @@ public class SystemParameters {
      */
     private final double firstCat;
     private final double secondCat;
-    private final double thirdCat;
 
     /**
      * Общее количество ВЭУ в системе.
@@ -140,7 +139,6 @@ public class SystemParameters {
     public SystemParameters(BusSystemType busSystemType,
                             double firstCat,
                             double secondCat,
-                            double thirdCat,
 
                             int totalWindTurbineCount,
                             double windTurbinePowerKw,
@@ -169,7 +167,6 @@ public class SystemParameters {
         this.busSystemType = busSystemType;
         this.firstCat = firstCat;
         this.secondCat = secondCat;
-        this.thirdCat = thirdCat;
 
         this.totalWindTurbineCount = totalWindTurbineCount;
         this.windTurbinePowerKw = windTurbinePowerKw;
@@ -203,7 +200,6 @@ public class SystemParameters {
                 busSystemType,
                 firstCat,
                 secondCat,
-                thirdCat,
                 totalWindTurbineCount,
                 windTurbinePowerKw,
                 totalDieselGeneratorCount,
@@ -244,7 +240,7 @@ public class SystemParameters {
     }
 
     public double getThirdCat() {
-        return thirdCat;
+        return 1.0 - (firstCat + secondCat);
     }
 
     public int getTotalWindTurbineCount() {

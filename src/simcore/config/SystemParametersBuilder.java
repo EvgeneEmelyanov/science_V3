@@ -9,7 +9,6 @@ public class SystemParametersBuilder {
 
     private double firstCat;
     private double secondCat;
-    private double thirdCat;
 
     private int totalWindTurbineCount;
     private double windTurbinePowerKw;
@@ -55,7 +54,6 @@ public class SystemParametersBuilder {
         SystemParametersBuilder b = new SystemParametersBuilder();
         b.firstCat = base.getFirstCat();
         b.secondCat = base.getSecondCat();
-        b.thirdCat = base.getThirdCat();
 
         b.busSystemType = base.getBusSystemType();
         b.totalWindTurbineCount = base.getTotalWindTurbineCount();
@@ -89,7 +87,6 @@ public class SystemParametersBuilder {
                 busSystemType,
                 firstCat,
                 secondCat,
-                thirdCat,
 
                 totalWindTurbineCount,
                 windTurbinePowerKw,
@@ -143,15 +140,6 @@ public class SystemParametersBuilder {
 
     public SystemParametersBuilder setSecondCat(double secondCat) {
         this.secondCat = secondCat;
-        return this;
-    }
-
-    public double getThirdCat() {
-        return thirdCat;
-    }
-
-    public SystemParametersBuilder setThirdCat(double thirdCat) {
-        this.thirdCat = thirdCat;
         return this;
     }
 

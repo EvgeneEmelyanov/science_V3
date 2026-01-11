@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-//    TODO: 1. СЕЙЧАС В ТО МОЖЕТ БЫТЬ СРАЗУ НЕСКОЛЬКО ДГУ ИЛИ УЖЕ НЕТ ХУЙ ЗНАЕТ
-//          4. горячего резерва нет + зярад от дгу не работает нормально вроде как
-//          5. как управлять в соболе интенсивностью отказов комнаты? отдельно от шин?
+//    TODO: 1. allowMaintenanceStart = true у Diesel --> несколько дгу в ТО можно одновременно
+//          2. горячего резерва нет
+//          3. considerChargeByDg работает не правильно
+//          4. как управлять в соболе интенсивностью отказов комнаты? отдельно от шин?
+//          5. у меня сейчас вращ резерв и хх для 1 и 2 категории
 
 public class Main {
 
@@ -27,8 +29,12 @@ public class Main {
 
         String loadFilePath;
         String windFilePath = "D:/02_Wind.txt";
+        String resultsXlsxPath = "D:/results.xlsx";
+        String traceCsvPath = "D:/trace.csv";
 
-        LoadType loadType = LoadType.KOMUNAL;
+        LoadType loadType = LoadType.def;
+        RunMode mode = RunMode.SWEEP_2;
+        int mcIterations = 100;
 
         switch (loadType) {
             case GOK:
@@ -53,14 +59,8 @@ public class Main {
                 break;
         }
 
-        MAX_LOAD = 500;
+        MAX_LOAD = 1346;
 
-        String resultsXlsxPath = "D:/results.xlsx";
-        String traceCsvPath = "D:/trace.csv";
-
-        RunMode mode = RunMode.SWEEP_2;
-
-        int mcIterations = 1000;
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
 
@@ -73,19 +73,17 @@ public class Main {
             SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
             // 3) сетка параметров
 
-            // ===== Прямоугольные сетки (оставлены как у вас) =====
+            // ===== Прямоугольные сетки =====
 //            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //            double[] param2 = new double[]{0.0, 67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
             double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
 //            double[] param1 = new double[]{1, 2, 3, 4, 5};
-//            double[] param2 = new double[]{0.0, 134.6, 269.2, 403.8, 538.4, 673.0};
             double[] param2 = new double[]{0.0, 50, 100, 150, 200, 250};
 
             // ===== Треугольная сетка категорий (k1,k2,k3) =====
             // Если включено — строим param1/param2 как сетки 0..1 с шагом, а paramSets как треугольник.
-
             final boolean sweepCatsTriangle = true;
-            final double catStep = 0.05; // 0.05 = 5%, 0.025 = 2.5%
+            final double catStep = 0.2;
 
             if (mode == RunMode.SWEEP_2 && sweepCatsTriangle) {
                 param1 = buildGrid01(catStep); // k1
@@ -101,7 +99,7 @@ public class Main {
             ExecutorService ex = Executors.newFixedThreadPool(threads);
             try {
                 SingleRunSimulator sim = new SingleRunSimulator();
-                MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.10);
+                MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.05);
                 SimulationEngine engine = new SimulationEngine(mc);
                 List<MonteCarloEstimate> estimates = new ArrayList<>(paramSets.size());
 
@@ -168,19 +166,7 @@ public class Main {
             return paramSets;
         }
 
-//        if (mode == RunMode.SWEEP_1) {
-//            for (double p1 : param1) {
-//                SystemParameters p = SystemParametersBuilder.from(baseParams)
-//                        .setSecondCat(p1)
-//                        .setThirdCat(1 - p1)
-//                        .build();
-//                paramSets.add(p);
-//            }
-//            return paramSets;
-//        }
-
         // SWEEP_2
-
 //        for (double p1 : param1) {
 //            for (double p2 : param2) {
 //                SystemParameters p = SystemParametersBuilder.from(baseParams)
@@ -214,25 +200,6 @@ public class Main {
                     SystemParameters p = SystemParametersBuilder.from(baseParams)
                             .setFirstCat(k1)
                             .setSecondCat(k2)
-                            .setThirdCat(k3)
-                            .build();
-                    paramSets.add(p);
-                }
-            }
-        } else {
-            // Прямоугольник (ваш старый вариант категорий по двум массивам)
-            for (double p1 : param1) {
-                for (double p2 : param2) {
-                    double k1 = p1;
-                    double k2 = p2;
-                    double k3 = 1.0 - (k1 + k2);
-                    if (k3 < -1e-12) continue;
-                    if (k3 < 0) k3 = 0.0;
-
-                    SystemParameters p = SystemParametersBuilder.from(baseParams)
-                            .setFirstCat(k1)
-                            .setSecondCat(k2)
-                            .setThirdCat(k3)
                             .build();
                     paramSets.add(p);
                 }
