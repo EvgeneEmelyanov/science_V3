@@ -22,6 +22,7 @@ public enum TunableParamId {
     DG_REPAIR_TIME,
     BT_REPAIR_TIME,
     BUS_REPAIR_TIME,
+    ROOM_REPAIR_TIME,
     BRK_REPAIR_TIME,
 
     // Параметры ВЭУ

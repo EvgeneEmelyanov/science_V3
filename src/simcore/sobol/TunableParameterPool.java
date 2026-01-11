@@ -90,6 +90,14 @@ public final class TunableParameterPool {
                         (b, v) -> b.setBusRepairTimeHours((int) Math.round(v))
                 ));
 
+        m.put(TunableParamId.ROOM_REPAIR_TIME,
+                new TunableParameter(
+                        TunableParamId.ROOM_REPAIR_TIME,
+                        "BUS_REPAIR_TIME",
+                        12, 48,
+                        (b, v) -> b.setBusRepairTimeHours((int) Math.round(v))
+                ));
+
         m.put(TunableParamId.BRK_REPAIR_TIME,
                 new TunableParameter(
                         TunableParamId.BRK_REPAIR_TIME,

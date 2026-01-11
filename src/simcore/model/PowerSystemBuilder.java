@@ -37,14 +37,19 @@ public class PowerSystemBuilder {
         if (beta < 0.0) beta = 0.0;
         if (beta > 0.9) beta = 0.9;
 
-        double baseBusLambda = params.getBusFailureRatePerYear();
-        double busLambdaInd = baseBusLambda * (1.0 - beta);
+        double baseBusLambda = params.getBusFailureRatePerYear(); // λ_total (шина+комната), если комната не задана вручную
 
         double roomLambdaEffective = params.getSwitchgearRoomFailureRatePerYear();
-        if (roomLambdaEffective <= 0.0) {
+        double busLambdaInd;
+
+        if (roomLambdaEffective > 0.0) {
+            // Комнату задали вручную -> β не используем, шину считаем независимой с λ = baseBusLambda
+            busLambdaInd = baseBusLambda;
+        } else {
+            // Комната не задана -> делим λ_total по β
+            busLambdaInd = baseBusLambda * (1.0 - beta);
             roomLambdaEffective = baseBusLambda * beta;
         }
-
 
         List<PowerBus> buses = new ArrayList<>(busCount);
 
@@ -67,7 +72,7 @@ public class PowerSystemBuilder {
             PowerBus bus = new PowerBus(
                     busIdCounter++,
                     loadForBus,
-                    params.getBusFailureRatePerYear(),
+                    busLambdaInd,
                     params.getBusRepairTimeHours()
             );
 

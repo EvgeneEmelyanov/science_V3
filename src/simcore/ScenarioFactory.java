@@ -24,9 +24,9 @@ public final class ScenarioFactory {
         return new LoadedInput(load, wind);
     }
 
-    public static SystemParameters defaultParams() {
+    public static SystemParameters defaultParams(BusSystemType busSystemType) {
         return new SystemParameters(
-                BusSystemType.DOUBLE_BUS,
+                busSystemType,
                 0, 0,
                 4, 673,
                 6, 340,
@@ -35,10 +35,10 @@ public final class ScenarioFactory {
                 1.94, 46,
                 4.75, 50,
                 0.575, 44,
-                0.016, 12,
+                0.02, 12,
                 0.1, 10,
-                0.004, 24,
-                0, 0
+                0, 24,
+                0.2, 0.2
         );
     }
 

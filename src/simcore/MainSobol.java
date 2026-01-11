@@ -1,5 +1,7 @@
 package simcore;
 
+import simcore.Main;
+import simcore.config.BusSystemType;
 import simcore.config.SimulationConfig;
 import simcore.config.SystemParameters;
 import simcore.engine.MonteCarloRunner;
@@ -12,12 +14,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class MainSobol {
-    // todo: мб для λ попробовать логорифм для вариации
 
     public static void main(String[] args) {
 
         String loadFilePath = "D:/01_Load.txt";
         String windFilePath = "D:/02_Wind.txt";
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         // Sobol settings
         int sobolN = 2; // размер A/B
@@ -32,7 +34,7 @@ public final class MainSobol {
             ScenarioFactory.LoadedInput li = ScenarioFactory.load(loadFilePath, windFilePath);
 
             // 2) базовые параметры — единый источник
-            SystemParameters baseParams = ScenarioFactory.defaultParams();
+            SystemParameters baseParams = ScenarioFactory.defaultParams(busType);
 
             // 3) параметры Соболя (через пул диапазонов)
             List<TunableParamId> ids = List.of(

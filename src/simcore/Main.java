@@ -10,12 +10,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import simcore.config.BusSystemType;
 
 //    TODO: 1. allowMaintenanceStart = true у Diesel --> несколько дгу в ТО можно одновременно
 //          2. горячего резерва нет
 //          3. considerChargeByDg работает не правильно
-//          4. как управлять в соболе интенсивностью отказов комнаты? отдельно от шин?
-//          5. у меня сейчас вращ резерв и хх для 1 и 2 категории
+//          4. у меня сейчас вращ резерв и хх для 1 и 2 категории
 
 public class Main {
 
@@ -34,6 +34,8 @@ public class Main {
 
         LoadType loadType = LoadType.def;
         RunMode mode = RunMode.SWEEP_2;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+
         int mcIterations = 100;
 
         switch (loadType) {
@@ -68,7 +70,7 @@ public class Main {
             // 1) входные данные
             ScenarioFactory.LoadedInput li = ScenarioFactory.load(loadFilePath, windFilePath);
             // 2) базовые параметры/конфиг
-            SystemParameters baseParams = ScenarioFactory.defaultParams();
+            SystemParameters baseParams = ScenarioFactory.defaultParams(busType);
             SimulationConfig cfg = ScenarioFactory.defaultConfig(li.windMs(), mcIterations, threads);
             SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
             // 3) сетка параметров
@@ -195,7 +197,6 @@ public class Main {
                 double k1 = i * catStep;
                 for (int j = 0; j <= n - i; j++) {
                     double k2 = j * catStep;
-                    double k3 = 1.0 - k1 - k2;
 
                     SystemParameters p = SystemParametersBuilder.from(baseParams)
                             .setFirstCat(k1)
