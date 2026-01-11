@@ -16,6 +16,7 @@ import simcore.config.BusSystemType;
 //          2. горячего резерва нет
 //          3. considerChargeByDg работает не правильно
 //          4. у меня сейчас вращ резерв и хх для 1 и 2 категории
+//          5. экономика
 
 public class Main {
 
@@ -36,7 +37,7 @@ public class Main {
         RunMode mode = RunMode.SWEEP_2;
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
-        int mcIterations = 100;
+        int mcIterations = 10;
 
         switch (loadType) {
             case GOK:
