@@ -16,7 +16,7 @@ import simcore.config.BusSystemType;
 //          2. горячего резерва нет
 //          3. considerChargeByDg работает не правильно
 //          4. у меня сейчас вращ резерв и хх для 1 и 2 категории
-//          5. экономика
+//          5. BATTERY_DEG_Z и BATTERY_DEG_H вопросительные значения - уточнить
 
 public class Main {
 
@@ -85,7 +85,7 @@ public class Main {
 
             // ===== Треугольная сетка категорий (k1,k2,k3) =====
             // Если включено — строим param1/param2 как сетки 0..1 с шагом, а paramSets как треугольник.
-            final boolean sweepCatsTriangle = true;
+            final boolean sweepCatsTriangle = false;
             final double catStep = 0.2;
 
             if (mode == RunMode.SWEEP_2 && sweepCatsTriangle) {
@@ -180,15 +180,15 @@ public class Main {
 //            }
 //        }
 
-//        for (double p1 : param1) {
-//            for (double p2 : param2) {
-//                SystemParameters p = SystemParametersBuilder.from(baseParams)
-//                        .setNonReserveDischargeLevel(p1)
-//                        .setBatteryCapacityKwhPerBus(p2)
-//                        .build();
-//                paramSets.add(p);
-//            }
-//        }
+        for (double p1 : param1) {
+            for (double p2 : param2) {
+                SystemParameters p = SystemParametersBuilder.from(baseParams)
+                        .setNonReserveDischargeLevel(p1)
+                        .setBatteryCapacityKwhPerBus(p2)
+                        .build();
+                paramSets.add(p);
+            }
+        }
 
         if (sweepCatsTriangle) {
             // Треугольник категорий: k1,k2 сетка 0..1, берём только пары k1+k2<=1.

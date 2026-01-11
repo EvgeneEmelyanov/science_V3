@@ -60,7 +60,7 @@ public final class SimulationConstants {
 
     // ===== Throughput power-law degradation =====
     public static final double BATTERY_DEG_Z = 0.57;          // степень (типично 0.5..0.7)
-    public static final double BATTERY_DEG_H = 0.35;          // чувствительность к C-rate (калибруется)
+    public static final double BATTERY_DEG_H = 0.5;          // чувствительность к C-rate (калибруется)
 
     // Калибровка "20% потери на 2000 EFC при базовых условиях (C≈0, DoD≈DOD_REF)"
     public static final double BATTERY_DEG_K =
@@ -75,7 +75,7 @@ public final class SimulationConstants {
     public static final double DG_OPTIMAL_POWER = 0.8;
     public static final double DG_START_DELAY_HOURS = 0.1;
     public static final int DG_MAX_IDLE_HOURS = 4;
-    public static final int DG_MAX_START_FACTOR = 0;
+    public static final int DG_MAX_START_FACTOR = 5;
 
     private SimulationConstants() {}
 }
