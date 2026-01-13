@@ -17,6 +17,8 @@ import simcore.config.BusSystemType;
 //          3. considerChargeByDg работает не правильно
 //          4. у меня сейчас вращ резерв и хх для 1 и 2 категории
 //          5. BATTERY_DEG_Z и BATTERY_DEG_H вопросительные значения - уточнить
+//          6. добавить цены в writeEconomicsInputsBlock
+//          7. изменить расчет экономики - надо умножать моточасы на мощность дгу
 
 public class Main {
 
@@ -35,9 +37,9 @@ public class Main {
 
         LoadType loadType = LoadType.def;
         RunMode mode = RunMode.SWEEP_2;
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        BusSystemType busType = BusSystemType.SINGLE_NOT_SECTIONAL_BUS;
 
-        int mcIterations = 10;
+        int mcIterations = 750;
 
         switch (loadType) {
             case GOK:
@@ -85,8 +87,8 @@ public class Main {
 
             // ===== Треугольная сетка категорий (k1,k2,k3) =====
             // Если включено — строим param1/param2 как сетки 0..1 с шагом, а paramSets как треугольник.
-            final boolean sweepCatsTriangle = false;
-            final double catStep = 0.2;
+            final boolean sweepCatsTriangle = true;
+            final double catStep = 0.1;
 
             if (mode == RunMode.SWEEP_2 && sweepCatsTriangle) {
                 param1 = buildGrid01(catStep); // k1
@@ -102,7 +104,7 @@ public class Main {
             ExecutorService ex = Executors.newFixedThreadPool(threads);
             try {
                 SingleRunSimulator sim = new SingleRunSimulator();
-                MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.05);
+                MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.1);
                 SimulationEngine engine = new SimulationEngine(mc);
                 List<MonteCarloEstimate> estimates = new ArrayList<>(paramSets.size());
 
@@ -180,19 +182,18 @@ public class Main {
 //            }
 //        }
 
-        for (double p1 : param1) {
-            for (double p2 : param2) {
-                SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setNonReserveDischargeLevel(p1)
-                        .setBatteryCapacityKwhPerBus(p2)
-                        .build();
-                paramSets.add(p);
-            }
-        }
+//        for (double p1 : param1) {
+//            for (double p2 : param2) {
+//                SystemParameters p = SystemParametersBuilder.from(baseParams)
+//                        .setNonReserveDischargeLevel(p1)
+//                        .setBatteryCapacityKwhPerBus(p2)
+//                        .build();
+//                paramSets.add(p);
+//            }
+//        }
 
         if (sweepCatsTriangle) {
             // Треугольник категорий: k1,k2 сетка 0..1, берём только пары k1+k2<=1.
-            // k3 считаем как 1-k1-k2.
             int n = (int) Math.round(1.0 / catStep);
             for (int i = 0; i <= n; i++) {
                 double k1 = i * catStep;
