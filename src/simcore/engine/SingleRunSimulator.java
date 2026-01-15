@@ -72,6 +72,10 @@ public final class SingleRunSimulator {
 
         for (int t = 0; t < hours; t++) {
 
+            if (t == 157) {
+                System.out.println();
+            }
+
             final double windV = windMs[t];
             final boolean doTrace = trace.enabled();
             trace.startHour(busCount);
@@ -638,12 +642,93 @@ public final class SingleRunSimulator {
                     }
 
                     if (i == dgCountPlanned) {
-                        double btDisKw = btAvail ? Math.min(deficitAfterWindKw, btDisCapKw) : 0.0;
-                        if (btDisKw > SimulationConstants.EPSILON && btAvail) {
-                            battery.adjustCapacity(battery, -btDisKw, btDisKw, false, considerDegradation);
-                            btNetKw += btDisKw;
-                        }
+
                         dgToUse = dgCountPlanned;
+
+                        if (btAvail) {
+
+                            // Ограничение по току (C-rate): кВт
+                            final double maxByCurrentKw =
+                                    battery.getMaxCapacityKwh() * sp.getMaxDischargeCurrent();
+
+                            // Доступная энергия по SOC (если есть минимальный SOC — вычти его)
+                            double soc = battery.getStateOfCharge();
+                            double availEnergyKwh = Math.max(0.0, soc) * battery.getMaxCapacityKwh();
+
+                            // ==========================================================
+                            // START (tauEff): пока запускаются неготовые ДГУ
+                            // ==========================================================
+                            int R = Math.min(readyWorking, dgToUse);
+                            double readyMaxStartKw = R * dgMaxKw;
+
+                            // используем уже объявленные выше переменные
+                            startDefKw = Math.max(0.0, deficitAfterWindKw - readyMaxStartKw); // кВт
+                            startEnergyKwh = startDefKw * tauEff;                              // кВт·ч
+
+                            if (startEnergyKwh > SimulationConstants.EPSILON && tauEff > SimulationConstants.EPSILON) {
+
+                                double maxStartEnergyByCurrentKwh = maxByCurrentKw * tauEff;
+
+                                double dischargeStartKwh = Math.min(startEnergyKwh, maxStartEnergyByCurrentKwh);
+                                dischargeStartKwh = Math.min(dischargeStartKwh, availEnergyKwh);
+
+                                if (dischargeStartKwh > SimulationConstants.EPSILON) {
+                                    double dischargeStartKw = dischargeStartKwh / tauEff;
+
+                                    battery.adjustCapacity(
+                                            battery,
+                                            -dischargeStartKwh,   // энергия (кВт·ч)
+                                            dischargeStartKw,     // мощность (кВт)
+                                            false,
+                                            considerDegradation
+                                    );
+
+                                    btNetKw += dischargeStartKwh;
+                                    availEnergyKwh -= dischargeStartKwh;
+                                }
+                            }
+
+                            // ==========================================================
+                            // STEADY (1 - tauEff): после запуска ДГУ
+                            // ==========================================================
+                            double steadyDur = 1.0 - tauEff;
+
+                            if (steadyDur > SimulationConstants.EPSILON) {
+
+                                // В steady режиме предполагаем, что все dgToUse доступны и могут давать до dgMaxKw
+                                double dgSteadyMaxKw = dgToUse * dgMaxKw;
+
+                                // steadyDefKw уже объявлена выше
+                                steadyDefKw = Math.max(0.0, deficitAfterWindKw - dgSteadyMaxKw); // кВт
+
+                                double steadyNeedEnergyKwh = steadyDefKw * steadyDur;
+
+                                if (steadyNeedEnergyKwh > SimulationConstants.EPSILON) {
+
+                                    double maxSteadyEnergyByCurrentKwh = maxByCurrentKw * steadyDur;
+
+                                    double dischargeSteadyKwh = Math.min(steadyNeedEnergyKwh, maxSteadyEnergyByCurrentKwh);
+                                    dischargeSteadyKwh = Math.min(dischargeSteadyKwh, availEnergyKwh);
+
+                                    if (dischargeSteadyKwh > SimulationConstants.EPSILON) {
+                                        double dischargeSteadyKw = dischargeSteadyKwh / steadyDur;
+
+                                        battery.adjustCapacity(
+                                                battery,
+                                                -dischargeSteadyKwh, // энергия (кВт·ч)
+                                                dischargeSteadyKw,   // мощность (кВт)
+                                                false,
+                                                considerDegradation
+                                        );
+
+                                        btNetKw += dischargeSteadyKwh;
+                                        availEnergyKwh -= dischargeSteadyKwh;
+                                    }
+                                }
+                            }
+                        }
+
+                        break;
                     }
                 }
 
@@ -684,7 +769,7 @@ public final class SingleRunSimulator {
                 boolean anyBurnThisHour = false;
 
                 for (int k = 0; k < dgCountAll; k++) {
-                    DieselGenerator dg = dgs[k];
+                     DieselGenerator dg = dgs[k];
 
                     if (!dg.isAvailable() || used >= dgToUse) {
                         dg.setCurrentLoad(0.0);

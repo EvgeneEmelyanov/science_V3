@@ -32,35 +32,35 @@ public class Main {
     public static void main(String[] args) {
 
         String loadFilePath;
-        String windFilePath = "D:/02_Wind.txt";
+        String windFilePath = "D:/08_ModelingData/02_Wind.txt";
         String resultsXlsxPath = "D:/results.xlsx";
         String traceCsvPath = "D:/trace.csv";
 
         LoadType loadType = LoadType.SELHOZ;
-        RunMode mode = RunMode.SWEEP_2;
+        RunMode mode = RunMode.SINGLE;
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
-        int mcIterations = 300;
+        int mcIterations = 1;
 
         switch (loadType) {
             case GOK:
-                loadFilePath = "D:/01_Load_g.txt";
+                loadFilePath = "D:/08_ModelingData/01_Load_g.txt";
                 MAX_LOAD = 7740;
                 break;
             case KOMUNAL:
-                loadFilePath = "D:/01_Load_k.txt";
+                loadFilePath = "D:/08_ModelingData/01_Load_k.txt";
                 MAX_LOAD = 40;
                 break;
             case SELHOZ:
-                loadFilePath = "D:/01_Load_s.txt";
+                loadFilePath = "D:/08_ModelingData/01_Load_s.txt";
                 MAX_LOAD = 44;
                 break;
             case def:
-                loadFilePath = "D:/01_Load.txt";
+                loadFilePath = "D:/08_ModelingData/01_Load.txt";
                 MAX_LOAD = 1346;
                 break;
             default:
-                loadFilePath = "D:/01_Load.txt";
+                loadFilePath = "D:/08_ModelingData/01_Load.txt";
                 MAX_LOAD = 1346;
                 break;
         }

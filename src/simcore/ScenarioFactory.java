@@ -28,7 +28,7 @@ public final class ScenarioFactory {
         return new SystemParameters(
                 busSystemType,
                 0.0, 0.2,
-                2, 673,
+                4, 673,
                 6, 340,
                 67.3,
                 1.0, 2.0, 0.8,
