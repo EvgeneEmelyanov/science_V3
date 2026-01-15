@@ -17,8 +17,9 @@ import simcore.config.BusSystemType;
 //          3. considerChargeByDg работает не правильно
 //          4. у меня сейчас вращ резерв и хх для 1 и 2 категории
 //          5. BATTERY_DEG_Z и BATTERY_DEG_H вопросительные значения - уточнить
-//          6. добавить цены в writeEconomicsInputsBlock
-//          7. изменить расчет экономики - надо умножать моточасы на мощность дгу
+//          6. хуево расчитывается разряд акб (SELHOZ)
+//          7. хуево расчитывается прожиг дгу (SELHOZ)
+
 
 public class Main {
 
@@ -35,11 +36,11 @@ public class Main {
         String resultsXlsxPath = "D:/results.xlsx";
         String traceCsvPath = "D:/trace.csv";
 
-        LoadType loadType = LoadType.def;
+        LoadType loadType = LoadType.SELHOZ;
         RunMode mode = RunMode.SWEEP_2;
-        BusSystemType busType = BusSystemType.SINGLE_NOT_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
-        int mcIterations = 750;
+        int mcIterations = 300;
 
         switch (loadType) {
             case GOK:
@@ -80,14 +81,14 @@ public class Main {
 
             // ===== Прямоугольные сетки =====
 //            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
-//            double[] param2 = new double[]{0.0, 67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
             double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
 //            double[] param1 = new double[]{1, 2, 3, 4, 5};
-            double[] param2 = new double[]{0.0, 50, 100, 150, 200, 250};
+            double[] param2 = new double[]{0.0, 67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
+//            double[] param2 = new double[]{0.0, 50, 100, 150, 200, 250};
 
             // ===== Треугольная сетка категорий (k1,k2,k3) =====
             // Если включено — строим param1/param2 как сетки 0..1 с шагом, а paramSets как треугольник.
-            final boolean sweepCatsTriangle = true;
+            final boolean sweepCatsTriangle = false;
             final double catStep = 0.1;
 
             if (mode == RunMode.SWEEP_2 && sweepCatsTriangle) {
@@ -182,15 +183,15 @@ public class Main {
 //            }
 //        }
 
-//        for (double p1 : param1) {
-//            for (double p2 : param2) {
-//                SystemParameters p = SystemParametersBuilder.from(baseParams)
-//                        .setNonReserveDischargeLevel(p1)
-//                        .setBatteryCapacityKwhPerBus(p2)
-//                        .build();
-//                paramSets.add(p);
-//            }
-//        }
+        for (double p1 : param1) {
+            for (double p2 : param2) {
+                SystemParameters p = SystemParametersBuilder.from(baseParams)
+                        .setNonReserveDischargeLevel(p1)
+                        .setBatteryCapacityKwhPerBus(p2)
+                        .build();
+                paramSets.add(p);
+            }
+        }
 
         if (sweepCatsTriangle) {
             // Треугольник категорий: k1,k2 сетка 0..1, берём только пары k1+k2<=1.

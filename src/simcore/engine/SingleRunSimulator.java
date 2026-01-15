@@ -17,6 +17,9 @@ import java.util.List;
 
 public final class SingleRunSimulator {
 
+
+    private static final boolean ENABLE_ZERO_LOAD_ALL_DG_READY = true;
+
     // ===== Fuel model constants (из старого кода) =====
     private static final double K11 = 0.0185;
     private static final double K21 = -0.0361;
@@ -510,20 +513,24 @@ public final class SingleRunSimulator {
 
             wreLocal = Math.max(0.0, surplusKw);
 
-            // DG idle reserve in wind surplus
-            applyIdleReserveInWindSurplus(
-                    bus,
-                    sp,
-                    loadKw,
-                    windToLoadKw,
-                    cat1,
-                    cat2,
-                    btAvail,
-                    battery,
-                    dgRatedKw,
-                    dgMinKw,
-                    dgStartDelayHours
-            );
+            // DG reserve / "all ready" in wind surplus
+            if (ENABLE_ZERO_LOAD_ALL_DG_READY && loadKw <= SimulationConstants.EPSILON) {
+                keepAllDieselsReadyHotStandby(bus);
+            } else {
+                applyIdleReserveInWindSurplus(
+                        bus,
+                        sp,
+                        loadKw,
+                        windToLoadKw,
+                        cat1,
+                        cat2,
+                        btAvail,
+                        battery,
+                        dgRatedKw,
+                        dgMinKw,
+                        dgStartDelayHours
+                );
+            }
 
         } else {
             // ===== Wind deficit case =====
@@ -1136,9 +1143,16 @@ public final class SingleRunSimulator {
 
             wre = Math.max(0.0, surplusKw);
 
-            // keep idle reserve (use per-bus helper for both buses)
-            applyIdleReserveInWindSurplus(b0, sp, load0, windToLoad[0], cat1, cat2, bt0Avail, bt0, dgRatedKw, dgMinKw, dgStartDelayHours);
-            applyIdleReserveInWindSurplus(b1, sp, load1, windToLoad[1], cat1, cat2, bt1Avail, bt1, dgRatedKw, dgMinKw, dgStartDelayHours);
+
+            // keep idle reserve OR mark all DG ready when totalLoad==0
+            if (ENABLE_ZERO_LOAD_ALL_DG_READY && totalLoad <= SimulationConstants.EPSILON) {
+                keepAllDieselsReadyHotStandby(b0);
+                keepAllDieselsReadyHotStandby(b1);
+            } else {
+                applyIdleReserveInWindSurplus(b0, sp, load0, windToLoad[0], cat1, cat2, bt0Avail, bt0, dgRatedKw, dgMinKw, dgStartDelayHours);
+                applyIdleReserveInWindSurplus(b1, sp, load1, windToLoad[1], cat1, cat2, bt1Avail, bt1, dgRatedKw, dgMinKw, dgStartDelayHours);
+            }
+
 
         } else {
             if (available > 0 && deficitAfterWindBt > SimulationConstants.EPSILON) {
@@ -1371,6 +1385,30 @@ public final class SingleRunSimulator {
         }
     }
 
+    /**
+     * Если нагрузка == 0, считаем, что все доступные ДГУ "готовы к работе" (hot-standby).
+     * Важно: не выключаем их по итогам часа (в отличие от applyIdleReserveInWindSurplus),
+     * чтобы в следующий час они считались isWorking==true (без задержки пуска).
+     */
+    private static void keepAllDieselsReadyHotStandby(PowerBus bus) {
+        DieselGenerator[] dgs = getSortedDgs(bus);
+
+        for (DieselGenerator dg : dgs) {
+
+            if (!dg.isAvailable()) {
+                // недоступные приводим к безопасному состоянию
+                hardStopDg(dg);
+                continue;
+            }
+
+            // "готовы": держим как working, но без активной мощности (0 кВт)
+            dg.startWork();
+            dg.setCurrentLoad(0.0);
+
+            // чтобы не считались idle/прожиг и т.п.
+            dg.setIdle(false);
+        }
+    }
 
     private static boolean isMaintenanceStartedThisHour(DieselGenerator[] dgs) {
         for (DieselGenerator dg : dgs) {
