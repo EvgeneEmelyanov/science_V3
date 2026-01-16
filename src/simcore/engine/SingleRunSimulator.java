@@ -1,5 +1,6 @@
 package simcore.engine;
 
+import simcore.Main;
 import simcore.config.SimulationConfig;
 import simcore.config.SimulationConstants;
 import simcore.config.SystemParameters;
@@ -72,7 +73,7 @@ public final class SingleRunSimulator {
 
         for (int t = 0; t < hours; t++) {
 
-            if (t == 157) {
+            if (t == 158) {
                 System.out.println();
             }
 
@@ -440,6 +441,7 @@ public final class SingleRunSimulator {
         }
     }
 
+// ======================================================================
     private static void dispatchOneBusOneHour(
             SystemParameters sp,
             PowerBus bus,
@@ -469,7 +471,6 @@ public final class SingleRunSimulator {
 
             final double defKw = loadKw;
             totals.ensKwh += defKw;
-            // Полное отключение шины: недоотпуск у всех категорий одновременно
             addEnsByCategoryProportional(totals, loadKw, defKw, cat1, cat2);
 
             if (trace.enabled()) {
@@ -483,19 +484,16 @@ public final class SingleRunSimulator {
 
         bus.addWorkTime(1);
 
-        // wind potential
         final double windPotentialKw = computeWindPotential(bus, windV);
 
         final Battery battery = bus.getBattery();
         final boolean btAvail = battery != null && battery.isAvailable();
 
-        // per-bus hour variables
         double windToLoadKw = 0.0;
         double dgProducedKw = 0.0;
         double dgToLoadKwLocal = 0.0;
         double btNetKw = 0.0; // >0 discharge, <0 charge
         double wreLocal = 0.0;
-        // Оценка энергии недоотпуска именно из-за задержки пуска ДГУ (кратковременный провал в начале часа)
         double startDelayEnsEstimateKwh = 0.0;
 
         if (windPotentialKw >= loadKw - SimulationConstants.EPSILON) {
@@ -504,7 +502,6 @@ public final class SingleRunSimulator {
 
             double surplusKw = Math.max(0.0, windPotentialKw - loadKw);
 
-            // charge battery from wind
             if (btAvail && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC) {
                 double chargeCapKw = battery.getChargeCapacity(sp);
                 double chargeKw = Math.min(surplusKw, chargeCapKw);
@@ -517,7 +514,6 @@ public final class SingleRunSimulator {
 
             wreLocal = Math.max(0.0, surplusKw);
 
-            // DG reserve / "all ready" in wind surplus
             if (ENABLE_ZERO_LOAD_ALL_DG_READY && loadKw <= SimulationConstants.EPSILON) {
                 keepAllDieselsReadyHotStandby(bus);
             } else {
@@ -607,21 +603,18 @@ public final class SingleRunSimulator {
                         btCurrentKw = Math.max(startDefKw, steadyDefKw);
                     }
 
-                    // TODO СЮДА МОЖНО/ НУЖНО ДОБАВИТЬ ПРОВЕРКУ, ЧТО ДГУ НЕ РАБОТАЛА В ПРОШЛЫЙ ЧАС
-
                     boolean useBatteryBase =
                             btAvail
-                                    && canBatteryBridge(battery, sp, btCurrentKw, 1.0, btDisCapKw)   // проверка по току/энергии на час
-                                    && Battery.useBattery(sp, battery, btEnergyKwh, btDisCapKw);     // твой nonReserve-правил
+                                    && canBatteryBridge(battery, sp, btCurrentKw, 1.0, btDisCapKw)
+                                    && Battery.useBattery(sp, battery, btEnergyKwh, btDisCapKw);
 
                     boolean allowStartBridge =
                             (i > 0)
                                     && btAvail
                                     && (steadyDefKw <= SimulationConstants.EPSILON)
-                                    && canBatteryBridge(battery, sp, startDefKw, tauEff, btDisCapKw); // проверка по току/энергии на tauEff
+                                    && canBatteryBridge(battery, sp, startDefKw, tauEff, btDisCapKw);
 
                     boolean useBattery = useBatteryBase || allowStartBridge;
-
 
                     if (useBattery) {
                         double dischargeEnergyKwh = btEnergyKwh;
@@ -647,23 +640,17 @@ public final class SingleRunSimulator {
 
                         if (btAvail) {
 
-                            // Ограничение по току (C-rate): кВт
                             final double maxByCurrentKw =
                                     battery.getMaxCapacityKwh() * sp.getMaxDischargeCurrent();
 
-                            // Доступная энергия по SOC (если есть минимальный SOC — вычти его)
                             double soc = battery.getStateOfCharge();
                             double availEnergyKwh = Math.max(0.0, soc) * battery.getMaxCapacityKwh();
 
-                            // ==========================================================
-                            // START (tauEff): пока запускаются неготовые ДГУ
-                            // ==========================================================
                             int R = Math.min(readyWorking, dgToUse);
                             double readyMaxStartKw = R * dgMaxKw;
 
-                            // используем уже объявленные выше переменные
-                            startDefKw = Math.max(0.0, deficitAfterWindKw - readyMaxStartKw); // кВт
-                            startEnergyKwh = startDefKw * tauEff;                              // кВт·ч
+                            startDefKw = Math.max(0.0, deficitAfterWindKw - readyMaxStartKw);
+                            startEnergyKwh = startDefKw * tauEff;
 
                             if (startEnergyKwh > SimulationConstants.EPSILON && tauEff > SimulationConstants.EPSILON) {
 
@@ -677,8 +664,8 @@ public final class SingleRunSimulator {
 
                                     battery.adjustCapacity(
                                             battery,
-                                            -dischargeStartKwh,   // энергия (кВт·ч)
-                                            dischargeStartKw,     // мощность (кВт)
+                                            -dischargeStartKwh,
+                                            dischargeStartKw,
                                             false,
                                             considerDegradation
                                     );
@@ -688,18 +675,13 @@ public final class SingleRunSimulator {
                                 }
                             }
 
-                            // ==========================================================
-                            // STEADY (1 - tauEff): после запуска ДГУ
-                            // ==========================================================
                             double steadyDur = 1.0 - tauEff;
 
                             if (steadyDur > SimulationConstants.EPSILON) {
 
-                                // В steady режиме предполагаем, что все dgToUse доступны и могут давать до dgMaxKw
                                 double dgSteadyMaxKw = dgToUse * dgMaxKw;
 
-                                // steadyDefKw уже объявлена выше
-                                steadyDefKw = Math.max(0.0, deficitAfterWindKw - dgSteadyMaxKw); // кВт
+                                steadyDefKw = Math.max(0.0, deficitAfterWindKw - dgSteadyMaxKw);
 
                                 double steadyNeedEnergyKwh = steadyDefKw * steadyDur;
 
@@ -715,8 +697,8 @@ public final class SingleRunSimulator {
 
                                         battery.adjustCapacity(
                                                 battery,
-                                                -dischargeSteadyKwh, // энергия (кВт·ч)
-                                                dischargeSteadyKw,   // мощность (кВт)
+                                                -dischargeSteadyKwh,
+                                                dischargeSteadyKw,
                                                 false,
                                                 considerDegradation
                                         );
@@ -732,7 +714,7 @@ public final class SingleRunSimulator {
                     }
                 }
 
-                // ---- распределение по ДГУ (пуск + steady) + low-load + прожиг ----
+                // ---- распределение по ДГУ (пуск + steady) ----
                 int R = Math.min(readyWorking, dgToUse);
 
                 double readyMaxStartKw = R * dgMaxKw;
@@ -748,8 +730,6 @@ public final class SingleRunSimulator {
                     if (canUseOptimal && perDgSteadyKw > perDgOptimalKw) perDgSteadyKw = perDgOptimalKw;
                 }
 
-                // Если в этом часу реально запускаем ДГУ (есть неготовые агрегаты) и tauEff>0,
-                // то часть недоотпуска относится к задержке пуска.
                 if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
                     double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
                     startDelayEnsEstimateKwh = startDefKw * tauEff;
@@ -766,10 +746,9 @@ public final class SingleRunSimulator {
 
                 int used = 0;
                 double sumDieselKw = 0.0;
-                boolean anyBurnThisHour = false;
 
                 for (int k = 0; k < dgCountAll; k++) {
-                     DieselGenerator dg = dgs[k];
+                    DieselGenerator dg = dgs[k];
 
                     if (!dg.isAvailable() || used >= dgToUse) {
                         dg.setCurrentLoad(0.0);
@@ -783,35 +762,18 @@ public final class SingleRunSimulator {
                             ? (perReadyStartKw * tauEff + perDgSteadyKw * (1.0 - tauEff))
                             : (perDgSteadyKw * (1.0 - tauEff));
 
-                    if (genKw + SimulationConstants.EPSILON < dgMinKw) {
-
-                        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-                            genKw = Math.max(genKw, dgMinKw);
-                            anyBurnThisHour = true;
-
-                            dg.setIdle(false);
-                            dg.resetIdleTime();
-                        } else {
-                            dg.incrementIdleTime();
-                            dg.setIdle(true);
-                        }
-
-                    } else {
-                        dg.setIdle(false);
-                        dg.resetIdleTime();
-                    }
-
                     if (genKw > dgMaxKw) genKw = dgMaxKw;
+                    if (genKw < 0.0) genKw = 0.0;
 
                     dg.setCurrentLoad(genKw);
-                    dg.addWorkTime(1, wasWorking ? 1 : 1+ SimulationConstants.DG_MAX_START_FACTOR);
+                    dg.addWorkTime(1, wasWorking ? 1 : 1 + SimulationConstants.DG_MAX_START_FACTOR);
                     dg.startWork();
 
                     sumDieselKw += genKw;
                     used++;
                 }
 
-                // ===== IDLE в дефиците ветра =====
+                // ===== IDLE reserve in wind deficit =====
                 if (windToLoadKw > SimulationConstants.EPSILON) {
                     applyIdleReserveInWindDeficit(
                             dgs,
@@ -847,15 +809,50 @@ public final class SingleRunSimulator {
                     );
                 }
 
+                // ===== FINAL: low-load/idle/burn based on FINAL currentLoad =====
+                boolean anyBurnThisHour = false;
+
+                for (DieselGenerator dg : dgs) {
+                    if (!dg.isAvailable()) continue;
+
+                    double p = dg.getCurrentLoad();
+                    if (Math.abs(p) <= SimulationConstants.EPSILON) {
+                        // not online -> no idle accounting
+                        dg.setIdle(false);
+//                        dg.resetIdleTime();
+                        continue;
+                    }
+
+                    // low-load check by absolute power
+                    if (Math.abs(p) + SimulationConstants.EPSILON < dgMinKw) {
+                        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
+                            dg.setCurrentLoad(Math.max(dgMinKw, 0.0));
+                            anyBurnThisHour = true;
+                            dg.setIdle(false);
+                            dg.resetIdleTime();
+                        } else {
+                            dg.incrementIdleTime();
+                            dg.setIdle(true);
+                        }
+                    } else {
+                        dg.setIdle(false);
+                        dg.resetIdleTime();
+                    }
+                }
+
                 // ===== Финализация статусов ДГУ за час =====
                 finalizeStoppedDgs(dgs);
 
-                dgProducedKw = sumDieselKw;
+                // ===== recompute diesel produced after possible burn =====
+                double sumFinalDieselKw = 0.0;
+                for (DieselGenerator dg : dgs) {
+                    if (!dg.isAvailable()) continue;
+                    double p = dg.getCurrentLoad();
+                    if (p > SimulationConstants.EPSILON) sumFinalDieselKw += p;
+                }
+                dgProducedKw = sumFinalDieselKw;
 
                 // ===== ENS из-за задержки пуска ДГУ =====
-                // Если часть ДГУ была не "readyWorking" и есть tauEff>0, то в интервал tauEff
-                // мощность ограничена только уже работающими ДГУ. Энергетический недоотпуск этого типа
-                // распределяем пропорционально категориям.
                 if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
                     double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
                     startDelayEnsEstimateKwh = startDefKw * tauEff;
@@ -864,12 +861,10 @@ public final class SingleRunSimulator {
                 // ---- заряд от ДГУ ----
                 boolean allowChargeNow = canCharge && (considerChargeByDg || anyBurnThisHour);
 
-                // 1) сначала считаем, сколько дизеля реально нужно на нагрузку при текущем btNetKw
                 double btDisToLoadKw = Math.max(0.0, btNetKw);
                 double needFromDieselToLoadKw = loadKw - windToLoadKw - btDisToLoadKw;
                 if (needFromDieselToLoadKw < 0.0) needFromDieselToLoadKw = 0.0;
 
-                // 2) считаем реальный surplus дизеля
                 double dieselSurplusKw = dgProducedKw - needFromDieselToLoadKw;
                 if (dieselSurplusKw < 0.0) dieselSurplusKw = 0.0;
 
@@ -878,21 +873,17 @@ public final class SingleRunSimulator {
                     double ch = Math.min(dieselSurplusKw, chargeCapKw);
                     if (ch > SimulationConstants.EPSILON) {
                         battery.adjustCapacity(battery, +ch, ch, true, considerDegradation);
-                        btNetKw -= ch;               // заряд уменьшает net (разряд)
+                        btNetKw -= ch;
                         extraForChargeKw = ch;
                     }
                 }
 
-                // 3) dgToLoad — это то, что осталось после заряда
                 dgToLoadKwLocal = Math.max(0.0, dgProducedKw - extraForChargeKw);
-
             }
         }
 
-        // ---- Fuel per hour ----
         totals.fuelLiters += computeFuelLitersOneHour(bus.getDieselGenerators(), dgRatedKw);
 
-        // ---- totals ----
         double btDisToLoad = Math.max(0.0, btNetKw);
 
         totals.wtToLoadKwh += windToLoadKw;
@@ -907,9 +898,6 @@ public final class SingleRunSimulator {
         if (defKw < 0.0) defKw = 0.0;
         totals.ensKwh += defKw;
 
-        // Разложение ENS по категориям с учётом задержки пуска ДГУ:
-        // - часть startDelayEnsEstimateKwh распределяем пропорционально категориям
-        // - остаток распределяем приоритетно (III -> II -> I)
         double startEns = Math.min(defKw, Math.max(0.0, startDelayEnsEstimateKwh));
         if (startEns > SimulationConstants.EPSILON) {
             addEnsByCategoryProportional(totals, loadKw, startEns, cat1, cat2);
@@ -918,7 +906,6 @@ public final class SingleRunSimulator {
         if (restEns > SimulationConstants.EPSILON) {
             addEnsByCategory(totals, loadKw, restEns, cat1, cat2);
         }
-
 
         if (trace.enabled()) {
             trace.setBusValues(
@@ -933,8 +920,8 @@ public final class SingleRunSimulator {
             trace.fillDgState(b, bus);
             trace.fillBatteryState(b, bus.getBattery());
         }
-
     }
+
 
     private static double[] computeEffectiveLoadsForSectional(SystemParameters sp,
                                                               List<PowerBus> buses,
@@ -1089,6 +1076,11 @@ public final class SingleRunSimulator {
         return arr;
     }
 
+    // ======================================================================
+// FIXED: dispatchSectionalClosedOneHour
+//  - same fix: apply low-load/idle/burn AFTER rotating reserve,
+//    then recompute dgProducedKw and surplus-based charging decisions.
+// ======================================================================
     private static SectionalClosedResult dispatchSectionalClosedOneHour(
             SystemParameters sp,
             List<PowerBus> buses,
@@ -1105,7 +1097,6 @@ public final class SingleRunSimulator {
             double perDgOptimalKw,
             double dgStartDelayHours
     ) {
-        // Both buses must be alive here.
         PowerBus b0 = buses.get(0);
         PowerBus b1 = buses.get(1);
         b0.addWorkTime(1);
@@ -1124,7 +1115,6 @@ public final class SingleRunSimulator {
             windToLoad[0] = Math.min(load0, windPot * (load0 / totalLoad));
             windToLoad[1] = Math.min(load1, windPot * (load1 / totalLoad));
         }
-        // ensure not exceeding windPot
         double usedWind = windToLoad[0] + windToLoad[1];
         if (usedWind > windPot) {
             double k = windPot / usedWind;
@@ -1146,7 +1136,6 @@ public final class SingleRunSimulator {
 
         double[] btNet = new double[2]; // >0 discharge, <0 charge
 
-        // discharge own first
         double dis0 = bt0Avail ? Math.min(rem0, bt0DisCap) : 0.0;
         if (dis0 > SimulationConstants.EPSILON && bt0Avail) {
             bt0.adjustCapacity(bt0, -dis0, dis0, false, considerDegradation);
@@ -1162,7 +1151,6 @@ public final class SingleRunSimulator {
             bt1DisCap -= dis1;
         }
 
-        // then cross-feed batteries if still deficit
         if (rem0 > SimulationConstants.EPSILON && bt1Avail && bt1DisCap > SimulationConstants.EPSILON) {
             double x = Math.min(rem0, bt1DisCap);
             bt1.adjustCapacity(bt1, -x, x, false, considerDegradation);
@@ -1179,10 +1167,8 @@ public final class SingleRunSimulator {
         }
 
         double btDisToLoadTotal = Math.max(0.0, btNet[0]) + Math.max(0.0, btNet[1]);
-
         double deficitAfterWindBt = rem0 + rem1;
 
-        // dispatch DGs on combined list
         List<DieselGenerator> allDgs = new ArrayList<>();
         allDgs.addAll(b0.getDieselGenerators());
         allDgs.addAll(b1.getDieselGenerators());
@@ -1198,15 +1184,11 @@ public final class SingleRunSimulator {
         double dgProducedKw = 0.0;
         double dgToLoadTotal = 0.0;
         double wre = 0.0;
-
-        // Оценка энергии недоотпуска из-за задержки пуска ДГУ (для корректного разложения ENS по категориям)
         double startDelayEnsEstimateKwh = 0.0;
 
         if (windPot >= totalLoad - SimulationConstants.EPSILON) {
-            // wind already covers total load; remaining is WRE after battery charge below
             double surplusKw = Math.max(0.0, windPot - totalLoad);
 
-            // charge own batteries first from wind surplus
             if (bt0Avail && bt0.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
                 double cap = bt0.getChargeCapacity(sp);
                 double ch = Math.min(surplusKw, cap);
@@ -1228,8 +1210,6 @@ public final class SingleRunSimulator {
 
             wre = Math.max(0.0, surplusKw);
 
-
-            // keep idle reserve OR mark all DG ready when totalLoad==0
             if (ENABLE_ZERO_LOAD_ALL_DG_READY && totalLoad <= SimulationConstants.EPSILON) {
                 keepAllDieselsReadyHotStandby(b0);
                 keepAllDieselsReadyHotStandby(b1);
@@ -1237,7 +1217,6 @@ public final class SingleRunSimulator {
                 applyIdleReserveInWindSurplus(b0, sp, load0, windToLoad[0], cat1, cat2, bt0Avail, bt0, dgRatedKw, dgMinKw, dgStartDelayHours);
                 applyIdleReserveInWindSurplus(b1, sp, load1, windToLoad[1], cat1, cat2, bt1Avail, bt1, dgRatedKw, dgMinKw, dgStartDelayHours);
             }
-
 
         } else {
             if (available > 0 && deficitAfterWindBt > SimulationConstants.EPSILON) {
@@ -1252,8 +1231,6 @@ public final class SingleRunSimulator {
 
                 final boolean maintenanceStartedThisHour = isMaintenanceStartedThisHour(dgs);
                 final double tauEff = maintenanceStartedThisHour ? 0.0 : dgStartDelayHours;
-
-                // we do not use batteries here for start bridging: it was already discharged above in a prioritized way.
 
                 int R = Math.min(readyWorking, dgToUse);
 
@@ -1274,10 +1251,10 @@ public final class SingleRunSimulator {
                     startDelayEnsEstimateKwh = startDefKw * tauEff;
                 }
 
-                boolean anyBurnThisHour = false;
                 double sumDieselKw = 0.0;
                 int used = 0;
 
+                // IMPORTANT: do NOT touch idleTime/burn here (loads may change after N-1).
                 for (int k = 0; k < dgs.length; k++) {
                     DieselGenerator dg = dgs[k];
                     if (!dg.isAvailable() || used >= dgToUse) {
@@ -1291,25 +1268,11 @@ public final class SingleRunSimulator {
                             ? (perReadyStartKw * tauEff + perDgSteadyKw * (1.0 - tauEff))
                             : (perDgSteadyKw * (1.0 - tauEff));
 
-                    if (genKw + SimulationConstants.EPSILON < dgMinKw) {
-                        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-                            genKw = Math.max(genKw, dgMinKw);
-                            anyBurnThisHour = true;
-                            dg.setIdle(false);
-                            dg.resetIdleTime();
-                        } else {
-                            dg.incrementIdleTime();
-                            dg.setIdle(true);
-                        }
-                    } else {
-                        dg.setIdle(false);
-                        dg.resetIdleTime();
-                    }
-
                     if (genKw > dgMaxKw) genKw = dgMaxKw;
+                    if (genKw < 0.0) genKw = 0.0;
 
                     dg.setCurrentLoad(genKw);
-                    dg.addWorkTime(1, wasWorking ? 1 : 1+ SimulationConstants.DG_MAX_START_FACTOR);
+                    dg.addWorkTime(1, wasWorking ? 1 : 1 + SimulationConstants.DG_MAX_START_FACTOR);
                     dg.startWork();
 
                     sumDieselKw += genKw;
@@ -1317,9 +1280,6 @@ public final class SingleRunSimulator {
                 }
 
                 if (usedWind > SimulationConstants.EPSILON) {
-                    // apply idle reserve using aggregated parameters (approx: treat as one bus)
-                    // Use total load and usedWind; batteries are already considered via their capacities.
-                    // Here we conservatively pass no battery to avoid double counting.
                     applyIdleReserveInWindDeficit(
                             dgs,
                             totalLoad,
@@ -1337,13 +1297,8 @@ public final class SingleRunSimulator {
                     );
                 }
 
+                // N-1 may add DG and redistribute loads
                 if (considerRotationReserve) {
-                    // rotation reserve: allow batteries as firm via their remaining discharge capacity
-                    double btRemainCap = 0.0;
-                    if (bt0Avail) btRemainCap += bt0.getDischargeCapacity(sp);
-                    if (bt1Avail) btRemainCap += bt1.getDischargeCapacity(sp);
-
-                    // we cannot pass two batteries into existing helper; use a conservative approach: no battery
                     sumDieselKw = applyRotationReserveNminus1(
                             dgs,
                             totalLoad,
@@ -1359,9 +1314,45 @@ public final class SingleRunSimulator {
                     );
                 }
 
+                // FINAL: low-load/idle/burn based on FINAL currentLoad
+                boolean anyBurnThisHour = false;
+
+                for (DieselGenerator dg : dgs) {
+                    if (!dg.isAvailable()) continue;
+
+                    double p = dg.getCurrentLoad();
+                    if (Math.abs(p) <= SimulationConstants.EPSILON) {
+                        dg.setIdle(false);
+//                        dg.resetIdleTime();
+                        continue;
+                    }
+
+                    if (Math.abs(p) + SimulationConstants.EPSILON < dgMinKw) {
+                        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
+                            dg.setCurrentLoad(Math.max(dgMinKw, 0.0));
+                            anyBurnThisHour = true;
+                            dg.setIdle(false);
+                            dg.resetIdleTime();
+                        } else {
+                            dg.incrementIdleTime();
+                            dg.setIdle(true);
+                        }
+                    } else {
+                        dg.setIdle(false);
+                        dg.resetIdleTime();
+                    }
+                }
+
                 finalizeStoppedDgs(dgs);
 
-                dgProducedKw = sumDieselKw;
+                // recompute diesel produced after possible burn
+                double sumFinalDieselKw = 0.0;
+                for (DieselGenerator dg : dgs) {
+                    if (!dg.isAvailable()) continue;
+                    double p = dg.getCurrentLoad();
+                    if (p > SimulationConstants.EPSILON) sumFinalDieselKw += p;
+                }
+                dgProducedKw = sumFinalDieselKw;
 
                 // distribute diesel to remaining load
                 double needDieselToLoad = deficitAfterWindBt;
@@ -1394,7 +1385,6 @@ public final class SingleRunSimulator {
             }
         }
 
-        // compute per-bus diesel-to-load allocation proportional to remaining needs
         double[] dgToLoad = new double[2];
         double need0 = Math.max(0.0, load0 - windToLoad[0] - Math.max(0.0, btNet[0]));
         double need1 = Math.max(0.0, load1 - windToLoad[1] - Math.max(0.0, btNet[1]));
@@ -1404,7 +1394,6 @@ public final class SingleRunSimulator {
             dgToLoad[1] = dgToLoadTotal * (need1 / needSum);
         }
 
-        // deficits per bus
         double[] def = new double[2];
         double supplied0 = windToLoad[0] + dgToLoad[0] + Math.max(0.0, btNet[0]);
         double supplied1 = windToLoad[1] + dgToLoad[1] + Math.max(0.0, btNet[1]);
@@ -1413,7 +1402,6 @@ public final class SingleRunSimulator {
 
         double ens = def[0] + def[1];
 
-        // Разложение "start-delay ENS" по шинам пропорционально текущим дефицитам.
         double[] startEnsByBus = new double[2];
         if (ens > SimulationConstants.EPSILON && startDelayEnsEstimateKwh > SimulationConstants.EPSILON) {
             double startEnsTotal = Math.min(ens, startDelayEnsEstimateKwh);
@@ -1439,6 +1427,7 @@ public final class SingleRunSimulator {
                 startEnsByBus
         );
     }
+
 
     private static DieselGenerator[] getSortedDgs(PowerBus bus) {
         List<DieselGenerator> dgList = bus.getDieselGenerators();
@@ -1466,7 +1455,7 @@ public final class SingleRunSimulator {
             dg.stopWork();
             dg.setCurrentLoad(0.0);
             dg.setIdle(false);
-            dg.resetIdleTime();
+//            dg.resetIdleTime();
         }
     }
 
@@ -1524,7 +1513,10 @@ public final class SingleRunSimulator {
 
         boolean[] keepOn = new boolean[dgCountAll];
 
+        // Тут поменял уставку, старая уставка:
         double pCrit = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
+        // Новая уставка:
+//        double pCrit = Main.MAX_LOAD * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
         double windLoss = Math.min(windToLoadKw, pCrit);
 
         double btFirm = 0.0;
@@ -1598,7 +1590,6 @@ public final class SingleRunSimulator {
             dg.setCurrentLoad(0.0);
             dg.stopWork();
             dg.setIdle(false);
-            dg.resetIdleTime();
         }
     }
 
@@ -1619,7 +1610,10 @@ public final class SingleRunSimulator {
     ) {
         int dgCountAll = dgs.length;
 
+        // Тут поменял уставку, старая уставка:
         double pCrit = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
+        // Новая уставка:
+//        double pCrit = Main.MAX_LOAD * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
         double windLoss = Math.min(windToLoadKw, pCrit);
 
         double btFirm = 0.0;
@@ -1744,7 +1738,7 @@ public final class SingleRunSimulator {
 
                     dg.setCurrentLoad(dgMinKw);
                     dg.setIdle(false);
-                    dg.resetIdleTime();
+//                    dg.resetIdleTime();
 
                     dg.addWorkTime(1, 1);
                     dg.startWork();
@@ -1820,7 +1814,7 @@ public final class SingleRunSimulator {
 
             dg.stopWork();
             dg.setIdle(false);
-            dg.resetIdleTime();
+//            dg.resetIdleTime();
         }
     }
 
@@ -1843,7 +1837,6 @@ public final class SingleRunSimulator {
         dg.stopWork();
         dg.setCurrentLoad(0.0);
         dg.setIdle(false);
-        dg.resetIdleTime();
     }
 
     private static double computeFuelLitersOneHour(List<DieselGenerator> dgs, double dgRatedKw) {

@@ -17,9 +17,8 @@ import simcore.config.BusSystemType;
 //          3. considerChargeByDg работает не правильно
 //          4. у меня сейчас вращ резерв и хх для 1 и 2 категории
 //          5. BATTERY_DEG_Z и BATTERY_DEG_H вопросительные значения - уточнить
-//          6. хуево расчитывается разряд акб (SELHOZ)
-//          7. хуево расчитывается прожиг дгу (SELHOZ)
-
+//          6. в ДГ уже перенес расчет топлива, осталось убрать и SingleRun
+//          7. нужно пересмотреть уставку мощности для проверки ХХ и ВР скорее всего относительно максимальной нагрузки или средней
 
 public class Main {
 
@@ -36,11 +35,11 @@ public class Main {
         String resultsXlsxPath = "D:/results.xlsx";
         String traceCsvPath = "D:/trace.csv";
 
-        LoadType loadType = LoadType.SELHOZ;
-        RunMode mode = RunMode.SINGLE;
+        LoadType loadType = LoadType.KOMUNAL;
+        RunMode mode = RunMode.SWEEP_2;
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
-        int mcIterations = 1;
+        int mcIterations = 500;
 
         switch (loadType) {
             case GOK:
@@ -48,7 +47,7 @@ public class Main {
                 MAX_LOAD = 7740;
                 break;
             case KOMUNAL:
-                loadFilePath = "D:/08_ModelingData/01_Load_k.txt";
+                loadFilePath = "D:/08_ModelingData/02_Load_k.txt";
                 MAX_LOAD = 40;
                 break;
             case SELHOZ:

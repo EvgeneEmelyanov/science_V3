@@ -1,14 +1,16 @@
 package simcore.model;
 
+import simcore.config.SimulationConstants;
+
 import java.util.Comparator;
 import java.util.Random;
 
 /**
  * Дизель-генератор с:
- *  - случайными отказами по экспоненте;
- *  - плановым ТО каждые MAINTENANCE_INTERVAL_HOURS часов работы
- *    на MAINTENANCE_DURATION_HOURS часов.
- *
+ * - случайными отказами по экспоненте;
+ * - плановым ТО каждые MAINTENANCE_INTERVAL_HOURS часов работы
+ * на MAINTENANCE_DURATION_HOURS часов.
+ * <p>
  * Важно: ограничение "одна ДГУ в ТО на шине" реализуется тем,
  * что движок/шина передаёт allowMaintenanceStart=false, если на шине
  * уже есть ДГУ в ТО.
@@ -31,6 +33,14 @@ public class DieselGenerator extends Equipment {
     private boolean inMaintenance = false;
     private boolean isIdle = false;
 
+    // ===== Fuel model constants (из старого кода) =====
+    private static final double K11 = 0.0185;
+    private static final double K21 = -0.0361;
+    private static final double K31 = 0.2745;
+    private static final double K12 = 5.3978;
+    private static final double K22 = -11.4831;
+    private static final double K32 = 11.6284;
+
     public DieselGenerator(int id,
                            double ratedPowerKw,
                            double failureRatePerYear,
@@ -39,24 +49,57 @@ public class DieselGenerator extends Equipment {
         this.ratedPowerKw = ratedPowerKw;
     }
 
-    public boolean isWorking() { return isWorking; }
+    public boolean isWorking() {
+        return isWorking;
+    }
 
-    public int getIdleTime() { return idleTime; }
-    public void incrementIdleTime() { idleTime++; }
-    public void resetIdleTime() { idleTime = 0; }
+    public int getIdleTime() {
+        return idleTime;
+    }
 
-    public boolean isIdle() { return isIdle; }
-    public void setIdle(boolean idle) { this.isIdle = idle; }
+    public void incrementIdleTime() {
+        idleTime++;
+    }
 
-    public double getRatedPowerKw() { return ratedPowerKw; }
-    public double getHoursSinceMaintenance() { return hoursSinceMaintenance; }
-    public int getMaintenanceCount() { return maintenanceCount; }
-    public boolean isInMaintenance() { return inMaintenance; }
+    public void resetIdleTime() {
+        idleTime = 0;
+    }
 
-    public double getCurrentLoad() { return currentLoad; }
-    public void setCurrentLoad(double currentLoad) { this.currentLoad = currentLoad; }
+    public boolean isIdle() {
+        return isIdle;
+    }
 
-    public int getTotalTimeWorked() { return totalTimeWorked; }
+    public void setIdle(boolean idle) {
+        this.isIdle = idle;
+    }
+
+    public double getRatedPowerKw() {
+        return ratedPowerKw;
+    }
+
+    public double getHoursSinceMaintenance() {
+        return hoursSinceMaintenance;
+    }
+
+    public int getMaintenanceCount() {
+        return maintenanceCount;
+    }
+
+    public boolean isInMaintenance() {
+        return inMaintenance;
+    }
+
+    public double getCurrentLoad() {
+        return currentLoad;
+    }
+
+    public void setCurrentLoad(double currentLoad) {
+        this.currentLoad = currentLoad;
+    }
+
+    public int getTotalTimeWorked() {
+        return totalTimeWorked;
+    }
 
     @Override
     public void initFailureModel(Random rnd, boolean considerFailures) {
@@ -161,6 +204,7 @@ public class DieselGenerator extends Equipment {
         }
     }
 
+
     public static Comparator<DieselGenerator> DISPATCH_COMPARATOR =
             (dg1, dg2) -> {
                 if (dg1.isWorking() != dg2.isWorking()) {
@@ -168,4 +212,24 @@ public class DieselGenerator extends Equipment {
                 }
                 return Integer.compare(dg1.timeWorked, dg2.timeWorked);
             };
+
+    public double fuelLitersOneHour(double ratedKw) {
+        if (!isAvailable()) return 0.0;
+        if (ratedKw <= 0.0) return 0.0;
+
+        final double pSigned = getCurrentLoad();
+        double loadLevel = Math.abs(pSigned) / ratedKw;
+
+        if (loadLevel <= SimulationConstants.EPSILON) return 0.0;
+        if (loadLevel > 1.0) loadLevel = 1.0;
+
+        final double k1 = K11 + (K12 / ratedKw);
+        final double k2 = K21 + (K22 / ratedKw);
+        final double k3 = K31 + (K32 / ratedKw);
+
+        final double unitFuel = k1 * loadLevel * loadLevel + k2 * loadLevel + k3;
+        final double liters = 0.84 * ratedKw * loadLevel * unitFuel;
+
+        return Math.max(0.0, liters);
+    }
 }
