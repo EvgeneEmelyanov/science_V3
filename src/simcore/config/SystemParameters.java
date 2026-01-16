@@ -1,6 +1,5 @@
 package simcore.config;
 
-import simcore.ScenarioFactory;
 
 /**
  * Параметры энергосистемы (immutable).

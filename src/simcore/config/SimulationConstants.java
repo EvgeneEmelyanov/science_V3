@@ -59,8 +59,8 @@ public final class SimulationConstants {
     public static final double BATTERY_CALENDAR_LOSS_PER_YEAR = 0.0025;
 
     // ===== Throughput power-law degradation =====
-    public static final double BATTERY_DEG_Z = 0.57;          // степень (типично 0.5..0.7)
-    public static final double BATTERY_DEG_H = 0.5;          // чувствительность к C-rate (калибруется)
+    public static final double BATTERY_DEG_Z = 0.6;          // степень (типично 0.5..0.7)
+    public static final double BATTERY_DEG_H = 0.37;          // чувствительность к C-rate (калибруется)
 
     // Калибровка "20% потери на 2000 EFC при базовых условиях (C≈0, DoD≈DOD_REF)"
     public static final double BATTERY_DEG_K =

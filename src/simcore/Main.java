@@ -36,10 +36,10 @@ public class Main {
         String traceCsvPath = "D:/trace.csv";
 
         LoadType loadType = LoadType.KOMUNAL;
-        RunMode mode = RunMode.SWEEP_2;
+        RunMode mode = RunMode.SINGLE;
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
-        int mcIterations = 500;
+        int mcIterations = 1;
 
         switch (loadType) {
             case GOK:
