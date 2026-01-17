@@ -11,6 +11,8 @@ import simcore.engine.fuel.FuelModel;
 import simcore.engine.fuel.LegacyFuelModel;
 import simcore.engine.metrics.EnsAllocator;
 import simcore.engine.step.NetworkFailureStep;
+import simcore.engine.bus.BusLoadAllocator;
+import simcore.engine.bus.TieBreakerController;
 import simcore.engine.trace.ArrayTraceSession;
 import simcore.engine.trace.NoTraceSession;
 import simcore.engine.trace.TraceSession;
@@ -22,9 +24,9 @@ import java.util.List;
 
 public final class SingleRunSimulator {
 
-    private static final FuelModel FUEL_MODEL = new LegacyFuelModel();
+    static final FuelModel FUEL_MODEL = new LegacyFuelModel();
 
-    private static final boolean ENABLE_ZERO_LOAD_ALL_DG_READY = true;
+    static final boolean ENABLE_ZERO_LOAD_ALL_DG_READY = true;
     public SimulationMetrics simulate(SimInput input, long seed, boolean traceEnabled) {
 
         final SimulationConfig config = input.getConfig();
@@ -73,6 +75,26 @@ public final class SingleRunSimulator {
             double totalWreAtTime;
             final double[] hourWreRef = doTrace ? new double[]{0.0} : null;
 
+            final HourContext ctx = new HourContext(
+                    sp,
+                    windV,
+                    considerDegradation,
+                    considerChargeByDg,
+                    considerRotationReserve,
+                    cat1,
+                    cat2,
+                    dgRatedKw,
+                    dgMaxKw,
+                    dgMinKw,
+                    perDgOptimalKw,
+                    dgStartDelayHours,
+                    totals,
+                    hourWreRef,
+                    trace
+            );
+
+
+
             NetworkFailureStep.updateOneHour(
                     considerFailures,
                     buses,
@@ -84,22 +106,19 @@ public final class SingleRunSimulator {
                     busFailedThisHour,
                     busAlive
             );
-
-            // ===== Bus system logic (SINGLE_SECTIONAL_BUS) =====
+            // ===== Bus system logic (SINGLE_SECTIONAL_BUS / DOUBLE_BUS) =====
             final BusSystemType busType = sp.getBusSystemType();
 
-            final double[] effectiveLoadKw;
-            if (busCount == 2 && (busType == BusSystemType.SINGLE_SECTIONAL_BUS || busType == BusSystemType.DOUBLE_BUS)) {
-                if (busType == BusSystemType.SINGLE_SECTIONAL_BUS) {
-                    // Перенос 1/2 категории только при отказе секции (если одна секция недоступна)
-                    effectiveLoadKw = computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2);
-                } else {
-                    // DOUBLE_BUS: перенос 1/2 категории при отказе шины И при дефиците мощности на одной из шин
-                    effectiveLoadKw = computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw);
-                }
-            } else {
-                effectiveLoadKw = null;
-            }
+            final double[] effectiveLoadKw = BusLoadAllocator.maybeComputeEffectiveLoads(
+                    sp,
+                    buses,
+                    busAlive,
+                    t,
+                    cat1,
+                    cat2,
+                    windV,
+                    dgMaxKw
+            );
 
             boolean sectionalClosedThisHour = false;
             if (busType == BusSystemType.SINGLE_SECTIONAL_BUS
@@ -112,7 +131,7 @@ public final class SingleRunSimulator {
                         ? effectiveLoadKw
                         : new double[]{buses.get(0).getLoadKw()[t], buses.get(1).getLoadKw()[t]};
 
-                sectionalClosedThisHour = shouldCloseTieBreakerThisHour(
+                sectionalClosedThisHour = TieBreakerController.shouldCloseTieBreakerThisHour(
                         sp, buses, loadsForDecision, windV, dgMaxKw
                 );
 
@@ -121,27 +140,17 @@ public final class SingleRunSimulator {
                 if (breaker != null) breaker.setClosed(false);
             }
             // ===== Sectional-closed dispatch (если секционник закрыт) =====
+
             if (sectionalClosedThisHour) {
 
                 final double[] loads = (effectiveLoadKw != null)
                         ? effectiveLoadKw
                         : new double[]{buses.get(0).getLoadKw()[t], buses.get(1).getLoadKw()[t]};
 
-                SectionalClosedResult r = dispatchSectionalClosedOneHour(
-                        sp,
+                SectionalClosedResult r = SectionalClosedDispatcher.dispatchSectionalClosedOneHour(
+                        ctx,
                         buses,
-                        loads,
-                        windV,
-                        considerDegradation,
-                        considerChargeByDg,
-                        considerRotationReserve,
-                        cat1,
-                        cat2,
-                        dgRatedKw,
-                        dgMaxKw,
-                        dgMinKw,
-                        perDgOptimalKw,
-                        dgStartDelayHours
+                        loads
                 );
 
                 // totals: полностью за час (в этом режиме per-bus dispatch ниже НЕ выполняем)
@@ -199,26 +208,12 @@ public final class SingleRunSimulator {
                 final PowerBus bus = buses.get(b);
                 final double loadKw = (effectiveLoadKw != null) ? effectiveLoadKw[b] : bus.getLoadKw()[t];
 
-                dispatchOneBusOneHour(
-                        sp,
+                PerBusDispatcher.dispatchOneBusOneHour(
+                        ctx,
                         bus,
                         busAlive[b],
                         b,
-                        loadKw,
-                        windV,
-                        cat1,
-                        cat2,
-                        considerDegradation,
-                        considerChargeByDg,
-                        considerRotationReserve,
-                        dgRatedKw,
-                        dgMaxKw,
-                        dgMinKw,
-                        perDgOptimalKw,
-                        dgStartDelayHours,
-                        totals,
-                        hourWreRef,
-                        trace
+                        loadKw
                 );
             }
 
@@ -289,658 +284,9 @@ public final class SingleRunSimulator {
     // ======================================================================
     // Helpers
     // ======================================================================
-    private static final class SectionalClosedResult {
-        final double loadKwh;
-        final double ensKwh;
-        final double wreKwh;
-        final double wtToLoadKwh;
-        final double dgToLoadKwh;
-        final double btToLoadKwh;
-        final double fuelLiters;
+// ======================================================================
 
-        final double[] windToLoadByBus;
-        final double[] dgToLoadByBus;
-        final double[] btNetByBus;
-        final double[] defByBus;
-        final double[] startEnsByBus;
-
-        SectionalClosedResult(double loadKwh,
-                              double ensKwh,
-                              double wreKwh,
-                              double wtToLoadKwh,
-                              double dgToLoadKwh,
-                              double btToLoadKwh,
-                              double fuelLiters,
-                              double[] windToLoadByBus,
-                              double[] dgToLoadByBus,
-                              double[] btNetByBus,
-                              double[] defByBus,
-                              double[] startEnsByBus) {
-            this.loadKwh = loadKwh;
-            this.ensKwh = ensKwh;
-            this.wreKwh = wreKwh;
-            this.wtToLoadKwh = wtToLoadKwh;
-            this.dgToLoadKwh = dgToLoadKwh;
-            this.btToLoadKwh = btToLoadKwh;
-            this.fuelLiters = fuelLiters;
-            this.windToLoadByBus = windToLoadByBus;
-            this.dgToLoadByBus = dgToLoadByBus;
-            this.btNetByBus = btNetByBus;
-            this.defByBus = defByBus;
-            this.startEnsByBus = startEnsByBus;
-        }
-    }
-
-    // ======================================================================
-    private static void dispatchOneBusOneHour(
-            SystemParameters sp,
-            PowerBus bus,
-            boolean busAlive,
-            int b,
-            double loadKw,
-            double windV,
-            double cat1,
-            double cat2,
-            boolean considerDegradation,
-            boolean considerChargeByDg,
-            boolean considerRotationReserve,
-            double dgRatedKw,
-            double dgMaxKw,
-            double dgMinKw,
-            double perDgOptimalKw,
-            double dgStartDelayHours,
-            Totals totals,
-            double[] hourWreRef,
-            TraceSession trace
-    ) {
-
-        totals.loadKwh += loadKw;
-
-        if (!busAlive) {
-            DieselFleetController.stopAllDieselsOnBus(bus);
-
-            final double defKw = loadKw;
-            totals.ensKwh += defKw;
-            EnsAllocator.addEnsByCategoryProportional(totals, loadKw, defKw, cat1, cat2);
-
-            if (trace.enabled()) {
-                trace.setBusDown(b, loadKw, defKw);
-                trace.fillDgState(b, bus);
-                trace.fillBatteryState(b, bus.getBattery());
-            }
-
-            return;
-        }
-
-        bus.addWorkTime(1);
-
-        final double windPotentialKw = computeWindPotential(bus, windV);
-
-        final Battery battery = bus.getBattery();
-        final boolean btAvail = battery != null && battery.isAvailable();
-
-        double windToLoadKw = 0.0;
-        double dgProducedKw = 0.0;
-        double dgToLoadKwLocal = 0.0;
-        double btNetKw = 0.0; // >0 discharge, <0 charge
-        double wreLocal = 0.0;
-        double startDelayEnsEstimateKwh = 0.0;
-
-        if (windPotentialKw >= loadKw - SimulationConstants.EPSILON) {
-            // ===== Wind surplus case =====
-            windToLoadKw = loadKw;
-
-            double surplusKw = Math.max(0.0, windPotentialKw - loadKw);
-
-            if (btAvail && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC) {
-                double chargeCapKw = battery.getChargeCapacity(sp);
-                double chargeKw = Math.min(surplusKw, chargeCapKw);
-                if (chargeKw > SimulationConstants.EPSILON) {
-                    battery.adjustCapacity(battery, chargeKw, chargeKw, false, considerDegradation);
-                    btNetKw -= chargeKw;
-                    surplusKw -= chargeKw;
-                }
-            }
-
-            wreLocal = Math.max(0.0, surplusKw);
-
-            if (ENABLE_ZERO_LOAD_ALL_DG_READY && loadKw <= SimulationConstants.EPSILON) {
-                DieselFleetController.keepAllDieselsReadyHotStandby(bus);
-            } else {
-                applyIdleReserveInWindSurplus(
-                        bus,
-                        sp,
-                        loadKw,
-                        windToLoadKw,
-                        cat1,
-                        cat2,
-                        btAvail,
-                        battery,
-                        dgRatedKw,
-                        dgMinKw,
-                        dgStartDelayHours
-                );
-            }
-
-        } else {
-            // ===== Wind deficit case =====
-            windToLoadKw = windPotentialKw;
-            final double deficitAfterWindKw = loadKw - windToLoadKw;
-
-            final double btDisCapKw = btAvail ? battery.getDischargeCapacity(sp) : 0.0;
-
-            final DieselGenerator[] dgs = DieselFleetController.getSortedDgs(bus);
-            final int dgCountAll = dgs.length;
-
-            final boolean maintenanceStartedThisHour = DieselFleetController.isMaintenanceStartedThisHour(dgs);
-            final double tauEff = maintenanceStartedThisHour ? 0.0 : dgStartDelayHours;
-
-            int available = 0;
-            int readyWorking = 0;
-            for (DieselGenerator dg : dgs) {
-                if (dg.isAvailable()) available++;
-                if (dg.isWorking()) readyWorking++;
-            }
-
-            if (available == 0) {
-                // only battery
-                double btDisKw = btAvail ? Math.min(deficitAfterWindKw, btDisCapKw) : 0.0;
-                if (btDisKw > SimulationConstants.EPSILON && btAvail) {
-                    battery.adjustCapacity(battery, -btDisKw, btDisKw, false, considerDegradation);
-                    btNetKw += btDisKw;
-                }
-            } else {
-
-                final boolean canUseOptimal = (perDgOptimalKw * available >= deficitAfterWindKw);
-
-                final int needed = canUseOptimal
-                        ? (int) Math.ceil(deficitAfterWindKw / perDgOptimalKw)
-                        : (int) Math.ceil(deficitAfterWindKw / dgMaxKw);
-
-                final int dgCountPlanned = Math.min(needed, available);
-                int dgToUse = dgCountPlanned;
-
-                // выбрать минимальное i, где АКБ может покрыть старт/дефицит
-                for (int i = 0; i <= dgCountPlanned; i++) {
-
-                    double btEnergyKwh;
-                    double btCurrentKw;
-                    double startDefKw = 0.0;
-                    double startEnergyKwh = 0.0;
-                    double steadyDefKw;
-
-                    if (i == 0) {
-                        btEnergyKwh = deficitAfterWindKw;
-                        btCurrentKw = deficitAfterWindKw;
-                        steadyDefKw = deficitAfterWindKw;
-                    } else {
-                        int readyUsed = Math.min(i, readyWorking);
-                        double dgPowerReadyStartKw = readyUsed * dgMaxKw;
-
-                        startDefKw = Math.max(0.0, deficitAfterWindKw - dgPowerReadyStartKw);
-                        startEnergyKwh = startDefKw * tauEff;
-
-                        double perDgSteadyKw = canUseOptimal
-                                ? Math.min(deficitAfterWindKw / i, perDgOptimalKw)
-                                : Math.min(deficitAfterWindKw / i, dgMaxKw);
-
-                        double totalSteadyKw = perDgSteadyKw * i;
-                        steadyDefKw = Math.max(0.0, deficitAfterWindKw - totalSteadyKw);
-
-                        double steadyEnergyKwh = steadyDefKw * (1.0 - tauEff);
-
-                        btEnergyKwh = startEnergyKwh + steadyEnergyKwh;
-                        btCurrentKw = Math.max(startDefKw, steadyDefKw);
-                    }
-
-                    boolean useBatteryBase =
-                            btAvail
-                                    && canBatteryBridge(battery, sp, btCurrentKw, 1.0, btDisCapKw)
-                                    && Battery.useBattery(sp, battery, btEnergyKwh, btDisCapKw);
-
-                    boolean allowStartBridge =
-                            (i > 0)
-                                    && btAvail
-                                    && (steadyDefKw <= SimulationConstants.EPSILON)
-                                    && canBatteryBridge(battery, sp, startDefKw, tauEff, btDisCapKw);
-
-                    boolean useBattery = useBatteryBase || allowStartBridge;
-
-                    if (useBattery) {
-                        double dischargeEnergyKwh = btEnergyKwh;
-                        double dischargeCurrentKw = btCurrentKw;
-
-                        if (allowStartBridge && !useBatteryBase) {
-                            dischargeEnergyKwh = startEnergyKwh;
-                            dischargeCurrentKw = startDefKw;
-                        }
-
-                        if (dischargeEnergyKwh > SimulationConstants.EPSILON) {
-                            battery.adjustCapacity(battery, -dischargeEnergyKwh, dischargeCurrentKw, false, considerDegradation);
-                            btNetKw += dischargeEnergyKwh;
-                        }
-
-                        dgToUse = i;
-                        break;
-                    }
-
-                    if (i == dgCountPlanned) {
-
-                        dgToUse = dgCountPlanned;
-
-                        if (btAvail) {
-
-                            final double maxByCurrentKw =
-                                    battery.getMaxCapacityKwh() * sp.getMaxDischargeCurrent();
-
-                            double soc = battery.getStateOfCharge();
-                            double availEnergyKwh = Math.max(0.0, soc) * battery.getMaxCapacityKwh();
-
-                            int R = Math.min(readyWorking, dgToUse);
-                            double readyMaxStartKw = R * dgMaxKw;
-
-                            startDefKw = Math.max(0.0, deficitAfterWindKw - readyMaxStartKw);
-                            startEnergyKwh = startDefKw * tauEff;
-
-                            if (startEnergyKwh > SimulationConstants.EPSILON && tauEff > SimulationConstants.EPSILON) {
-
-                                double maxStartEnergyByCurrentKwh = maxByCurrentKw * tauEff;
-
-                                double dischargeStartKwh = Math.min(startEnergyKwh, maxStartEnergyByCurrentKwh);
-                                dischargeStartKwh = Math.min(dischargeStartKwh, availEnergyKwh);
-
-                                if (dischargeStartKwh > SimulationConstants.EPSILON) {
-                                    double dischargeStartKw = dischargeStartKwh / tauEff;
-
-                                    battery.adjustCapacity(
-                                            battery,
-                                            -dischargeStartKwh,
-                                            dischargeStartKw,
-                                            false,
-                                            considerDegradation
-                                    );
-
-                                    btNetKw += dischargeStartKwh;
-                                    availEnergyKwh -= dischargeStartKwh;
-                                }
-                            }
-
-                            double steadyDur = 1.0 - tauEff;
-
-                            if (steadyDur > SimulationConstants.EPSILON) {
-
-                                double dgSteadyMaxKw = dgToUse * dgMaxKw;
-
-                                steadyDefKw = Math.max(0.0, deficitAfterWindKw - dgSteadyMaxKw);
-
-                                double steadyNeedEnergyKwh = steadyDefKw * steadyDur;
-
-                                if (steadyNeedEnergyKwh > SimulationConstants.EPSILON) {
-
-                                    double maxSteadyEnergyByCurrentKwh = maxByCurrentKw * steadyDur;
-
-                                    double dischargeSteadyKwh = Math.min(steadyNeedEnergyKwh, maxSteadyEnergyByCurrentKwh);
-                                    dischargeSteadyKwh = Math.min(dischargeSteadyKwh, availEnergyKwh);
-
-                                    if (dischargeSteadyKwh > SimulationConstants.EPSILON) {
-                                        double dischargeSteadyKw = dischargeSteadyKwh / steadyDur;
-
-                                        battery.adjustCapacity(
-                                                battery,
-                                                -dischargeSteadyKwh,
-                                                dischargeSteadyKw,
-                                                false,
-                                                considerDegradation
-                                        );
-
-                                        btNetKw += dischargeSteadyKwh;
-                                        availEnergyKwh -= dischargeSteadyKwh;
-                                    }
-                                }
-                            }
-                        }
-
-                        break;
-                    }
-                }
-
-                // ---- распределение по ДГУ (пуск + steady) ----
-                int R = Math.min(readyWorking, dgToUse);
-
-                double readyMaxStartKw = R * dgMaxKw;
-                double readyLoadStartKw = Math.min(deficitAfterWindKw, readyMaxStartKw);
-                double perReadyStartKw = (R > 0) ? (readyLoadStartKw / R) : 0.0;
-
-                double perDgSteadyKw = 0.0;
-                if (dgToUse > 0) {
-                    perDgSteadyKw = canUseOptimal
-                            ? (deficitAfterWindKw / dgToUse)
-                            : Math.min(deficitAfterWindKw / dgToUse, dgMaxKw);
-
-                    if (canUseOptimal && perDgSteadyKw > perDgOptimalKw) perDgSteadyKw = perDgOptimalKw;
-                }
-
-                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
-                    double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
-                    startDelayEnsEstimateKwh = startDefKw * tauEff;
-                }
-
-                boolean canCharge = btAvail
-                        && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON;
-
-                double chargeCapKw = 0.0;
-                if (canCharge) {
-                    chargeCapKw = battery.getChargeCapacity(sp);
-                    canCharge = chargeCapKw > SimulationConstants.EPSILON;
-                }
-
-                int used = 0;
-                double sumDieselKw = 0.0;
-
-                for (int k = 0; k < dgCountAll; k++) {
-                    DieselGenerator dg = dgs[k];
-
-                    if (!dg.isAvailable() || used >= dgToUse) {
-                        dg.setCurrentLoad(0.0);
-                        dg.setIdle(false);
-                        continue;
-                    }
-
-                    boolean wasWorking = dg.isWorking();
-
-                    double genKw = wasWorking
-                            ? (perReadyStartKw * tauEff + perDgSteadyKw * (1.0 - tauEff))
-                            : (perDgSteadyKw * (1.0 - tauEff));
-
-                    if (genKw > dgMaxKw) genKw = dgMaxKw;
-                    if (genKw < 0.0) genKw = 0.0;
-
-                    dg.setCurrentLoad(genKw);
-                    dg.addWorkTime(1, wasWorking ? 1 : 1 + SimulationConstants.DG_MAX_START_FACTOR);
-                    dg.startWork();
-
-                    sumDieselKw += genKw;
-                    used++;
-                }
-
-                // ===== IDLE reserve in wind deficit =====
-                if (windToLoadKw > SimulationConstants.EPSILON) {
-                    applyIdleReserveInWindDeficit(
-                            dgs,
-                            loadKw,
-                            windToLoadKw,
-                            cat1,
-                            cat2,
-                            btAvail,
-                            battery,
-                            sp,
-                            tauEff,
-                            btAvail ? battery.getDischargeCapacity(sp) : 0.0,
-                            dgRatedKw,
-                            dgMinKw,
-                            dgMaxKw
-                    );
-                }
-
-                // ===== ROTATING RESERVE (N-1) =====
-                if (considerRotationReserve) {
-                    sumDieselKw = applyRotationReserveNminus1(
-                            dgs,
-                            loadKw,
-                            windToLoadKw,
-                            btNetKw,
-                            btAvail,
-                            battery,
-                            sp,
-                            tauEff,
-                            dgMaxKw,
-                            dgMinKw,
-                            sumDieselKw
-                    );
-                }
-
-                // ===== FINAL: low-load/idle/burn based on FINAL currentLoad =====
-                boolean anyBurnThisHour = false;
-
-                for (DieselGenerator dg : dgs) {
-                    if (!dg.isAvailable()) continue;
-
-                    double p = dg.getCurrentLoad();
-                    if (Math.abs(p) <= SimulationConstants.EPSILON) {
-                        // not online -> no idle accounting
-                        dg.setIdle(false);
-//                        dg.resetIdleTime();
-                        continue;
-                    }
-
-                    // low-load check by absolute power
-                    if (Math.abs(p) + SimulationConstants.EPSILON < dgMinKw) {
-                        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-                            dg.setCurrentLoad(Math.max(dgMinKw, 0.0));
-                            anyBurnThisHour = true;
-                            dg.setIdle(false);
-                            dg.resetIdleTime();
-                        } else {
-                            dg.incrementIdleTime();
-                            dg.setIdle(true);
-                        }
-                    } else {
-                        dg.setIdle(false);
-                        dg.resetIdleTime();
-                    }
-                }
-
-                // ===== Финализация статусов ДГУ за час =====
-                finalizeStoppedDgs(dgs);
-
-                // ===== recompute diesel produced after possible burn =====
-                double sumFinalDieselKw = 0.0;
-                for (DieselGenerator dg : dgs) {
-                    if (!dg.isAvailable()) continue;
-                    double p = dg.getCurrentLoad();
-                    if (p > SimulationConstants.EPSILON) sumFinalDieselKw += p;
-                }
-                dgProducedKw = sumFinalDieselKw;
-
-                // ===== ENS из-за задержки пуска ДГУ =====
-                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
-                    double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
-                    startDelayEnsEstimateKwh = startDefKw * tauEff;
-                }
-
-                // ---- заряд от ДГУ ----
-                boolean allowChargeNow = canCharge && (considerChargeByDg || anyBurnThisHour);
-
-                double btDisToLoadKw = Math.max(0.0, btNetKw);
-                double needFromDieselToLoadKw = loadKw - windToLoadKw - btDisToLoadKw;
-                if (needFromDieselToLoadKw < 0.0) needFromDieselToLoadKw = 0.0;
-
-                double dieselSurplusKw = dgProducedKw - needFromDieselToLoadKw;
-                if (dieselSurplusKw < 0.0) dieselSurplusKw = 0.0;
-
-                double extraForChargeKw = 0.0;
-                if (allowChargeNow && dieselSurplusKw > SimulationConstants.EPSILON) {
-                    double ch = Math.min(dieselSurplusKw, chargeCapKw);
-                    if (ch > SimulationConstants.EPSILON) {
-                        battery.adjustCapacity(battery, +ch, ch, true, considerDegradation);
-                        btNetKw -= ch;
-                        extraForChargeKw = ch;
-                    }
-                }
-
-                dgToLoadKwLocal = Math.max(0.0, dgProducedKw - extraForChargeKw);
-            }
-        }
-
-        totals.fuelLiters += FUEL_MODEL.computeFuelLitersOneHour(bus.getDieselGenerators(), dgRatedKw);
-
-        double btDisToLoad = Math.max(0.0, btNetKw);
-
-        totals.wtToLoadKwh += windToLoadKw;
-        totals.dgToLoadKwh += dgToLoadKwLocal;
-        totals.btToLoadKwh += btDisToLoad;
-        totals.wreKwh += wreLocal;
-
-        if (hourWreRef != null) hourWreRef[0] += wreLocal;
-
-        double suppliedKw = windToLoadKw + dgToLoadKwLocal + btDisToLoad;
-        double defKw = loadKw - suppliedKw;
-        if (defKw < 0.0) defKw = 0.0;
-        totals.ensKwh += defKw;
-
-        double startEns = Math.min(defKw, Math.max(0.0, startDelayEnsEstimateKwh));
-        if (startEns > SimulationConstants.EPSILON) {
-            EnsAllocator.addEnsByCategoryProportional(totals, loadKw, startEns, cat1, cat2);
-        }
-        double restEns = Math.max(0.0, defKw - startEns);
-        if (restEns > SimulationConstants.EPSILON) {
-            EnsAllocator.addEnsByCategory(totals, loadKw, restEns, cat1, cat2);
-        }
-
-        if (trace.enabled()) {
-            trace.setBusValues(
-                    b,
-                    true,
-                    loadKw,
-                    windToLoadKw,
-                    dgToLoadKwLocal,
-                    btNetKw,
-                    defKw
-            );
-            trace.fillDgState(b, bus);
-            trace.fillBatteryState(b, bus.getBattery());
-        }
-    }
-
-
-    private static double[] computeEffectiveLoadsForSectional(SystemParameters sp,
-                                                              List<PowerBus> buses,
-                                                              boolean[] busAlive,
-                                                              int t,
-                                                              double cat1,
-                                                              double cat2) {
-        double[] out = new double[buses.size()];
-        for (int i = 0; i < buses.size(); i++) out[i] = buses.get(i).getLoadKw()[t];
-
-        if (buses.size() != 2) return out;
-        if (busAlive[0] == busAlive[1]) return out;
-
-        int dead = busAlive[0] ? 1 : 0;
-        int live = busAlive[0] ? 0 : 1;
-
-        PowerBus deadBus = buses.get(dead);
-        int busRepairTime = sp.getBusRepairTimeHours();
-        boolean firstRepairHour = (deadBus.getRepairDurationHours() == busRepairTime);
-
-        double ratio = firstRepairHour ? cat1 : (cat1 + cat2);
-        double transfer = out[dead] * ratio;
-
-        out[dead] = Math.max(0.0, out[dead] - transfer);
-        out[live] += transfer;
-        return out;
-    }
-
-
-    private static double[] computeEffectiveLoadsForDoubleBus(SystemParameters sp,
-                                                              List<PowerBus> buses,
-                                                              boolean[] busAlive,
-                                                              int t,
-                                                              double cat1,
-                                                              double cat2,
-                                                              double windV,
-                                                              double dgMaxKw) {
-        // Базовая нагрузка по шинам
-        double[] out = new double[buses.size()];
-        for (int i = 0; i < buses.size(); i++) out[i] = buses.get(i).getLoadKw()[t];
-
-        if (buses.size() != 2) return out;
-
-        // Если одна шина недоступна — используем ту же логику переноса (1-я сразу, 2-я с задержкой)
-        if (busAlive[0] != busAlive[1]) {
-            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2);
-        }
-
-        // Если обе недоступны или обе доступны — работаем далее только для случая "обе доступны"
-        if (!busAlive[0] && !busAlive[1]) return out;
-
-        // Перенос при дефиците: если на одной шине не хватает потенциальной генерации (WT + DGmax + АКБ),
-        // а на другой есть запас, переносим часть двухвводных потребителей (cat1+cat2) на другую шину.
-        double[] pot = new double[2];
-        for (int b = 0; b < 2; b++) {
-            PowerBus bus = buses.get(b);
-            double windPot = windPotentialNoSideEffects(bus, windV);
-            double dgPot = dieselPotential(bus, dgMaxKw);
-            Battery bt = bus.getBattery();
-            double btPot = (bt != null && bt.isAvailable()) ? bt.getDischargeCapacity(sp) : 0.0;
-            pot[b] = windPot + dgPot + btPot;
-        }
-
-        double deficit0 = Math.max(0.0, out[0] - pot[0]);
-        double deficit1 = Math.max(0.0, out[1] - pot[1]);
-        double surplus0 = Math.max(0.0, pot[0] - out[0]);
-        double surplus1 = Math.max(0.0, pot[1] - out[1]);
-
-        // Для DOUBLE_BUS при дефиците разрешаем переносить и III категорию (если требуется),
-        // т.е. теоретически переносима вся нагрузка. Перенос I/II при отказе шины остаётся
-        // в computeEffectiveLoadsForSectional(...).
-        double movableRatio = 1.0;
-
-        if (deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON) {
-            double maxMovable = out[0] * movableRatio;
-            double transfer = Math.min(deficit0, Math.min(surplus1, maxMovable));
-            out[0] = Math.max(0.0, out[0] - transfer);
-            out[1] += transfer;
-        } else if (deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON) {
-            double maxMovable = out[1] * movableRatio;
-            double transfer = Math.min(deficit1, Math.min(surplus0, maxMovable));
-            out[1] = Math.max(0.0, out[1] - transfer);
-            out[0] += transfer;
-        }
-
-        return out;
-    }
-
-    private static boolean shouldCloseTieBreakerThisHour(SystemParameters sp,
-                                                         List<PowerBus> buses,
-                                                         double[] loads,
-                                                         double windV,
-                                                         double dgMaxKw) {
-        double[] deficit = new double[2];
-        double[] surplus = new double[2];
-
-        for (int b = 0; b < 2; b++) {
-            PowerBus bus = buses.get(b);
-            double load = loads[b];
-
-            double windPot = windPotentialNoSideEffects(bus, windV);
-            double dgPot = dieselPotential(bus, dgMaxKw);
-
-            Battery bt = bus.getBattery();
-            double btPot = (bt != null && bt.isAvailable()) ? bt.getDischargeCapacity(sp) : 0.0;
-
-            double pot = windPot + dgPot + btPot;
-
-            deficit[b] = Math.max(0.0, load - pot);
-            surplus[b] = Math.max(0.0, pot - load);
-        }
-
-        // Замыкать межсекционный имеет смысл только если на одной секции есть дефицит,
-        // а на другой есть запас для покрытия (иначе объединение не помогает).
-        boolean close01 = deficit[0] > SimulationConstants.EPSILON && surplus[1] > SimulationConstants.EPSILON;
-        boolean close10 = deficit[1] > SimulationConstants.EPSILON && surplus[0] > SimulationConstants.EPSILON;
-        return close01 || close10;
-    }
-
-
-    private static double windPotentialNoSideEffects(PowerBus bus, double windV) {
-        double pot = 0.0;
-        for (WindTurbine wt : bus.getWindTurbines()) {
-            if (wt.isAvailable()) pot += wt.getPotentialGenerationKw(windV);
-        }
-        return pot;
-    }
-
-    private static double computeWindPotential(PowerBus bus, double windV) {
+    static double computeWindPotential(PowerBus bus, double windV) {
         double pot = 0.0;
         for (WindTurbine wt : bus.getWindTurbines()) {
             if (!wt.isAvailable()) continue;
@@ -949,367 +295,14 @@ public final class SingleRunSimulator {
         }
         return pot;
     }
-
-    private static double dieselPotential(PowerBus bus, double dgMaxKw) {
-        double pot = 0.0;
-        for (DieselGenerator dg : bus.getDieselGenerators()) {
-            if (dg.isAvailable()) pot += dgMaxKw;
-        }
-        return pot;
-    }
     // ======================================================================
 // FIXED: dispatchSectionalClosedOneHour
 //  - same fix: apply low-load/idle/burn AFTER rotating reserve,
 //    then recompute dgProducedKw and surplus-based charging decisions.
 // ======================================================================
-    private static SectionalClosedResult dispatchSectionalClosedOneHour(
-            SystemParameters sp,
-            List<PowerBus> buses,
-            double[] loadByBus,
-            double windV,
-            boolean considerDegradation,
-            boolean considerChargeByDg,
-            boolean considerRotationReserve,
-            double cat1,
-            double cat2,
-            double dgRatedKw,
-            double dgMaxKw,
-            double dgMinKw,
-            double perDgOptimalKw,
-            double dgStartDelayHours
-    ) {
-        PowerBus b0 = buses.get(0);
-        PowerBus b1 = buses.get(1);
-        b0.addWorkTime(1);
-        b1.addWorkTime(1);
 
-        double load0 = loadByBus[0];
-        double load1 = loadByBus[1];
-        double totalLoad = load0 + load1;
 
-        double windPot0 = computeWindPotential(b0, windV);
-        double windPot1 = computeWindPotential(b1, windV);
-        double windPot = windPot0 + windPot1;
-
-        double[] windToLoad = new double[2];
-        if (totalLoad > SimulationConstants.EPSILON) {
-            windToLoad[0] = Math.min(load0, windPot * (load0 / totalLoad));
-            windToLoad[1] = Math.min(load1, windPot * (load1 / totalLoad));
-        }
-        double usedWind = windToLoad[0] + windToLoad[1];
-        if (usedWind > windPot) {
-            double k = windPot / usedWind;
-            windToLoad[0] *= k;
-            windToLoad[1] *= k;
-            usedWind = windPot;
-        }
-
-        double rem0 = Math.max(0.0, load0 - windToLoad[0]);
-        double rem1 = Math.max(0.0, load1 - windToLoad[1]);
-
-        Battery bt0 = b0.getBattery();
-        Battery bt1 = b1.getBattery();
-        boolean bt0Avail = bt0 != null && bt0.isAvailable();
-        boolean bt1Avail = bt1 != null && bt1.isAvailable();
-
-        double bt0DisCap = bt0Avail ? bt0.getDischargeCapacity(sp) : 0.0;
-        double bt1DisCap = bt1Avail ? bt1.getDischargeCapacity(sp) : 0.0;
-
-        double[] btNet = new double[2]; // >0 discharge, <0 charge
-
-        double dis0 = bt0Avail ? Math.min(rem0, bt0DisCap) : 0.0;
-        if (dis0 > SimulationConstants.EPSILON && bt0Avail) {
-            bt0.adjustCapacity(bt0, -dis0, dis0, false, considerDegradation);
-            btNet[0] += dis0;
-            rem0 -= dis0;
-            bt0DisCap -= dis0;
-        }
-        double dis1 = bt1Avail ? Math.min(rem1, bt1DisCap) : 0.0;
-        if (dis1 > SimulationConstants.EPSILON && bt1Avail) {
-            bt1.adjustCapacity(bt1, -dis1, dis1, false, considerDegradation);
-            btNet[1] += dis1;
-            rem1 -= dis1;
-            bt1DisCap -= dis1;
-        }
-
-        if (rem0 > SimulationConstants.EPSILON && bt1Avail && bt1DisCap > SimulationConstants.EPSILON) {
-            double x = Math.min(rem0, bt1DisCap);
-            bt1.adjustCapacity(bt1, -x, x, false, considerDegradation);
-            btNet[1] += x;
-            rem0 -= x;
-            bt1DisCap -= x;
-        }
-        if (rem1 > SimulationConstants.EPSILON && bt0Avail && bt0DisCap > SimulationConstants.EPSILON) {
-            double x = Math.min(rem1, bt0DisCap);
-            bt0.adjustCapacity(bt0, -x, x, false, considerDegradation);
-            btNet[0] += x;
-            rem1 -= x;
-            bt0DisCap -= x;
-        }
-
-        double btDisToLoadTotal = Math.max(0.0, btNet[0]) + Math.max(0.0, btNet[1]);
-        double deficitAfterWindBt = rem0 + rem1;
-
-        List<DieselGenerator> allDgs = new ArrayList<>();
-        allDgs.addAll(b0.getDieselGenerators());
-        allDgs.addAll(b1.getDieselGenerators());
-        DieselGenerator[] dgs = DieselFleetController.getSortedDgs(allDgs);
-
-        int available = 0;
-        int readyWorking = 0;
-        for (DieselGenerator dg : dgs) {
-            if (dg.isAvailable()) available++;
-            if (dg.isWorking()) readyWorking++;
-        }
-
-        double dgProducedKw = 0.0;
-        double dgToLoadTotal = 0.0;
-        double wre = 0.0;
-        double startDelayEnsEstimateKwh = 0.0;
-
-        if (windPot >= totalLoad - SimulationConstants.EPSILON) {
-            double surplusKw = Math.max(0.0, windPot - totalLoad);
-
-            if (bt0Avail && bt0.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
-                double cap = bt0.getChargeCapacity(sp);
-                double ch = Math.min(surplusKw, cap);
-                if (ch > SimulationConstants.EPSILON) {
-                    bt0.adjustCapacity(bt0, +ch, ch, false, considerDegradation);
-                    btNet[0] -= ch;
-                    surplusKw -= ch;
-                }
-            }
-            if (bt1Avail && bt1.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
-                double cap = bt1.getChargeCapacity(sp);
-                double ch = Math.min(surplusKw, cap);
-                if (ch > SimulationConstants.EPSILON) {
-                    bt1.adjustCapacity(bt1, +ch, ch, false, considerDegradation);
-                    btNet[1] -= ch;
-                    surplusKw -= ch;
-                }
-            }
-
-            wre = Math.max(0.0, surplusKw);
-
-            if (ENABLE_ZERO_LOAD_ALL_DG_READY && totalLoad <= SimulationConstants.EPSILON) {
-                DieselFleetController.keepAllDieselsReadyHotStandby(b0);
-                DieselFleetController.keepAllDieselsReadyHotStandby(b1);
-            } else {
-                applyIdleReserveInWindSurplus(b0, sp, load0, windToLoad[0], cat1, cat2, bt0Avail, bt0, dgRatedKw, dgMinKw, dgStartDelayHours);
-                applyIdleReserveInWindSurplus(b1, sp, load1, windToLoad[1], cat1, cat2, bt1Avail, bt1, dgRatedKw, dgMinKw, dgStartDelayHours);
-            }
-
-        } else {
-            if (available > 0 && deficitAfterWindBt > SimulationConstants.EPSILON) {
-
-                final boolean canUseOptimal = (perDgOptimalKw * available >= deficitAfterWindBt);
-                final int needed = canUseOptimal
-                        ? (int) Math.ceil(deficitAfterWindBt / perDgOptimalKw)
-                        : (int) Math.ceil(deficitAfterWindBt / dgMaxKw);
-
-                final int dgCountPlanned = Math.min(needed, available);
-                int dgToUse = dgCountPlanned;
-
-                final boolean maintenanceStartedThisHour = DieselFleetController.isMaintenanceStartedThisHour(dgs);
-                final double tauEff = maintenanceStartedThisHour ? 0.0 : dgStartDelayHours;
-
-                int R = Math.min(readyWorking, dgToUse);
-
-                double readyMaxStartKw = R * dgMaxKw;
-                double readyLoadStartKw = Math.min(deficitAfterWindBt, readyMaxStartKw);
-                double perReadyStartKw = (R > 0) ? (readyLoadStartKw / R) : 0.0;
-
-                double perDgSteadyKw = 0.0;
-                if (dgToUse > 0) {
-                    perDgSteadyKw = canUseOptimal
-                            ? (deficitAfterWindBt / dgToUse)
-                            : Math.min(deficitAfterWindBt / dgToUse, dgMaxKw);
-                    if (canUseOptimal && perDgSteadyKw > perDgOptimalKw) perDgSteadyKw = perDgOptimalKw;
-                }
-
-                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
-                    double startDefKw = Math.max(0.0, deficitAfterWindBt - readyLoadStartKw);
-                    startDelayEnsEstimateKwh = startDefKw * tauEff;
-                }
-
-                double sumDieselKw = 0.0;
-                int used = 0;
-
-                // IMPORTANT: do NOT touch idleTime/burn here (loads may change after N-1).
-                for (int k = 0; k < dgs.length; k++) {
-                    DieselGenerator dg = dgs[k];
-                    if (!dg.isAvailable() || used >= dgToUse) {
-                        dg.setCurrentLoad(0.0);
-                        dg.setIdle(false);
-                        continue;
-                    }
-
-                    boolean wasWorking = dg.isWorking();
-                    double genKw = wasWorking
-                            ? (perReadyStartKw * tauEff + perDgSteadyKw * (1.0 - tauEff))
-                            : (perDgSteadyKw * (1.0 - tauEff));
-
-                    if (genKw > dgMaxKw) genKw = dgMaxKw;
-                    if (genKw < 0.0) genKw = 0.0;
-
-                    dg.setCurrentLoad(genKw);
-                    dg.addWorkTime(1, wasWorking ? 1 : 1 + SimulationConstants.DG_MAX_START_FACTOR);
-                    dg.startWork();
-
-                    sumDieselKw += genKw;
-                    used++;
-                }
-
-                if (usedWind > SimulationConstants.EPSILON) {
-                    applyIdleReserveInWindDeficit(
-                            dgs,
-                            totalLoad,
-                            usedWind,
-                            cat1,
-                            cat2,
-                            false,
-                            null,
-                            sp,
-                            tauEff,
-                            0.0,
-                            dgRatedKw,
-                            dgMinKw,
-                            dgMaxKw
-                    );
-                }
-
-                // N-1 may add DG and redistribute loads
-                if (considerRotationReserve) {
-                    sumDieselKw = applyRotationReserveNminus1(
-                            dgs,
-                            totalLoad,
-                            usedWind,
-                            btDisToLoadTotal,
-                            false,
-                            null,
-                            sp,
-                            tauEff,
-                            dgMaxKw,
-                            dgMinKw,
-                            sumDieselKw
-                    );
-                }
-
-                // FINAL: low-load/idle/burn based on FINAL currentLoad
-                boolean anyBurnThisHour = false;
-
-                for (DieselGenerator dg : dgs) {
-                    if (!dg.isAvailable()) continue;
-
-                    double p = dg.getCurrentLoad();
-                    if (Math.abs(p) <= SimulationConstants.EPSILON) {
-                        dg.setIdle(false);
-//                        dg.resetIdleTime();
-                        continue;
-                    }
-
-                    if (Math.abs(p) + SimulationConstants.EPSILON < dgMinKw) {
-                        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-                            dg.setCurrentLoad(Math.max(dgMinKw, 0.0));
-                            anyBurnThisHour = true;
-                            dg.setIdle(false);
-                            dg.resetIdleTime();
-                        } else {
-                            dg.incrementIdleTime();
-                            dg.setIdle(true);
-                        }
-                    } else {
-                        dg.setIdle(false);
-                        dg.resetIdleTime();
-                    }
-                }
-
-                finalizeStoppedDgs(dgs);
-
-                // recompute diesel produced after possible burn
-                double sumFinalDieselKw = 0.0;
-                for (DieselGenerator dg : dgs) {
-                    if (!dg.isAvailable()) continue;
-                    double p = dg.getCurrentLoad();
-                    if (p > SimulationConstants.EPSILON) sumFinalDieselKw += p;
-                }
-                dgProducedKw = sumFinalDieselKw;
-
-                // distribute diesel to remaining load
-                double needDieselToLoad = deficitAfterWindBt;
-                dgToLoadTotal = Math.min(needDieselToLoad, dgProducedKw);
-
-                // charge from DG surplus (to both batteries, own first)
-                double dieselSurplus = Math.max(0.0, dgProducedKw - dgToLoadTotal);
-                boolean allowChargeNow = considerChargeByDg || anyBurnThisHour;
-
-                if (allowChargeNow && dieselSurplus > SimulationConstants.EPSILON) {
-                    if (bt0Avail && bt0.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
-                        double cap = bt0.getChargeCapacity(sp);
-                        double ch = Math.min(dieselSurplus, cap);
-                        if (ch > SimulationConstants.EPSILON) {
-                            bt0.adjustCapacity(bt0, +ch, ch, true, considerDegradation);
-                            btNet[0] -= ch;
-                            dieselSurplus -= ch;
-                        }
-                    }
-                    if (bt1Avail && bt1.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
-                        double cap = bt1.getChargeCapacity(sp);
-                        double ch = Math.min(dieselSurplus, cap);
-                        if (ch > SimulationConstants.EPSILON) {
-                            bt1.adjustCapacity(bt1, +ch, ch, true, considerDegradation);
-                            btNet[1] -= ch;
-                            dieselSurplus -= ch;
-                        }
-                    }
-                }
-            }
-        }
-
-        double[] dgToLoad = new double[2];
-        double need0 = Math.max(0.0, load0 - windToLoad[0] - Math.max(0.0, btNet[0]));
-        double need1 = Math.max(0.0, load1 - windToLoad[1] - Math.max(0.0, btNet[1]));
-        double needSum = need0 + need1;
-        if (needSum > SimulationConstants.EPSILON) {
-            dgToLoad[0] = dgToLoadTotal * (need0 / needSum);
-            dgToLoad[1] = dgToLoadTotal * (need1 / needSum);
-        }
-
-        double[] def = new double[2];
-        double supplied0 = windToLoad[0] + dgToLoad[0] + Math.max(0.0, btNet[0]);
-        double supplied1 = windToLoad[1] + dgToLoad[1] + Math.max(0.0, btNet[1]);
-        def[0] = Math.max(0.0, load0 - supplied0);
-        def[1] = Math.max(0.0, load1 - supplied1);
-
-        double ens = def[0] + def[1];
-
-        double[] startEnsByBus = new double[2];
-        if (ens > SimulationConstants.EPSILON && startDelayEnsEstimateKwh > SimulationConstants.EPSILON) {
-            double startEnsTotal = Math.min(ens, startDelayEnsEstimateKwh);
-            startEnsByBus[0] = startEnsTotal * (def[0] / ens);
-            startEnsByBus[1] = startEnsTotal * (def[1] / ens);
-        }
-
-        double fuel = FUEL_MODEL.computeFuelLitersOneHour(b0.getDieselGenerators(), dgRatedKw)
-                + FUEL_MODEL.computeFuelLitersOneHour(b1.getDieselGenerators(), dgRatedKw);
-
-        return new SectionalClosedResult(
-                totalLoad,
-                ens,
-                wre,
-                windToLoad[0] + windToLoad[1],
-                dgToLoad[0] + dgToLoad[1],
-                Math.max(0.0, btNet[0]) + Math.max(0.0, btNet[1]),
-                fuel,
-                windToLoad,
-                dgToLoad,
-                btNet,
-                def,
-                startEnsByBus
-        );
-    }
-
-    private static boolean canBatteryBridge(
+    static boolean canBatteryBridge(
             Battery battery,
             SystemParameters sp,
             double requiredPowerKw,
@@ -1334,7 +327,7 @@ public final class SingleRunSimulator {
 
         return powerOk && energyOk;
     }
-    private static void applyIdleReserveInWindSurplus(
+    static void applyIdleReserveInWindSurplus(
             PowerBus bus,
             SystemParameters sp,
             double loadKw,
@@ -1435,7 +428,7 @@ public final class SingleRunSimulator {
         }
     }
 
-    private static void applyIdleReserveInWindDeficit(
+    static void applyIdleReserveInWindDeficit(
             DieselGenerator[] dgs,
             double loadKw,
             double windToLoadKw,
@@ -1523,7 +516,7 @@ public final class SingleRunSimulator {
         }
     }
 
-    private static double applyRotationReserveNminus1(
+    static double applyRotationReserveNminus1(
             DieselGenerator[] dgs,
             double loadKw,
             double windToLoadKw,
@@ -1649,7 +642,7 @@ public final class SingleRunSimulator {
         return currentSumDieselKw;
     }
 
-    private static void finalizeStoppedDgs(DieselGenerator[] dgs) {
+    static void finalizeStoppedDgs(DieselGenerator[] dgs) {
         for (DieselGenerator dg : dgs) {
             if (!dg.isAvailable()) continue;
 

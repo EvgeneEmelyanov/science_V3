@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import simcore.config.BusSystemType;
+import simcore.regression.RegressionRunner;
 
 //    TODO: 1. allowMaintenanceStart = true у Diesel --> несколько дгу в ТО можно одновременно
 //          2. горячего резерва нет
@@ -40,6 +41,21 @@ public class Main {
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         int mcIterations = 1;
+
+        // Режим регрессии: прокидываем управление в RegressionRunner и выходим
+        if (args != null && args.length > 0) {
+            String a0 = args[0];
+            if ("-generate".equals(a0) || "-verify".equals(a0)) {
+                try {
+                    simcore.regression.RegressionRunner.main(args);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.exit(1);
+                }
+                return;
+            }
+        }
+
 
         switch (loadType) {
             case GOK:
