@@ -74,7 +74,7 @@ public final class SimulationConstants {
     public static final double DG_MAX_POWER = 1;
     public static final double DG_OPTIMAL_POWER = 0.8;
     public static final double DG_START_DELAY_HOURS = 0.1;
-    public static final int DG_MAX_IDLE_HOURS = 4;
+    public static final int DG_MAX_IDLE_HOURS = 5;
     public static final int DG_MAX_START_FACTOR = 5;
 
     private SimulationConstants() {}

@@ -36,6 +36,7 @@ public final class SimulationTraceExporter {
                     int di = i + 1;
                     h.append(";B").append(bi).append("_D").append(di);
                     h.append(";B").append(bi).append("_D").append(di).append("_T");
+                    h.append(";B").append(bi).append("_D").append(di).append("_I");
                 }
 
                 h.append(";B").append(bi).append("_B");
@@ -66,6 +67,7 @@ public final class SimulationTraceExporter {
                 boolean[][] dgAvail = r.getDgAvailable();
                 boolean[][] dgMaint = r.getDgInMaintenance();
                 double[][] dgTotalT = r.getBusGenDgTotalTimeWorked();
+                int[][] dgIdleT = r.getBusGenDgIdleTime();
 
                 double[] btCap = r.getBtActualCapacity();
                 double[] btSoc = r.getBtActualSOC();
@@ -87,6 +89,7 @@ public final class SimulationTraceExporter {
                         }
 
                         s.append(';').append(f(dgTotalT[b][i]));
+                        s.append(';').append(dgIdleT[b][i]);
                     }
 
                     s.append(';').append(f(busB[b]));

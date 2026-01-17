@@ -140,6 +140,9 @@ final class SectionalClosedDispatcher {
                 SingleRunSimulator.applyIdleReserveInWindSurplus(b1, ctx.sp, load1, windToLoad[1], ctx.cat1, ctx.cat2, bt1Avail, bt1, ctx.dgRatedKw, ctx.dgMinKw, ctx.dgStartDelayHours);
             }
 
+            SingleRunSimulator.finalizeIdleAndBurn(dgs, ctx.dgMinKw);
+            SingleRunSimulator.finalizeStoppedDgs(dgs);
+
         } else {
             if (available > 0 && deficitAfterWindBt > SimulationConstants.EPSILON) {
 
@@ -236,34 +239,9 @@ final class SectionalClosedDispatcher {
                     );
                 }
 
-                // FINAL: low-load/idle/burn based on FINAL currentLoad
-                boolean anyBurnThisHour = false;
+                // ===== FINAL: low-load / idle / burn based on FINAL currentLoad =====
+                boolean anyBurnThisHour = SingleRunSimulator.finalizeIdleAndBurn(dgs, ctx.dgMinKw);
 
-                for (DieselGenerator dg : dgs) {
-                    if (!dg.isAvailable()) continue;
-
-                    double p = dg.getCurrentLoad();
-                    if (Math.abs(p) <= SimulationConstants.EPSILON) {
-                        dg.setIdle(false);
-//                        dg.resetIdleTime();
-                        continue;
-                    }
-
-                    if (Math.abs(p) + SimulationConstants.EPSILON < ctx.dgMinKw) {
-                        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-                            dg.setCurrentLoad(Math.max(ctx.dgMinKw, 0.0));
-                            anyBurnThisHour = true;
-                            dg.setIdle(false);
-                            dg.resetIdleTime();
-                        } else {
-                            dg.incrementIdleTime();
-                            dg.setIdle(true);
-                        }
-                    } else {
-                        dg.setIdle(false);
-                        dg.resetIdleTime();
-                    }
-                }
 
                 SingleRunSimulator.finalizeStoppedDgs(dgs);
 

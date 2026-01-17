@@ -88,6 +88,9 @@ final class PerBusDispatcher {
                         ctx.dgStartDelayHours
                 );
             }
+            DieselGenerator[] dgsFinal = DieselFleetController.getSortedDgs(bus);
+            SingleRunSimulator.finalizeIdleAndBurn(dgsFinal, ctx.dgMinKw);
+            SingleRunSimulator.finalizeStoppedDgs(dgsFinal);
 
         } else {
             // ===== Wind deficit case =====
@@ -367,35 +370,7 @@ final class PerBusDispatcher {
                 }
 
                 // ===== FINAL: low-load/idle/burn based on FINAL currentLoad =====
-                boolean anyBurnThisHour = false;
-
-                for (DieselGenerator dg : dgs) {
-                    if (!dg.isAvailable()) continue;
-
-                    double p = dg.getCurrentLoad();
-                    if (Math.abs(p) <= SimulationConstants.EPSILON) {
-                        // not online -> no idle accounting
-                        dg.setIdle(false);
-//                        dg.resetIdleTime();
-                        continue;
-                    }
-
-                    // low-load check by absolute power
-                    if (Math.abs(p) + SimulationConstants.EPSILON < ctx.dgMinKw) {
-                        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-                            dg.setCurrentLoad(Math.max(ctx.dgMinKw, 0.0));
-                            anyBurnThisHour = true;
-                            dg.setIdle(false);
-                            dg.resetIdleTime();
-                        } else {
-                            dg.incrementIdleTime();
-                            dg.setIdle(true);
-                        }
-                    } else {
-                        dg.setIdle(false);
-                        dg.resetIdleTime();
-                    }
-                }
+                boolean anyBurnThisHour = SingleRunSimulator.finalizeIdleAndBurn(dgs, ctx.dgMinKw);
 
                 // ===== Финализация статусов ДГУ за час =====
                 SingleRunSimulator.finalizeStoppedDgs(dgs);

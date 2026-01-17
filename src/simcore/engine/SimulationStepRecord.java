@@ -28,6 +28,9 @@ public class SimulationStepRecord {
     private final double[][] busGenDgTimeWorked;
     private final double[][] busGenDgTotalTimeWorked;
 
+    /** idleTime по ДГУ (целые часы) */
+    private final int[][] busGenDgIdleTime;
+
     // Состояние ДГУ
     private final boolean[][] dgAvailable;      // true = доступна
     private final boolean[][] dgInMaintenance;  // true = ТО
@@ -54,6 +57,7 @@ public class SimulationStepRecord {
                                 double[][] busGenDgHoursSinceMaintenance,
                                 double[][] busGenDgTimeWorked,
                                 double[][] busGenDgTotalTimeWorked,
+                                int[][] busGenDgIdleTime,
                                 boolean[][] dgAvailable,
                                 boolean[][] dgInMaintenance,
                                 double[] btActualCapacity,
@@ -78,6 +82,8 @@ public class SimulationStepRecord {
         this.busGenDgTimeWorked = deepCopy(busGenDgTimeWorked);
         this.busGenDgTotalTimeWorked = deepCopy(busGenDgTotalTimeWorked);
 
+        this.busGenDgIdleTime = deepCopy(busGenDgIdleTime);
+
         this.dgAvailable = deepCopy(dgAvailable);
         this.dgInMaintenance = deepCopy(dgInMaintenance);
 
@@ -92,6 +98,10 @@ public class SimulationStepRecord {
 
     private static boolean[][] deepCopy(boolean[][] array) {
         return Arrays.stream(array).map(boolean[]::clone).toArray(boolean[][]::new);
+    }
+
+    private static int[][] deepCopy(int[][] array) {
+        return Arrays.stream(array).map(int[]::clone).toArray(int[][]::new);
     }
 
     // --- Геттеры ---
@@ -153,6 +163,10 @@ public class SimulationStepRecord {
 
     public double[][] getBusGenDgTotalTimeWorked() {
         return deepCopy(busGenDgTotalTimeWorked);
+    }
+
+    public int[][] getBusGenDgIdleTime() {
+        return deepCopy(busGenDgIdleTime);
     }
 
     public boolean[][] getDgAvailable() {

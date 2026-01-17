@@ -49,6 +49,20 @@ public class DieselGenerator extends Equipment {
         this.ratedPowerKw = ratedPowerKw;
     }
 
+    private boolean wasIdleThisHour = false;
+
+    public void markIdleThisHour() {
+        wasIdleThisHour = true;
+    }
+
+    public boolean wasIdleThisHour() {
+        return wasIdleThisHour;
+    }
+
+    public void resetIdleHourFlag() {
+        wasIdleThisHour = false;
+    }
+
     public boolean isWorking() {
         return isWorking;
     }

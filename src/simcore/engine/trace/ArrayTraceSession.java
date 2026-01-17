@@ -23,6 +23,10 @@ public final class ArrayTraceSession implements TraceSession {
     private double[][] dgHoursSinceMaintenance;
     private double[][] dgTimeWorked;
     private double[][] dgTotalTimeWorked;
+
+    /** idleTime по ДГУ (целые часы) */
+    private int[][] dgIdleTime;
+
     private boolean[][] dgAvailable;
     private boolean[][] dgInMaintenance;
 
@@ -48,6 +52,8 @@ public final class ArrayTraceSession implements TraceSession {
         dgHoursSinceMaintenance = new double[busCount][];
         dgTimeWorked = new double[busCount][];
         dgTotalTimeWorked = new double[busCount][];
+        dgIdleTime = new int[busCount][];
+
         dgAvailable = new boolean[busCount][];
         dgInMaintenance = new boolean[busCount][];
 
@@ -91,6 +97,8 @@ public final class ArrayTraceSession implements TraceSession {
         dgHoursSinceMaintenance[busIndex] = new double[n];
         dgTimeWorked[busIndex] = new double[n];
         dgTotalTimeWorked[busIndex] = new double[n];
+        dgIdleTime[busIndex] = new int[n];
+
         dgAvailable[busIndex] = new boolean[n];
         dgInMaintenance[busIndex] = new boolean[n];
 
@@ -100,6 +108,8 @@ public final class ArrayTraceSession implements TraceSession {
             dgHoursSinceMaintenance[busIndex][i] = dg.getHoursSinceMaintenance();
             dgTimeWorked[busIndex][i] = dg.getTimeWorked();
             dgTotalTimeWorked[busIndex][i] = dg.getTotalTimeWorked();
+            dgIdleTime[busIndex][i] = dg.getIdleTime();
+
             dgAvailable[busIndex][i] = dg.isAvailable();
             dgInMaintenance[busIndex][i] = dg.isInMaintenance();
         }
@@ -141,6 +151,7 @@ public final class ArrayTraceSession implements TraceSession {
                 dgHoursSinceMaintenance,
                 dgTimeWorked,
                 dgTotalTimeWorked,
+                dgIdleTime,
                 dgAvailable,
                 dgInMaintenance,
                 btActualCapacity,

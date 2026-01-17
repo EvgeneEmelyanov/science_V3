@@ -66,6 +66,9 @@ public final class SingleRunSimulator {
         final double dgStartDelayHours = SimulationConstants.DG_START_DELAY_HOURS;
 
         for (int t = 0; t < hours; t++) {
+            if (t == 332) {
+                System.out.println();
+            }
             final double windV = windMs[t];
             final boolean doTrace = trace.enabled();
             trace.startHour(busCount);
@@ -302,6 +305,41 @@ public final class SingleRunSimulator {
 // ======================================================================
 
 
+    static boolean finalizeIdleAndBurn(DieselGenerator[] dgs, double dgMinKw) {
+        boolean anyBurnThisHour = false;
+
+        for (DieselGenerator dg : dgs) {
+            if (!dg.isAvailable()) continue;
+
+            double pAbs = Math.abs(dg.getCurrentLoad());
+
+            // ДГУ не онлайн -> idleTime не трогаем
+            if (pAbs <= SimulationConstants.EPSILON) {
+                dg.setIdle(false);
+                continue;
+            }
+
+            // Холостой ход / малая нагрузка
+            if (pAbs + SimulationConstants.EPSILON < dgMinKw) {
+                dg.incrementIdleTime();
+                dg.setIdle(true);
+
+                if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
+                    dg.setCurrentLoad(Math.max(dgMinKw, 0.0)); // прожиг
+                    dg.resetIdleTime();
+                    dg.setIdle(false);
+                    anyBurnThisHour = true;
+                }
+            } else {
+                // Нормальная нагрузка -> сбрасываем idleTime
+                dg.resetIdleTime();
+                dg.setIdle(false);
+            }
+        }
+
+        return anyBurnThisHour;
+    }
+
     static boolean canBatteryBridge(
             Battery battery,
             SystemParameters sp,
@@ -383,7 +421,7 @@ public final class SingleRunSimulator {
             }
             if (!dg.isWorking()) continue;
 
-            double genKw = idleOrBurnGenKw(dg, dgRatedKw, dgMinKw);
+            double genKw = idleOrBurnGenKw(dg, dgRatedKw);
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1);
             dg.startWork();
@@ -404,7 +442,7 @@ public final class SingleRunSimulator {
 
             dg.startWork();
 
-            double genKw = idleOrBurnGenKw(dg, dgRatedKw, dgMinKw);
+            double genKw = idleOrBurnGenKw(dg, dgRatedKw);
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1+ SimulationConstants.DG_MAX_START_FACTOR);
 
@@ -491,7 +529,7 @@ public final class SingleRunSimulator {
             if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
             if (!dg.isWorking()) continue;
 
-            double genKw = idleOrBurnGenKw(dg, dgRatedKw, dgMinKw);
+            double genKw = idleOrBurnGenKw(dg, dgRatedKw);
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1);
             dg.startWork();
@@ -508,7 +546,7 @@ public final class SingleRunSimulator {
 
             dg.startWork();
 
-            double genKw = idleOrBurnGenKw(dg, dgRatedKw, dgMinKw);
+            double genKw = idleOrBurnGenKw(dg, dgRatedKw);
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1+ SimulationConstants.DG_MAX_START_FACTOR);
 
@@ -654,18 +692,11 @@ public final class SingleRunSimulator {
         }
     }
 
-    private static double idleOrBurnGenKw(DieselGenerator dg, double dgRatedKw, double dgMinKw) {
-        double genKw = -0.15 * dgRatedKw;
-
-        if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-            genKw = Math.max(dgMinKw, 0.0);
-            dg.setIdle(false);
-            dg.resetIdleTime();
-        } else {
-            dg.incrementIdleTime();
-            dg.setIdle(true);
-        }
-
-        return genKw;
+    static double idleOrBurnGenKw(DieselGenerator dg, double dgRatedKw) {
+        // Холостой ход — это только режим мощности.
+        // Учёт времени холостого хода и решение о прожиге выполняются ОДИН РАЗ
+        // в финальном блоке "FINAL low-load/idle/burn" в dispatcher.
+        return -0.15 * dgRatedKw;
     }
+
 }
