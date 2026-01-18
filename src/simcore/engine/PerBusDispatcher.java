@@ -414,7 +414,7 @@ final class PerBusDispatcher {
             }
         }
 
-        ctx.totals.fuelLiters += SingleRunSimulator.FUEL_MODEL.computeFuelLitersOneHour(bus.getDieselGenerators(), ctx.dgRatedKw);
+        ctx.totals.fuelLiters += SingleRunSimulator.computeFuelLitersOneHour(bus.getDieselGenerators(), ctx.dgRatedKw);
 
         double btDisToLoad = Math.max(0.0, btNetKw);
 

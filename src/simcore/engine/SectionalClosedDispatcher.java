@@ -309,8 +309,8 @@ final class SectionalClosedDispatcher {
             startEnsByBus[1] = startEnsTotal * (def[1] / ens);
         }
 
-        double fuel = SingleRunSimulator.FUEL_MODEL.computeFuelLitersOneHour(b0.getDieselGenerators(), ctx.dgRatedKw)
-                + SingleRunSimulator.FUEL_MODEL.computeFuelLitersOneHour(b1.getDieselGenerators(), ctx.dgRatedKw);
+        double fuel = SingleRunSimulator.computeFuelLitersOneHour(b0.getDieselGenerators(), ctx.dgRatedKw)
+                + SingleRunSimulator.computeFuelLitersOneHour(b1.getDieselGenerators(), ctx.dgRatedKw);
 
         return new SectionalClosedResult(
                 totalLoad,

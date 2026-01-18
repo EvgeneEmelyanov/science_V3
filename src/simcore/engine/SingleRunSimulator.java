@@ -7,8 +7,6 @@ import simcore.config.BusSystemType;
 import simcore.model.*;
 import simcore.engine.failures.FailureStepper;
 import simcore.engine.diesel.DieselFleetController;
-import simcore.engine.fuel.FuelModel;
-import simcore.engine.fuel.LegacyFuelModel;
 import simcore.engine.metrics.EnsAllocator;
 import simcore.engine.step.NetworkFailureStep;
 import simcore.engine.bus.BusLoadAllocator;
@@ -24,7 +22,17 @@ import java.util.List;
 
 public final class SingleRunSimulator {
 
-    static final FuelModel FUEL_MODEL = new LegacyFuelModel();
+    /**
+     * Computes total fuel consumption for one hour using the per-DG method
+     * {@link DieselGenerator#fuelLitersOneHour(double)}.
+     */
+    static double computeFuelLitersOneHour(List<DieselGenerator> dgs, double ratedKw) {
+        double sum = 0.0;
+        for (DieselGenerator dg : dgs) {
+            sum += dg.fuelLitersOneHour(ratedKw);
+        }
+        return sum;
+    }
 
     static final boolean ENABLE_ZERO_LOAD_ALL_DG_READY = true;
     public SimulationMetrics simulate(SimInput input, long seed, boolean traceEnabled) {
@@ -66,9 +74,6 @@ public final class SingleRunSimulator {
         final double dgStartDelayHours = SimulationConstants.DG_START_DELAY_HOURS;
 
         for (int t = 0; t < hours; t++) {
-            if (t == 332) {
-                System.out.println();
-            }
             final double windV = windMs[t];
             final boolean doTrace = trace.enabled();
             trace.startHour(busCount);
