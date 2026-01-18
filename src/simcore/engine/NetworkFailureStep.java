@@ -23,7 +23,9 @@ public final class NetworkFailureStep {
                                      boolean[] busAvailBefore,
                                      boolean[] busAvailAfter,
                                      boolean[] busFailedThisHour,
-                                     boolean[] busAlive) {
+                                     boolean[] busAlive,
+                                     double[] rawLoadThisHourKw,
+                                     boolean deferMaintenanceUntilZeroLoad) {
 
         final int busCount = buses.size();
         final boolean tieWasClosedAtHourStart = (breaker != null && breaker.isClosed());
@@ -40,7 +42,13 @@ public final class NetworkFailureStep {
                 busAlive
         );
 
-        FailureStepper.updateEquipmentFailuresOneHour(considerFailures, buses, busAlive);
+        FailureStepper.updateEquipmentFailuresOneHour(
+                considerFailures,
+                buses,
+                busAlive,
+                rawLoadThisHourKw,
+                deferMaintenanceUntilZeroLoad
+        );
 
         if (tieWasClosedAtHourStart && breaker != null) {
 

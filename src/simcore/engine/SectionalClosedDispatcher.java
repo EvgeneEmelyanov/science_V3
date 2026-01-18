@@ -133,14 +133,16 @@ final class SectionalClosedDispatcher {
             wre = Math.max(0.0, surplusKw);
 
             if (SingleRunSimulator.ENABLE_ZERO_LOAD_ALL_DG_READY && totalLoad <= SimulationConstants.EPSILON) {
-                DieselFleetController.keepAllDieselsReadyHotStandby(b0);
-                DieselFleetController.keepAllDieselsReadyHotStandby(b1);
+                // In zero-load hours we do NOT keep DGs in isWorking==true state.
+                // "Ready" behavior for the next hour is provided via ctx.prevZeroLoadByBus.
+                DieselFleetController.stopAllDieselsOnBus(b0);
+                DieselFleetController.stopAllDieselsOnBus(b1);
             } else {
                 SingleRunSimulator.applyIdleReserveInWindSurplus(b0, ctx.sp, load0, windToLoad[0], ctx.cat1, ctx.cat2, bt0Avail, bt0, ctx.dgRatedKw, ctx.dgMinKw, ctx.dgStartDelayHours);
                 SingleRunSimulator.applyIdleReserveInWindSurplus(b1, ctx.sp, load1, windToLoad[1], ctx.cat1, ctx.cat2, bt1Avail, bt1, ctx.dgRatedKw, ctx.dgMinKw, ctx.dgStartDelayHours);
             }
 
-            SingleRunSimulator.finalizeIdleAndBurn(dgs, ctx.dgMinKw);
+            SingleRunSimulator.finalizeIdleAndBurn(ctx, dgs, ctx.dgMinKw);
             SingleRunSimulator.finalizeStoppedDgs(dgs);
 
         } else {
@@ -155,7 +157,13 @@ final class SectionalClosedDispatcher {
                 int dgToUse = dgCountPlanned;
 
                 final boolean maintenanceStartedThisHour = DieselFleetController.isMaintenanceStartedThisHour(dgs);
-                final double tauEff = maintenanceStartedThisHour ? 0.0 : ctx.dgStartDelayHours;
+                final boolean prevHourZeroLoad =
+                        SingleRunSimulator.ENABLE_ZERO_LOAD_ALL_DG_READY
+                                && ctx.prevZeroLoadByBus != null
+                                && ctx.prevZeroLoadByBus.length >= 2
+                                && ctx.prevZeroLoadByBus[0]
+                                && ctx.prevZeroLoadByBus[1];
+                final double tauEff = maintenanceStartedThisHour ? 0.0 : (prevHourZeroLoad ? 0.0 : ctx.dgStartDelayHours);
 
                 int R = Math.min(readyWorking, dgToUse);
 
@@ -240,7 +248,7 @@ final class SectionalClosedDispatcher {
                 }
 
                 // ===== FINAL: low-load / idle / burn based on FINAL currentLoad =====
-                boolean anyBurnThisHour = SingleRunSimulator.finalizeIdleAndBurn(dgs, ctx.dgMinKw);
+                boolean anyBurnThisHour = SingleRunSimulator.finalizeIdleAndBurn(ctx, dgs, ctx.dgMinKw);
 
 
                 SingleRunSimulator.finalizeStoppedDgs(dgs);

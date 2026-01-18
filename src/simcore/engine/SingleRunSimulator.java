@@ -15,17 +15,10 @@ import simcore.engine.trace.ArrayTraceSession;
 import simcore.engine.trace.NoTraceSession;
 import simcore.engine.trace.TraceSession;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-
 
 public final class SingleRunSimulator {
 
-    /**
-     * Computes total fuel consumption for one hour using the per-DG method
-     * {@link DieselGenerator#fuelLitersOneHour(double)}.
-     */
     static double computeFuelLitersOneHour(List<DieselGenerator> dgs, double ratedKw) {
         double sum = 0.0;
         for (DieselGenerator dg : dgs) {
@@ -35,6 +28,8 @@ public final class SingleRunSimulator {
     }
 
     static final boolean ENABLE_ZERO_LOAD_ALL_DG_READY = true;
+    static final boolean ENABLE_MAINTENANCE_ONLY_AT_ZERO_LOAD = false;
+
     public SimulationMetrics simulate(SimInput input, long seed, boolean traceEnabled) {
 
         final SimulationConfig config = input.getConfig();
@@ -61,7 +56,13 @@ public final class SingleRunSimulator {
         FailureStepper.initFailureModels(seed, considerFailures, buses, breaker, rooms);
 
         final Totals totals = new Totals();
-        final TraceSession trace = traceEnabled ? new ArrayTraceSession() : new NoTraceSession();final boolean[] busAvailBefore = new boolean[busCount];
+        final TraceSession trace = traceEnabled ? new ArrayTraceSession() : new NoTraceSession();
+
+        // For ENABLE_ZERO_LOAD_ALL_DG_READY: remember which buses had 0 load in previous hour.
+        final boolean[] prevZeroLoadByBus = new boolean[busCount];
+        final boolean[] zeroLoadThisHourByBus = new boolean[busCount];
+
+        final boolean[] busAvailBefore = new boolean[busCount];
         final boolean[] busAvailAfter = new boolean[busCount];
         final boolean[] busFailedThisHour = new boolean[busCount];
         final boolean[] busAlive = new boolean[busCount];
@@ -83,6 +84,34 @@ public final class SingleRunSimulator {
             double totalWreAtTime;
             final double[] hourWreRef = doTrace ? new double[]{0.0} : null;
 
+            // Raw (pre-transfer) loads for maintenance deferral decision.
+            final double[] rawLoadThisHourKw = new double[busCount];
+            for (int b = 0; b < busCount; b++) {
+                rawLoadThisHourKw[b] = buses.get(b).getLoadKw()[t];
+            }
+
+            NetworkFailureStep.updateOneHour(
+                    considerFailures,
+                    buses,
+                    breaker,
+                    rooms,
+                    roomIndexByBus,
+                    busAvailBefore,
+                    busAvailAfter,
+                    busFailedThisHour,
+                    busAlive,
+                    rawLoadThisHourKw,
+                    ENABLE_MAINTENANCE_ONLY_AT_ZERO_LOAD
+            );
+
+            // Snapshot DG "working" states at the beginning of the hour (after failures, before dispatch).
+            java.util.IdentityHashMap<DieselGenerator, Boolean> wasWorkingAtHourStart = new java.util.IdentityHashMap<>();
+            for (PowerBus bus : buses) {
+                for (DieselGenerator dg : bus.getDieselGenerators()) {
+                    wasWorkingAtHourStart.put(dg, dg.isWorking());
+                }
+            }
+
             final HourContext ctx = new HourContext(
                     sp,
                     windV,
@@ -98,21 +127,10 @@ public final class SingleRunSimulator {
                     dgStartDelayHours,
                     totals,
                     hourWreRef,
-                    trace
-            );
-
-
-
-            NetworkFailureStep.updateOneHour(
-                    considerFailures,
-                    buses,
-                    breaker,
-                    rooms,
-                    roomIndexByBus,
-                    busAvailBefore,
-                    busAvailAfter,
-                    busFailedThisHour,
-                    busAlive
+                    trace,
+                    prevZeroLoadByBus,
+                    ENABLE_MAINTENANCE_ONLY_AT_ZERO_LOAD,
+                    wasWorkingAtHourStart
             );
             // ===== Bus system logic (SINGLE_SECTIONAL_BUS / DOUBLE_BUS) =====
             final BusSystemType busType = sp.getBusSystemType();
@@ -170,9 +188,6 @@ public final class SingleRunSimulator {
                 totals.btToLoadKwh += r.btToLoadKwh;
                 totals.fuelLiters += r.fuelLiters;
 
-                // ENS по категориям: учитываем нюанс задержки пуска ДГУ.
-                // - часть ENS из-за задержки пуска (кратковременный провал) распределяем пропорционально категориям
-                // - остаток ENS (сброс нагрузки при дефиците) распределяем приоритетно: III -> II -> I
                 for (int b = 0; b < busCount; b++) {
                     double startEns = (r.startEnsByBus != null) ? r.startEnsByBus[b] : 0.0;
                     double totalEnsBus = r.defByBus[b];
@@ -206,7 +221,11 @@ public final class SingleRunSimulator {
 
                     Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
                     trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
+                }
 
+                // Update "previous hour zero-load" markers for the next hour.
+                for (int b = 0; b < busCount; b++) {
+                    prevZeroLoadByBus[b] = loads[b] <= SimulationConstants.EPSILON;
                 }
                 continue;
             }
@@ -223,6 +242,9 @@ public final class SingleRunSimulator {
                         b,
                         loadKw
                 );
+
+                // Update "previous hour zero-load" markers for the next hour.
+                prevZeroLoadByBus[b] = loadKw <= SimulationConstants.EPSILON;
             }
 
             if (doTrace) {
@@ -232,9 +254,7 @@ public final class SingleRunSimulator {
                 totalWreAtTime = hourWreRef[0];
                 Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
                 trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
-
             }
-
         }
 
         // ===== total failures by internal counters =====
@@ -292,7 +312,6 @@ public final class SingleRunSimulator {
     // ======================================================================
     // Helpers
     // ======================================================================
-// ======================================================================
 
     static double computeWindPotential(PowerBus bus, double windV) {
         double pot = 0.0;
@@ -303,14 +322,8 @@ public final class SingleRunSimulator {
         }
         return pot;
     }
-    // ======================================================================
-// FIXED: dispatchSectionalClosedOneHour
-//  - same fix: apply low-load/idle/burn AFTER rotating reserve,
-//    then recompute dgProducedKw and surplus-based charging decisions.
-// ======================================================================
 
-
-    static boolean finalizeIdleAndBurn(DieselGenerator[] dgs, double dgMinKw) {
+    static boolean finalizeIdleAndBurn(HourContext ctx, DieselGenerator[] dgs, double dgMinKw) {
         boolean anyBurnThisHour = false;
 
         for (DieselGenerator dg : dgs) {
@@ -326,22 +339,38 @@ public final class SingleRunSimulator {
 
             // Холостой ход / малая нагрузка
             if (pAbs + SimulationConstants.EPSILON < dgMinKw) {
-                dg.incrementIdleTime();
-                dg.setIdle(true);
 
-                if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
-                    dg.setCurrentLoad(Math.max(dgMinKw, 0.0)); // прожиг
-                    dg.resetIdleTime();
-                    dg.setIdle(false);
-                    anyBurnThisHour = true;
+                boolean wasWorkingAtHourStart = false;
+                if (ctx != null && ctx.wasWorkingAtHourStart != null) {
+                    Boolean v = ctx.wasWorkingAtHourStart.get(dg);
+                    wasWorkingAtHourStart = (v != null && v);
+                }
+                boolean startedThisHour = !wasWorkingAtHourStart;
+
+                int nextIdle = dg.getIdleTime() + 1;
+                boolean reachesBurnThresholdNow = nextIdle >= SimulationConstants.DG_MAX_IDLE_HOURS;
+
+                if (reachesBurnThresholdNow && startedThisHour) {
+                    // If the DG was started in the current hour (wasWorking=false at hour start),
+                    // do not force burn in the same hour even if the idle counter reaches the limit.
+                    dg.incrementIdleTime();
+                    dg.setIdle(true);
+                } else {
+                    dg.incrementIdleTime();
+                    dg.setIdle(true);
+
+                    if (dg.getIdleTime() >= SimulationConstants.DG_MAX_IDLE_HOURS) {
+                        dg.setCurrentLoad(Math.max(dgMinKw, 0.0)); // прожиг
+                        dg.resetIdleTime();
+                        dg.setIdle(false);
+                        anyBurnThisHour = true;
+                    }
                 }
             } else {
-                // Нормальная нагрузка -> сбрасываем idleTime
                 dg.resetIdleTime();
                 dg.setIdle(false);
             }
         }
-
         return anyBurnThisHour;
     }
 
@@ -677,11 +706,9 @@ public final class SingleRunSimulator {
                     sum += genKw;
                     usedRR++;
                 }
-
-                return sum; // как в исходнике: после перераспределения sumDiesel = sum
+                return sum;
             }
         }
-
         return currentSumDieselKw;
     }
 
@@ -698,9 +725,6 @@ public final class SingleRunSimulator {
     }
 
     static double idleOrBurnGenKw(DieselGenerator dg, double dgRatedKw) {
-        // Холостой ход — это только режим мощности.
-        // Учёт времени холостого хода и решение о прожиге выполняются ОДИН РАЗ
-        // в финальном блоке "FINAL low-load/idle/burn" в dispatcher.
         return -0.15 * dgRatedKw;
     }
 

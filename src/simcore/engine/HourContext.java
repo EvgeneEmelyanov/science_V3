@@ -2,6 +2,9 @@ package simcore.engine;
 
 import simcore.config.SystemParameters;
 import simcore.engine.trace.TraceSession;
+import simcore.model.DieselGenerator;
+
+import java.util.IdentityHashMap;
 
 /**
  * Immutable context for one simulation hour.
@@ -33,6 +36,23 @@ final class HourContext {
     final double[] hourWreRef;
     final TraceSession trace;
 
+    /**
+     * For each bus, whether the (effective) load in the previous hour was 0.
+     * Used to emulate "all DG ready" behavior without counting the DGs as working.
+     */
+    final boolean[] prevZeroLoadByBus;
+
+    /**
+     * If enabled, DG maintenance may only start during a 0-load period.
+     */
+    final boolean deferMaintenanceUntilZeroLoad;
+
+    /**
+     * Snapshot of dg.isWorking() at the beginning of the current hour (before any dispatch changes).
+     * Keyed by DieselGenerator instance identity.
+     */
+    final IdentityHashMap<DieselGenerator, Boolean> wasWorkingAtHourStart;
+
     HourContext(
             SystemParameters sp,
             double windV,
@@ -48,7 +68,10 @@ final class HourContext {
             double dgStartDelayHours,
             Totals totals,
             double[] hourWreRef,
-            TraceSession trace
+            TraceSession trace,
+            boolean[] prevZeroLoadByBus,
+            boolean deferMaintenanceUntilZeroLoad,
+            IdentityHashMap<DieselGenerator, Boolean> wasWorkingAtHourStart
     ) {
         this.sp = sp;
         this.windV = windV;
@@ -65,5 +88,8 @@ final class HourContext {
         this.totals = totals;
         this.hourWreRef = hourWreRef;
         this.trace = trace;
+        this.prevZeroLoadByBus = prevZeroLoadByBus;
+        this.deferMaintenanceUntilZeroLoad = deferMaintenanceUntilZeroLoad;
+        this.wasWorkingAtHourStart = wasWorkingAtHourStart;
     }
 }

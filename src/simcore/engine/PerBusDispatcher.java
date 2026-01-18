@@ -72,7 +72,10 @@ final class PerBusDispatcher {
             wreLocal = Math.max(0.0, surplusKw);
 
             if (SingleRunSimulator.ENABLE_ZERO_LOAD_ALL_DG_READY && loadKw <= SimulationConstants.EPSILON) {
-                DieselFleetController.keepAllDieselsReadyHotStandby(bus);
+                // In zero-load hours we do NOT keep DGs "working"; we only mark the hour as zero-load
+                // in SingleRunSimulator (prevZeroLoadByBus), so next hour the start delay is skipped,
+                // but the start penalty (1+DG_MAX_START_FACTOR) still applies.
+                DieselFleetController.stopAllDieselsOnBus(bus);
             } else {
                 SingleRunSimulator.applyIdleReserveInWindSurplus(
                         bus,
@@ -89,7 +92,7 @@ final class PerBusDispatcher {
                 );
             }
             DieselGenerator[] dgsFinal = DieselFleetController.getSortedDgs(bus);
-            SingleRunSimulator.finalizeIdleAndBurn(dgsFinal, ctx.dgMinKw);
+            SingleRunSimulator.finalizeIdleAndBurn(ctx, dgsFinal, ctx.dgMinKw);
             SingleRunSimulator.finalizeStoppedDgs(dgsFinal);
 
         } else {
@@ -103,7 +106,15 @@ final class PerBusDispatcher {
             final int dgCountAll = dgs.length;
 
             final boolean maintenanceStartedThisHour = DieselFleetController.isMaintenanceStartedThisHour(dgs);
-            final double tauEff = maintenanceStartedThisHour ? 0.0 : ctx.dgStartDelayHours;
+
+            final boolean prevHourZeroLoad =
+                    SingleRunSimulator.ENABLE_ZERO_LOAD_ALL_DG_READY
+                            && ctx.prevZeroLoadByBus != null
+                            && b >= 0
+                            && b < ctx.prevZeroLoadByBus.length
+                            && ctx.prevZeroLoadByBus[b];
+
+            final double tauEff = maintenanceStartedThisHour ? 0.0 : (prevHourZeroLoad ? 0.0 : ctx.dgStartDelayHours);
 
             int available = 0;
             int readyWorking = 0;
@@ -370,7 +381,7 @@ final class PerBusDispatcher {
                 }
 
                 // ===== FINAL: low-load/idle/burn based on FINAL currentLoad =====
-                boolean anyBurnThisHour = SingleRunSimulator.finalizeIdleAndBurn(dgs, ctx.dgMinKw);
+                boolean anyBurnThisHour = SingleRunSimulator.finalizeIdleAndBurn(ctx, dgs, ctx.dgMinKw);
 
                 // ===== Финализация статусов ДГУ за час =====
                 SingleRunSimulator.finalizeStoppedDgs(dgs);

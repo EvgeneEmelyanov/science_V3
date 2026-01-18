@@ -11,15 +11,12 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import simcore.config.BusSystemType;
-import simcore.regression.RegressionRunner;
 
 //    TODO: 1. allowMaintenanceStart = true у Diesel --> несколько дгу в ТО можно одновременно
 //          2. горячего резерва нет
 //          3. considerChargeByDg работает не правильно
-//          4. у меня сейчас вращ резерв и хх для 1 и 2 категории
-//          5. BATTERY_DEG_Z и BATTERY_DEG_H вопросительные значения - уточнить
-//          6. в ДГ уже перенес расчет топлива, осталось убрать и SingleRun
-//          7. нужно пересмотреть уставку мощности для проверки ХХ и ВР скорее всего относительно максимальной нагрузки или средней
+//          4. BATTERY_DEG_Z и BATTERY_DEG_H вопросительные значения - уточнить
+//          5. нужно пересмотреть уставку мощности для проверки ХХ и ВР скорее всего относительно максимальной нагрузки или средней
 
 public class Main {
 
@@ -36,26 +33,12 @@ public class Main {
         String resultsXlsxPath = "D:/results.xlsx";
         String traceCsvPath = "D:/trace.csv";
 
-        LoadType loadType = LoadType.SELHOZ;
+        LoadType loadType = LoadType.KOMUNAL;
         RunMode mode = RunMode.SINGLE;
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
-
+        int threads = Runtime.getRuntime().availableProcessors();
+        long mcBaseSeed = 1_000_000L;
         int mcIterations = 1;
-
-        // Режим регрессии: прокидываем управление в RegressionRunner и выходим
-        if (args != null && args.length > 0) {
-            String a0 = args[0];
-            if ("-generate".equals(a0) || "-verify".equals(a0)) {
-                try {
-                    simcore.regression.RegressionRunner.main(args);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    System.exit(1);
-                }
-                return;
-            }
-        }
-
 
         switch (loadType) {
             case GOK:
@@ -79,11 +62,7 @@ public class Main {
                 MAX_LOAD = 1346;
                 break;
         }
-
         MAX_LOAD = 1346;
-
-        int threads = Runtime.getRuntime().availableProcessors();
-        long mcBaseSeed = 1_000_000L;
 
         try {
             // 1) входные данные
@@ -95,15 +74,13 @@ public class Main {
             // 3) сетка параметров
 
             // ===== Прямоугольные сетки =====
-//            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
-            double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
-//            double[] param1 = new double[]{1, 2, 3, 4, 5};
+            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+//            double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
 //            double[] param2 = new double[]{0.0, 67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1, 538.4, 605.7, 673.0};
-            double[] param2 = new double[]{0.0, 67.3, 134.6, 269.2, 403.8, 538.4, 673.0};
-
+            double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
 
             // ===== Треугольная сетка категорий (k1,k2,k3) =====
-            final boolean sweepCatsTriangle = true;
+            final boolean sweepCatsTriangle = false;
             final double catStep = 0.1;
 
             if (mode == RunMode.SWEEP_2 && sweepCatsTriangle) {
@@ -150,18 +127,6 @@ public class Main {
         }
     }
 
-    private static double[] buildGrid01(double step) {
-        if (step <= 0) throw new IllegalArgumentException("step must be > 0");
-        int n = (int) Math.round(1.0 / step);
-        double check = n * step;
-        if (Math.abs(check - 1.0) > 1e-9) {
-            throw new IllegalArgumentException("step must divide 1.0 exactly (e.g. 0.05, 0.025). step=" + step);
-        }
-        double[] grid = new double[n + 1];
-        for (int i = 0; i <= n; i++) grid[i] = i * step;
-        return grid;
-    }
-
     // TODO ТУТ ЗАДАЮ КАКИЕ ПАРАМЕТРЫ МЕНЯТЬ В SWEEP
     private static List<SystemParameters> buildParamSets(RunMode mode,
                                                          SystemParameters baseParams,
@@ -187,7 +152,7 @@ public class Main {
             return paramSets;
         }
 
-//        // SWEEP_2
+        // SWEEP_2:
 //        for (double p1 : param1) {
 //            for (double p2 : param2) {
 //                SystemParameters p = SystemParametersBuilder.from(baseParams)
@@ -203,6 +168,16 @@ public class Main {
 //                SystemParameters p = SystemParametersBuilder.from(baseParams)
 //                        .setNonReserveDischargeLevel(p1)
 //                        .setBatteryCapacityKwhPerBus(p2)
+//                        .build();
+//                paramSets.add(p);
+//            }
+//        }
+
+//        for (double p1 : param1) {
+//            for (double p2 : param2) {
+//                SystemParameters p = SystemParametersBuilder.from(baseParams)
+//                        .setMaxDischargeCurrent(p1)
+//                        .setNonReserveDischargeLevel(p2)
 //                        .build();
 //                paramSets.add(p);
 //            }
@@ -226,5 +201,17 @@ public class Main {
         }
 
         return paramSets;
+    }
+
+    private static double[] buildGrid01(double step) {
+        if (step <= 0) throw new IllegalArgumentException("step must be > 0");
+        int n = (int) Math.round(1.0 / step);
+        double check = n * step;
+        if (Math.abs(check - 1.0) > 1e-9) {
+            throw new IllegalArgumentException("step must divide 1.0 exactly (e.g. 0.05, 0.025). step=" + step);
+        }
+        double[] grid = new double[n + 1];
+        for (int i = 0; i <= n; i++) grid[i] = i * step;
+        return grid;
     }
 }

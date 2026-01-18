@@ -1,5 +1,6 @@
 package simcore.engine.failures;
 
+import simcore.config.SimulationConstants;
 import simcore.model.*;
 
 import java.util.List;
@@ -100,7 +101,13 @@ public final class FailureStepper {
         }
     }
 
-    public static void updateEquipmentFailuresOneHour(boolean considerFailures, List<PowerBus> buses, boolean[] busAlive) {
+    public static void updateEquipmentFailuresOneHour(
+            boolean considerFailures,
+            List<PowerBus> buses,
+            boolean[] busAlive,
+            double[] rawLoadThisHourKw,
+            boolean deferMaintenanceUntilZeroLoad
+    ) {
         for (int b = 0; b < buses.size(); b++) {
             if (!busAlive[b]) continue;
 
@@ -121,8 +128,17 @@ public final class FailureStepper {
             }
 
             // (B) Обновляем ДГУ по очереди; только первой разрешаем старт ТО.
+            final boolean zeroLoadThisHour =
+                    rawLoadThisHourKw != null
+                            && b < rawLoadThisHourKw.length
+                            && rawLoadThisHourKw[b] <= SimulationConstants.EPSILON;
+
             for (DieselGenerator dg : bus.getDieselGenerators()) {
                 boolean allowMaintenanceStart = !maintenanceOnBus;
+                if (allowMaintenanceStart && deferMaintenanceUntilZeroLoad && !zeroLoadThisHour) {
+                    // Postpone the beginning of maintenance until a 0-load hour.
+                    allowMaintenanceStart = false;
+                }
 
                 dg.updateFailureOneHour(considerFailures, allowMaintenanceStart);
 
