@@ -72,9 +72,6 @@ final class PerBusDispatcher {
             wreLocal = Math.max(0.0, surplusKw);
 
             if (SingleRunSimulator.ENABLE_ZERO_LOAD_ALL_DG_READY && loadKw <= SimulationConstants.EPSILON) {
-                // In zero-load hours we do NOT keep DGs "working"; we only mark the hour as zero-load
-                // in SingleRunSimulator (prevZeroLoadByBus), so next hour the start delay is skipped,
-                // but the start penalty (1+DG_MAX_START_FACTOR) still applies.
                 DieselFleetController.stopAllDieselsOnBus(bus);
             } else {
                 SingleRunSimulator.applyIdleReserveInWindSurplus(
@@ -345,7 +342,14 @@ final class PerBusDispatcher {
                 }
 
                 // ===== IDLE reserve in wind deficit =====
-                if (windToLoadKw > SimulationConstants.EPSILON) {
+                // Выбор между ХХ и ВР:
+                // - если ДГУ НЕ используются для обеспечения нагрузки (ветер >= нагрузка, либо ветер+АКБ закрывают дефицит),
+                //   проверка готовности выполняется через ХХ (поддерживаем ДГУ "горячими").
+                // - если ДГУ используются вместе с ветром (ветер+ДГУ, либо ветер+ДГУ+АКБ), ХХ не нужен;
+                //   вместо этого требуется ВР (N-1).
+                boolean dgUsedForLoad = sumDieselKw > SimulationConstants.EPSILON;
+
+                if (!dgUsedForLoad && windToLoadKw > SimulationConstants.EPSILON) {
                     SingleRunSimulator.applyIdleReserveInWindDeficit(
                             dgs,
                             loadKw,
@@ -364,7 +368,8 @@ final class PerBusDispatcher {
                 }
 
                 // ===== ROTATING RESERVE (N-1) =====
-                if (ctx.considerRotationReserve) {
+                // Вращающийся резерв имеет смысл только когда ДГУ реально онлайн (есть выработка на нагрузку).
+                if (ctx.considerRotationReserve && dgUsedForLoad) {
                     sumDieselKw = SingleRunSimulator.applyRotationReserveNminus1(
                             dgs,
                             loadKw,
@@ -376,8 +381,16 @@ final class PerBusDispatcher {
                             tauEff,
                             ctx.dgMaxKw,
                             ctx.dgMinKw,
-                            sumDieselKw
+                            sumDieselKw,
+                            ctx.cat1,
+                            ctx.cat2
                     );
+                }
+                double firstsumFinalDieselKw = 0.0;
+                for (DieselGenerator dg : dgs) {
+                    if (!dg.isAvailable()) continue;
+                    double p = dg.getCurrentLoad();
+                    if (p > SimulationConstants.EPSILON) firstsumFinalDieselKw += p;
                 }
 
                 // ===== FINAL: low-load/idle/burn based on FINAL currentLoad =====
@@ -393,7 +406,8 @@ final class PerBusDispatcher {
                     double p = dg.getCurrentLoad();
                     if (p > SimulationConstants.EPSILON) sumFinalDieselKw += p;
                 }
-                dgProducedKw = sumFinalDieselKw;
+//                dgProducedKw = sumFinalDieselKw;
+                dgProducedKw = Math.min(firstsumFinalDieselKw, sumFinalDieselKw);
 
                 // ===== ENS из-за задержки пуска ДГУ =====
                 if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {

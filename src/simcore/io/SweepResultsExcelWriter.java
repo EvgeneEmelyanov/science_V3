@@ -103,16 +103,16 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "BT_kWh", headerStyle);
 
             // Outputs (Economics must be first output column)
-            c = writeHeader(hdr, c, "Econ", headerStyle);
+            c = writeHeader(hdr, c, "Затраты млн.руб.", headerStyle);
 
-            c = writeHeader(hdr, c, "ENS_mean", headerStyle);
+            c = writeHeader(hdr, c, "ENS,кВт∙ч", headerStyle);
             c = writeHeader(hdr, c, "ENS_ciLo", headerStyle);
             c = writeHeader(hdr, c, "ENS_ciHi", headerStyle);
             c = writeHeader(hdr, c, "ENS_reqN", headerStyle);
             c = writeHeader(hdr, c, "ENS1_mean", headerStyle);
             c = writeHeader(hdr, c, "ENS2_mean", headerStyle);
-            c = writeHeader(hdr, c, "Fuel_ML", headerStyle);
-            c = writeHeader(hdr, c, "Moto_kh", headerStyle); // тыс. моточасов
+            c = writeHeader(hdr, c, "Расход топлива,\nтыс.тонн", headerStyle);
+            c = writeHeader(hdr, c, "Моточасы,\nтыс.мч", headerStyle);
             c = writeHeader(hdr, c, "WRE_%", headerStyle);
             c = writeHeader(hdr, c, "WT_%", headerStyle);
             c = writeHeader(hdr, c, "DG_%", headerStyle);
@@ -333,13 +333,13 @@ public final class SweepResultsExcelWriter {
                 int top = 0;
 
                 if (isTriangular) {
-                    top = writeTriangularGridBlock(grid, "Econ", top, param1, param2,
+                    top = writeTriangularGridBlock(grid, "Затраты млн.руб", top, param1, param2,
                             econRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "ENS_mean", top + 2, param1, param2,
+                    top = writeTriangularGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
                             ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "Fuel_ML", top + 2, param1, param2,
+                    top = writeTriangularGridBlock(grid, "Расход топлива, тыс.тонн", top + 2, param1, param2,
                             fuelRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "Moto_kh", top + 2, param1, param2,
+                    top = writeTriangularGridBlock(grid, "Моточасы, тыс.мч", top + 2, param1, param2,
                             motoRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS1_mean", top + 2, param1, param2,
                             ens1Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
@@ -361,13 +361,13 @@ public final class SweepResultsExcelWriter {
                             failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
 
                 } else {
-                    top = writeGridBlock(grid, "Econ", top, param1, param2,
+                    top = writeGridBlock(grid, "Затраты млн.руб.", top, param1, param2,
                             econRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "ENS_mean", top + 2, param1, param2,
+                    top = writeGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
                             ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "Fuel_ML", top + 2, param1, param2,
+                    top = writeGridBlock(grid, "Расход топлива, тыс.тонн", top + 2, param1, param2,
                             fuelRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "Moto_kh", top + 2, param1, param2,
+                    top = writeGridBlock(grid, "Моточасы, тыс.мч", top + 2, param1, param2,
                             motoRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS1_mean", top + 2, param1, param2,
                             ens1Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
@@ -419,24 +419,18 @@ public final class SweepResultsExcelWriter {
         cell.setCellStyle(intStyle);
     }
 
-    /**
-     * Economics inputs block (prices only).
-     * Layout:
-     *  A: price/value (INTEGER)
-     *  B: label
-     */
     private static int writeEconomicsInputsBlock(Sheet raw,
                                                  int startRow0,
                                                  CellStyle moneyStyle,
                                                  CellStyle headerStyle) {
 
         // базовые стоимости (целые значения, без дробной части)
-        startRow0 = writeEconRow(raw, startRow0, 2_700_000L,  "РУ", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 60_000L,     "ДГУ 1кВт", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, 0L,  "РУ", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, 0L,     "ДГУ 1кВт", moneyStyle, headerStyle);
         startRow0 = writeEconRow(raw, startRow0, 1_600L,      "ДГУ 1 тыс.мчт/1 кВт", moneyStyle, headerStyle);
         startRow0 = writeEconRow(raw, startRow0, 90_000_000L, "топливо 1 кт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 200_000L,    "ВЭУ 1 кВт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 3_000L,      "ВЭУ 1 кВт/год", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, 0L,    "ВЭУ 1 кВт", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, 0L,      "ВЭУ 1 кВт/год", moneyStyle, headerStyle);
         startRow0 = writeEconRow(raw, startRow0, 88_000L,     "АКБ 1 кВт*ч", moneyStyle, headerStyle);
         startRow0 = writeEconRow(raw, startRow0, 2_200L,      "АКБ 1 кВт*ч/год", moneyStyle, headerStyle);
         startRow0 = writeEconRow(raw, startRow0, 7_000L,      "ущерб 1 кат за 1 кВт*ч", moneyStyle, headerStyle);
