@@ -12,7 +12,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import simcore.config.BusSystemType;
 
-//    TODO: 1. allowMaintenanceStart = true у Diesel --> несколько дгу в ТО можно одновременно
+//    TODO: 1. allowMaintenanceStart = true у Diesel --> сейчас только одна дгу в ТО
 //          2. горячего резерва нет
 //          3. considerChargeByDg работает не правильно
 //          4. BATTERY_DEG_Z и BATTERY_DEG_H вопросительные значения - уточнить
@@ -32,12 +32,12 @@ public class Main {
         String resultsXlsxPath = "D:/results.xlsx";
         String traceCsvPath = "D:/trace.csv";
 
-        LoadType loadType = LoadType.GOK;
+        LoadType loadType = LoadType.def;
         RunMode mode = RunMode.SWEEP_2;
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
-        int mcIterations = 100;
+        int mcIterations = 10;
 
         switch (loadType) {
             case GOK:

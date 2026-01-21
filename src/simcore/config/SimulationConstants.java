@@ -51,7 +51,7 @@ public final class SimulationConstants {
      * Ослабление влияния C-rate в режиме "короткого мостика" (0..1).
      * 0.5 означает "в 2 раза слабее токовый штраф".
      */
-    public static final double BATTERY_BRIDGE_CRATE_RELIEF = 1;
+    public static final double BATTERY_BRIDGE_CRATE_RELIEF = 0.5;
 
     /**
      * Календарная деградация (опционально), доля от nominalCapacityKwh в год.

@@ -10,7 +10,7 @@ public class WindTurbine extends Equipment {
     private static final double V_CUT_OUT_MS = 25.0;
 
     /** КПД ВЭУ */
-    private static final double EFFICIENCY = 0.9;
+    private static final double EFFICIENCY = 1;
 
     /**
      * @param id                   id ВЭУ в системе

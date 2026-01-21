@@ -116,8 +116,6 @@ public final class FailureStepper {
             // WT
             for (WindTurbine wt : bus.getWindTurbines()) wt.updateFailureOneHour(considerFailures);
 
-            // ===== DG: только одна ДГУ может начать/быть в ТО на шине =====
-
             // (A) Есть ли уже ДГУ в ТО с прошлого часа?
             boolean maintenanceOnBus = false;
             for (DieselGenerator dg : bus.getDieselGenerators()) {

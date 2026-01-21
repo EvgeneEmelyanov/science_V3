@@ -27,10 +27,10 @@ public final class ScenarioFactory {
     public static SystemParameters defaultParams(BusSystemType busSystemType) {
         return new SystemParameters(
                 busSystemType,
-                0.65, 0.25,
+                0.1, 0.4,
                 4, 500,
                 6, 250,
-                0,
+                250,
                 1.0, 2.0, 0.8,
                 1.94, 46,
                 4.75, 50,

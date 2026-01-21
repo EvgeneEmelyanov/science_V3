@@ -1,6 +1,5 @@
 package simcore;
 
-import simcore.Main;
 import simcore.config.BusSystemType;
 import simcore.config.SimulationConfig;
 import simcore.config.SystemParameters;
@@ -17,14 +16,15 @@ public final class MainSobol {
 
     public static void main(String[] args) {
 
-        String loadFilePath = "D:/01_Load.txt";
-        String windFilePath = "D:/02_Wind.txt";
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        String loadFilePath = "D:/08_ModelingData/01_Load.txt";
+        String windFilePath = "D:/08_ModelingData/02_Wind.txt";
+        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         // Sobol settings
-        int sobolN = 2; // размер A/B
-        int mcIterations = 2;
+        int sobolN = 100; // размер A/B
+        int mcIterations = 100;
         long mcBaseSeed = 1_000_000L;
+        Main.MAX_LOAD = 1000;
         int threads = Runtime.getRuntime().availableProcessors();
 
         ExecutorService ex = null;
@@ -41,11 +41,11 @@ public final class MainSobol {
                     TunableParamId.WT_FAILURE_RATE,
                     TunableParamId.DG_FAILURE_RATE,
                     TunableParamId.BT_FAILURE_RATE,
-                    TunableParamId.BUS_FAILURE_RATE
-//                    TunableParamId.BRK_FAILURE_RATE,
-//                    TunableParamId.BT_MAX_CHARGE_CURRENT,
-//                    TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-//                    TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+                    TunableParamId.BUS_FAILURE_RATE,
+                    TunableParamId.BRK_FAILURE_RATE,
+                    TunableParamId.BT_MAX_CHARGE_CURRENT,
+                    TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                    TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
             );
 
             SobolConfig sobolCfg = SobolConfig.fromIds(

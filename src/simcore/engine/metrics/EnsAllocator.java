@@ -12,7 +12,6 @@ public final class EnsAllocator {
     private EnsAllocator() {}
 
     public static void addEnsByCategory(Totals totals, double loadKw, double ensKw, double cat1, double cat2) {
-        // Алгоритм 1:1 с прежним SingleRunSimulator
         if (ensKw <= SimulationConstants.EPSILON) return;
 
         double ens1 = 0.0;
@@ -36,7 +35,6 @@ public final class EnsAllocator {
     }
 
     public static void addEnsByCategoryProportional(Totals totals, double loadKw, double ensKwh, double cat1, double cat2) {
-        // Алгоритм 1:1 с прежним SingleRunSimulator
         if (ensKwh <= SimulationConstants.EPSILON) return;
 
         double cat3 = Math.max(0.0, 1.0 - cat1 - cat2);

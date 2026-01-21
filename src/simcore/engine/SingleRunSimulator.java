@@ -225,10 +225,6 @@ public final class SingleRunSimulator {
                 continue;
             }
 
-            if (t == 43) {
-                System.out.println();
-            }
-
             // ===== Standard per-bus dispatch =====
             for (int b = 0; b < busCount; b++) {
                 final PowerBus bus = buses.get(b);
