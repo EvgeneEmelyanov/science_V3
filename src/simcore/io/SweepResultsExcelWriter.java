@@ -102,7 +102,8 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "WT_kW", headerStyle);
             c = writeHeader(hdr, c, "BT_kWh", headerStyle);
 
-            // Outputs (Economics must be first output column)
+            // Outputs
+            c = writeHeader(hdr, c, "LCOE, руб/кВт∙ч", headerStyle);
             c = writeHeader(hdr, c, "Затраты млн.руб.", headerStyle);
 
             c = writeHeader(hdr, c, "ENS,кВт∙ч", headerStyle);
@@ -126,6 +127,19 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "FailBt", headerStyle);
             c = writeHeader(hdr, c, "BtRepl", headerStyle);
             c = writeHeader(hdr, c, "FailBrk", headerStyle);
+
+            // ENS event statistics (mean counts over the horizon)
+            c = writeHeader(hdr, c, "ENS_evtN", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evtStart_lt1h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt1h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt2h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt3h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt4h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt5_8h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt9_12h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt13_24h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evtGt24h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evtMaxH", headerStyle);
 
             // ===== RAW rows =====
             // Economics inputs block is written BELOW the results (prices only).
@@ -199,6 +213,9 @@ public final class SweepResultsExcelWriter {
                 final int btKwhColIdx = cc;
                 writeNumber(rr, cc++, btTotalKwh, centeredNumberStyle);
 
+                // ---- LCOE ----
+                writeNumber(rr, cc++, e.meanLcoeRubPerKwh, centeredNumberStyle);
+
                 // ---- Econ cell ----
                 final int econColIdx = cc;
                 Cell econCell = rr.createCell(cc++);
@@ -234,6 +251,19 @@ public final class SweepResultsExcelWriter {
                 writeNumber(rr, cc++, e.meanFailBt, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanRepBt, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanFailBrk, centeredNumberStyle);
+
+                // ENS event statistics
+                writeNumber(rr, cc++, e.meanEnsEventsTotal, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEventsStartOnly, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents1H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents2H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents3H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents4H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents5to8H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents9to12H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents13to24H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEventsGt24H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEventsMaxHours, centeredNumberStyle);
 
                 // ---- Econ formula ----
                 int baseExcel = econBlockStartRow0 + 1; // 1-based
@@ -314,26 +344,29 @@ public final class SweepResultsExcelWriter {
                 String p2Range = "RAW!$B$" + firstDataExcelRow + ":$B$" + lastDataExcelRow;
 
                 // Columns:
-                // param1(A), param2(B), DG_kW(C), DG1_kW(D), WT_kW(E), BT_kWh(F), Econ(G), ENS_mean(H), ...
-                String econRange = "RAW!$G$" + firstDataExcelRow + ":$G$" + lastDataExcelRow;
-                String ensMeanRange = "RAW!$H$" + firstDataExcelRow + ":$H$" + lastDataExcelRow;
-                String fuelRange = "RAW!$N$" + firstDataExcelRow + ":$N$" + lastDataExcelRow;
-                String motoRange = "RAW!$O$" + firstDataExcelRow + ":$O$" + lastDataExcelRow;
-                String ens1Range = "RAW!$L$" + firstDataExcelRow + ":$L$" + lastDataExcelRow;
-                String ens2Range = "RAW!$M$" + firstDataExcelRow + ":$M$" + lastDataExcelRow;
+                // param1(A), param2(B), DG_kW(C), DG1_kW(D), WT_kW(E), BT_kWh(F), LCOE(G), Econ(H), ENS_mean(I), ...
+                String lcoeRange = "RAW!$G$" + firstDataExcelRow + ":$G$" + lastDataExcelRow;
+                String econRange = "RAW!$H$" + firstDataExcelRow + ":$H$" + lastDataExcelRow;
+                String ensMeanRange = "RAW!$I$" + firstDataExcelRow + ":$I$" + lastDataExcelRow;
+                String fuelRange = "RAW!$O$" + firstDataExcelRow + ":$O$" + lastDataExcelRow;
+                String motoRange = "RAW!$P$" + firstDataExcelRow + ":$P$" + lastDataExcelRow;
+                String ens1Range = "RAW!$M$" + firstDataExcelRow + ":$M$" + lastDataExcelRow;
+                String ens2Range = "RAW!$N$" + firstDataExcelRow + ":$N$" + lastDataExcelRow;
 
-                String failRoomRange = "RAW!$T$" + firstDataExcelRow + ":$T$" + lastDataExcelRow;
-                String failBusRange = "RAW!$U$" + firstDataExcelRow + ":$U$" + lastDataExcelRow;
-                String failDgRange = "RAW!$V$" + firstDataExcelRow + ":$V$" + lastDataExcelRow;
-                String failWtRange = "RAW!$W$" + firstDataExcelRow + ":$W$" + lastDataExcelRow;
-                String failBtRange = "RAW!$X$" + firstDataExcelRow + ":$X$" + lastDataExcelRow;
-                String btReplRange = "RAW!$Y$" + firstDataExcelRow + ":$Y$" + lastDataExcelRow;
-                String failBrkRange = "RAW!$Z$" + firstDataExcelRow + ":$Z$" + lastDataExcelRow;
+                String failRoomRange = "RAW!$U$"  + firstDataExcelRow + ":$U$"  + lastDataExcelRow;
+                String failBusRange  = "RAW!$V$"  + firstDataExcelRow + ":$V$"  + lastDataExcelRow;
+                String failDgRange   = "RAW!$W$"  + firstDataExcelRow + ":$W$"  + lastDataExcelRow;
+                String failWtRange   = "RAW!$X$"  + firstDataExcelRow + ":$X$"  + lastDataExcelRow;
+                String failBtRange   = "RAW!$Y$"  + firstDataExcelRow + ":$Y$"  + lastDataExcelRow;
+                String btReplRange   = "RAW!$Z$"  + firstDataExcelRow + ":$Z$"  + lastDataExcelRow;
+                String failBrkRange  = "RAW!$AA$" + firstDataExcelRow + ":$AA$" + lastDataExcelRow;
 
                 int top = 0;
 
                 if (isTriangular) {
-                    top = writeTriangularGridBlock(grid, "Затраты млн.руб", top, param1, param2,
+                    top = writeTriangularGridBlock(grid, "LCOE, руб/кВт∙ч", top, param1, param2,
+                            lcoeRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "Затраты млн.руб", top + 2, param1, param2,
                             econRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
                             ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
@@ -361,7 +394,9 @@ public final class SweepResultsExcelWriter {
                             failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
 
                 } else {
-                    top = writeGridBlock(grid, "Затраты млн.руб.", top, param1, param2,
+                    top = writeGridBlock(grid, "LCOE, руб/кВт∙ч", top, param1, param2,
+                            lcoeRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "Затраты млн.руб.", top + 2, param1, param2,
                             econRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
                             ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);

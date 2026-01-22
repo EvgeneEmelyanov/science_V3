@@ -32,12 +32,12 @@ public class Main {
         String resultsXlsxPath = "D:/results.xlsx";
         String traceCsvPath = "D:/trace.csv";
 
-        LoadType loadType = LoadType.def;
-        RunMode mode = RunMode.SWEEP_2;
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        LoadType loadType = LoadType.GOK;
+        RunMode mode = RunMode.SINGLE;
+        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
-        int mcIterations = 10;
+        int mcIterations = 100;
 
         switch (loadType) {
             case GOK:
@@ -73,8 +73,8 @@ public class Main {
             // 3) сетка параметров
 
             // ===== Прямоугольные сетки =====
-            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
-//            double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
+//            double[] param1 = new double[]{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+            double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
             double[] param2 = new double[]{0.0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500};
 //            double[] param2 = new double[]{0.0, 67.3, 134.6, 201.9, 269.2, 336.5, 403.8, 471.1};
 //            double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
@@ -153,25 +153,25 @@ public class Main {
         }
 
         // SWEEP_2:
-        for (double p1 : param1) {
-            for (double p2 : param2) {
-                SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setMaxDischargeCurrent(p1)
-                        .setBatteryCapacityKwhPerBus(p2)
-                        .build();
-                paramSets.add(p);
-            }
-        }
-
 //        for (double p1 : param1) {
 //            for (double p2 : param2) {
 //                SystemParameters p = SystemParametersBuilder.from(baseParams)
-//                        .setNonReserveDischargeLevel(p1)
+//                        .setMaxDischargeCurrent(p1)
 //                        .setBatteryCapacityKwhPerBus(p2)
 //                        .build();
 //                paramSets.add(p);
 //            }
 //        }
+
+        for (double p1 : param1) {
+            for (double p2 : param2) {
+                SystemParameters p = SystemParametersBuilder.from(baseParams)
+                        .setNonReserveDischargeLevel(p1)
+                        .setBatteryCapacityKwhPerBus(p2)
+                        .build();
+                paramSets.add(p);
+            }
+        }
 
 //        for (double p1 : param1) {
 //            for (double p2 : param2) {

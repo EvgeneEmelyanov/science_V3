@@ -1,5 +1,6 @@
 package simcore;
 
+import simcore.Main;
 import simcore.config.BusSystemType;
 import simcore.config.SimulationConfig;
 import simcore.config.SystemParameters;
@@ -21,11 +22,11 @@ public final class MainSobol {
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         // Sobol settings
-        int sobolN = 100; // размер A/B
-        int mcIterations = 100;
+        int sobolN = 500; // размер A/B
+        int mcIterations = 500;
         long mcBaseSeed = 1_000_000L;
-        Main.MAX_LOAD = 1000;
         int threads = Runtime.getRuntime().availableProcessors();
+        Main.MAX_LOAD = 1000;
 
         ExecutorService ex = null;
 
@@ -42,10 +43,17 @@ public final class MainSobol {
                     TunableParamId.DG_FAILURE_RATE,
                     TunableParamId.BT_FAILURE_RATE,
                     TunableParamId.BUS_FAILURE_RATE,
-                    TunableParamId.BRK_FAILURE_RATE,
-                    TunableParamId.BT_MAX_CHARGE_CURRENT,
-                    TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-                    TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+                    TunableParamId.BRK_FAILURE_RATE
+//                    TunableParamId.BT_MAX_CHARGE_CURRENT,
+//                    TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+//                    TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
+
+//                    TunableParamId.COST_DG_RUB_PER_KW_PER_KMH,
+//                    TunableParamId.COST_FUEL_RUB_PER_KT,
+//                    TunableParamId.COST_BT_RUB_PER_KWH,
+//                    TunableParamId.DAMAGE_RUB_PER_KWH_CAT1,
+//                    TunableParamId.DAMAGE_RUB_PER_KWH_CAT2,
+//                    TunableParamId.DAMAGE_RUB_PER_KWH_CAT3
             );
 
             SobolConfig sobolCfg = SobolConfig.fromIds(

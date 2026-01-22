@@ -41,7 +41,7 @@ public final class BusLoadAllocator {
 
         if (busType == BusSystemType.SINGLE_SECTIONAL_BUS) {
             // Перенос 1/2 категории только при отказе секции (если одна секция недоступна)
-            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2);
+            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, false);
         }
 
         // DOUBLE_BUS: перенос 1/2 категории при отказе шины И при дефиците мощности на одной из шин
@@ -53,7 +53,8 @@ public final class BusLoadAllocator {
                                                               boolean[] busAlive,
                                                               int t,
                                                               double cat1,
-                                                              double cat2) {
+                                                              double cat2,
+                                                              boolean allowCat3AfterFirstHour) {
         double[] out = new double[buses.size()];
         for (int i = 0; i < buses.size(); i++) {
             out[i] = buses.get(i).getLoadKw()[t];
@@ -73,7 +74,15 @@ public final class BusLoadAllocator {
         int busRepairTime = sp.getBusRepairTimeHours();
         boolean firstRepairHour = (deadBus.getRepairDurationHours() == busRepairTime);
 
-        double ratio = firstRepairHour ? cat1 : (cat1 + cat2);
+        double ratio;
+        if (firstRepairHour) {
+            ratio = cat1;
+        } else {
+            // Для DOUBLE_BUS разрешаем перенос III категории со 2-го часа (т.е. переносима вся нагрузка)
+            ratio = allowCat3AfterFirstHour ? 1.0 : (cat1 + cat2);
+        }
+        // Ограничиваем долю переносимой нагрузки в [0..1]
+        ratio = Math.min(1.0, Math.max(0.0, ratio));
         double transfer = out[dead] * ratio;
 
         out[dead] = Math.max(0.0, out[dead] - transfer);
@@ -101,7 +110,7 @@ public final class BusLoadAllocator {
 
         // Если одна шина недоступна — используем ту же логику переноса (1-я сразу, 2-я с задержкой)
         if (busAlive[0] != busAlive[1]) {
-            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2);
+            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, true);
         }
 
         // Если обе недоступны или обе доступны — работаем далее только для случая "обе доступны"

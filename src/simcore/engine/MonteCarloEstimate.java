@@ -32,6 +32,10 @@ public final class MonteCarloEstimate {
     /** Средняя неиспользованная энергия ветра за горизонт, кВт·ч. */
     public final double meanWre;
 
+
+    /** Средний LCOE, руб/кВт·ч. */
+    public final double meanLcoeRubPerKwh;
+
     /** Средняя доля нагрузки, покрытая ВЭУ, %. */
     public final double meanWtPct;
 
@@ -52,6 +56,19 @@ public final class MonteCarloEstimate {
     public final double meanFailBrk;
     public final double meanRepBt;
 
+    // ===== ENS event statistics (MC means, counts over the horizon) =====
+    public final double meanEnsEventsTotal;
+    public final double meanEnsEventsStartOnly;
+    public final double meanEnsEvents1H;
+    public final double meanEnsEvents2H;
+    public final double meanEnsEvents3H;
+    public final double meanEnsEvents4H;
+    public final double meanEnsEvents5to8H;
+    public final double meanEnsEvents9to12H;
+    public final double meanEnsEvents13to24H;
+    public final double meanEnsEventsGt24H;
+    public final double meanEnsEventsMaxHours;
+
 
     public MonteCarloEstimate(ParameterSet theta,
                               MonteCarloStats.Stats ensStats,
@@ -60,6 +77,7 @@ public final class MonteCarloEstimate {
                               double meanFuelLiters,
                               double meanMotoHours,
                               double meanWre,
+                              double meanLcoeRubPerKwh,
                               double meanWtPct,
                               double meanDgPct,
                               double meanBtPct,
@@ -70,7 +88,18 @@ public final class MonteCarloEstimate {
                               double meanFailWt,
                               double meanFailBt,
                               double meanFailBrk,
-                              double meanRepBt
+                              double meanRepBt,
+                              double meanEnsEventsTotal,
+                              double meanEnsEventsStartOnly,
+                              double meanEnsEvents1H,
+                              double meanEnsEvents2H,
+                              double meanEnsEvents3H,
+                              double meanEnsEvents4H,
+                              double meanEnsEvents5to8H,
+                              double meanEnsEvents9to12H,
+                              double meanEnsEvents13to24H,
+                              double meanEnsEventsGt24H,
+                              double meanEnsEventsMaxHours
     ) {
         this.theta = theta;
         this.ensStats = ensStats;
@@ -79,6 +108,7 @@ public final class MonteCarloEstimate {
         this.meanFuelLiters = meanFuelLiters;
         this.meanMotoHours = meanMotoHours;
         this.meanWre = meanWre;
+        this.meanLcoeRubPerKwh = meanLcoeRubPerKwh;
         this.meanWtPct = meanWtPct;
         this.meanDgPct = meanDgPct;
         this.meanBtPct = meanBtPct;
@@ -90,5 +120,17 @@ public final class MonteCarloEstimate {
         this.meanFailBt = meanFailBt;
         this.meanFailBrk = meanFailBrk;
         this.meanRepBt = meanRepBt;
+
+        this.meanEnsEventsTotal = meanEnsEventsTotal;
+        this.meanEnsEventsStartOnly = meanEnsEventsStartOnly;
+        this.meanEnsEvents1H = meanEnsEvents1H;
+        this.meanEnsEvents2H = meanEnsEvents2H;
+        this.meanEnsEvents3H = meanEnsEvents3H;
+        this.meanEnsEvents4H = meanEnsEvents4H;
+        this.meanEnsEvents5to8H = meanEnsEvents5to8H;
+        this.meanEnsEvents9to12H = meanEnsEvents9to12H;
+        this.meanEnsEvents13to24H = meanEnsEvents13to24H;
+        this.meanEnsEventsGt24H = meanEnsEventsGt24H;
+        this.meanEnsEventsMaxHours = meanEnsEventsMaxHours;
     }
 }

@@ -56,7 +56,6 @@ public final class TunableParameterPool {
                         (b, v) -> b.setBreakerFailureRatePerYear(v)
                 ));
 
-
         // ----- Времена ремонта -----
         m.put(TunableParamId.WT_REPAIR_TIME,
                 new TunableParameter(
@@ -170,6 +169,103 @@ public final class TunableParameterPool {
                         (b, v) -> b.setNonReserveDischargeLevel(v)
                 ));
 
+        // ----- Economics / prices -----
+
+        m.put(TunableParamId.DISCOUNT_RATE,
+                new TunableParameter(
+                        TunableParamId.DISCOUNT_RATE,
+                        "DISCOUNT_RATE",
+                        0.0, 0.2,
+                        (b, v) -> b.setDiscountRatePerYear(v)
+                ));
+
+        m.put(TunableParamId.COST_RU_RUB,
+                new TunableParameter(
+                        TunableParamId.COST_RU_RUB,
+                        "COST_RU_RUB",
+                        0.0, 200_000_000.0,
+                        (b, v) -> b.setCostRuRub(v)
+                ));
+
+        m.put(TunableParamId.COST_DG_RUB_PER_KW,
+                new TunableParameter(
+                        TunableParamId.COST_DG_RUB_PER_KW,
+                        "COST_DG_RUB_PER_KW",
+                        0.0, 400_000.0,
+                        (b, v) -> b.setCostDgRubPerKw(v)
+                ));
+
+        m.put(TunableParamId.COST_DG_RUB_PER_KW_PER_KMH,
+                new TunableParameter(
+                        TunableParamId.COST_DG_RUB_PER_KW_PER_KMH,
+                        "COST_DG_RUB_PER_KW_PER_KMH",
+                        0.0, 10_000.0,
+                        (b, v) -> b.setCostDgRubPerKwPerKmh(v)
+                ));
+
+        m.put(TunableParamId.COST_FUEL_RUB_PER_KT,
+                new TunableParameter(
+                        TunableParamId.COST_FUEL_RUB_PER_KT,
+                        "COST_FUEL_RUB_PER_KT",
+                        10_000_000.0, 200_000_000.0,
+                        (b, v) -> b.setCostFuelRubPerKt(v)
+                ));
+
+        m.put(TunableParamId.COST_WT_RUB_PER_KW,
+                new TunableParameter(
+                        TunableParamId.COST_WT_RUB_PER_KW,
+                        "COST_WT_RUB_PER_KW",
+                        0.0, 600_000.0,
+                        (b, v) -> b.setCostWtRubPerKw(v)
+                ));
+
+        m.put(TunableParamId.COST_WT_RUB_PER_KW_PER_YEAR,
+                new TunableParameter(
+                        TunableParamId.COST_WT_RUB_PER_KW_PER_YEAR,
+                        "COST_WT_RUB_PER_KW_PER_YEAR",
+                        0.0, 50_000.0,
+                        (b, v) -> b.setCostWtRubPerKwPerYear(v)
+                ));
+
+        m.put(TunableParamId.COST_BT_RUB_PER_KWH,
+                new TunableParameter(
+                        TunableParamId.COST_BT_RUB_PER_KWH,
+                        "COST_BT_RUB_PER_KWH",
+                        0.0, 300_000.0,
+                        (b, v) -> b.setCostBtRubPerKwh(v)
+                ));
+
+        m.put(TunableParamId.COST_BT_RUB_PER_KWH_PER_YEAR,
+                new TunableParameter(
+                        TunableParamId.COST_BT_RUB_PER_KWH_PER_YEAR,
+                        "COST_BT_RUB_PER_KWH_PER_YEAR",
+                        0.0, 20_000.0,
+                        (b, v) -> b.setCostBtRubPerKwhPerYear(v)
+                ));
+
+        m.put(TunableParamId.DAMAGE_RUB_PER_KWH_CAT1,
+                new TunableParameter(
+                        TunableParamId.DAMAGE_RUB_PER_KWH_CAT1,
+                        "DAMAGE_RUB_PER_KWH_CAT1",
+                        0.0, 50_000.0,
+                        (b, v) -> b.setDamageRubPerKwhCat1(v)
+                ));
+
+        m.put(TunableParamId.DAMAGE_RUB_PER_KWH_CAT2,
+                new TunableParameter(
+                        TunableParamId.DAMAGE_RUB_PER_KWH_CAT2,
+                        "DAMAGE_RUB_PER_KWH_CAT2",
+                        0.0, 50_000.0,
+                        (b, v) -> b.setDamageRubPerKwhCat2(v)
+                ));
+
+        m.put(TunableParamId.DAMAGE_RUB_PER_KWH_CAT3,
+                new TunableParameter(
+                        TunableParamId.DAMAGE_RUB_PER_KWH_CAT3,
+                        "DAMAGE_RUB_PER_KWH_CAT3",
+                        0.0, 50_000.0,
+                        (b, v) -> b.setDamageRubPerKwhCat3(v)
+                ));
         PARAMS = Collections.unmodifiableMap(m);
     }
 

@@ -14,6 +14,9 @@ public final class SimulationMetrics {
     public final double dgToLoadKwh;   // сколько в нагрузку от ДГУ
     public final double btToLoadKwh;   // сколько в нагрузку от АКБ (только разряд)
 
+    /** LCOE, руб/кВт·ч (discounted), на отпущенную энергию (без ENS). */
+    public final double lcoeRubPerKwh;
+
     public final double fuelLiters;    // суммарный расход топлива за горизонт
     public final long totalMotoHours;  // суммарные моточасы ДГУ за горизонт
 
@@ -27,6 +30,20 @@ public final class SimulationMetrics {
     public final long failRoom;
     public final long repBt;
 
+    // ===== ENS event statistics (single-run) =====
+    public final long ensEventsTotal;
+    /** Events classified as "<1h" (start-only ENS inside one hour). */
+    public final long ensEventsStartOnly;
+    public final long ensEvents1H;
+    public final long ensEvents2H;
+    public final long ensEvents3H;
+    public final long ensEvents4H;
+    public final long ensEvents5to8H;
+    public final long ensEvents9to12H;
+    public final long ensEvents13to24H;
+    public final long ensEventsGt24H;
+    public final long ensEventsMaxHours;
+
     public SimulationMetrics(double loadKwh,
                              double ensKwh,
                              double ensCat1Kwh,
@@ -35,6 +52,7 @@ public final class SimulationMetrics {
                              double wtToLoadKwh,
                              double dgToLoadKwh,
                              double btToLoadKwh,
+                             double lcoeRubPerKwh,
                              double fuelLiters,
                              long totalMotoHours,
                              List<SimulationStepRecord> trace,
@@ -44,7 +62,18 @@ public final class SimulationMetrics {
                              long failBt,
                              long failBrk,
                              long failRoom,
-                             long repBt
+                             long repBt,
+                             long ensEventsTotal,
+                             long ensEventsStartOnly,
+                             long ensEvents1H,
+                             long ensEvents2H,
+                             long ensEvents3H,
+                             long ensEvents4H,
+                             long ensEvents5to8H,
+                             long ensEvents9to12H,
+                             long ensEvents13to24H,
+                             long ensEventsGt24H,
+                             long ensEventsMaxHours
     ) {
         this.loadKwh = loadKwh;
         this.ensKwh = ensKwh;
@@ -54,6 +83,7 @@ public final class SimulationMetrics {
         this.wtToLoadKwh = wtToLoadKwh;
         this.dgToLoadKwh = dgToLoadKwh;
         this.btToLoadKwh = btToLoadKwh;
+        this.lcoeRubPerKwh = lcoeRubPerKwh;
         this.fuelLiters = fuelLiters;
         this.totalMotoHours = totalMotoHours;
         this.trace = trace;
@@ -64,5 +94,17 @@ public final class SimulationMetrics {
         this.failBt = failBt;
         this.failBrk = failBrk;
         this.repBt = repBt;
+
+        this.ensEventsTotal = ensEventsTotal;
+        this.ensEventsStartOnly = ensEventsStartOnly;
+        this.ensEvents1H = ensEvents1H;
+        this.ensEvents2H = ensEvents2H;
+        this.ensEvents3H = ensEvents3H;
+        this.ensEvents4H = ensEvents4H;
+        this.ensEvents5to8H = ensEvents5to8H;
+        this.ensEvents9to12H = ensEvents9to12H;
+        this.ensEvents13to24H = ensEvents13to24H;
+        this.ensEventsGt24H = ensEventsGt24H;
+        this.ensEventsMaxHours = ensEventsMaxHours;
     }
 }

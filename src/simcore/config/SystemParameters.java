@@ -135,6 +135,45 @@ public class SystemParameters {
      */
     private final double nonReserveDischargeLevel;
 
+    // ---------- Экономические параметры (для LCOE) ----------
+
+    /** Ставка дисконтирования, 1/год (например, 0.08 = 8%). */
+    private final double discountRatePerYear;
+
+    /** CAPEX: стоимость РУ, руб. */
+    private final double costRuRub;
+
+    /** CAPEX: стоимость ДГУ, руб/кВт установленной мощности. */
+    private final double costDgRubPerKw;
+
+    /** OPEX/ТО: стоимость ДГУ, руб/(кВт * тыс.мото-часов). */
+    private final double costDgRubPerKwPerKmh;
+
+    /** Топливо: стоимость, руб/кт (в модели расход топлива в "млн.л", как в Excel). */
+    private final double costFuelRubPerKt;
+
+    /** CAPEX: стоимость ВЭУ, руб/кВт установленной мощности. */
+    private final double costWtRubPerKw;
+
+    /** OPEX: обслуживание ВЭУ, руб/(кВт*год). */
+    private final double costWtRubPerKwPerYear;
+
+    /** CAPEX: стоимость АКБ, руб/(кВт*ч установленной ёмкости). */
+    private final double costBtRubPerKwh;
+
+    /** OPEX: обслуживание АКБ, руб/(кВт*ч*год). */
+    private final double costBtRubPerKwhPerYear;
+
+    /** Ущерб (VOLL), руб/кВт*ч недоотпуска 1 категории. */
+    private final double damageRubPerKwhCat1;
+
+    /** Ущерб (VOLL), руб/кВт*ч недоотпуска 2 категории. */
+    private final double damageRubPerKwhCat2;
+
+    /** Ущерб (VOLL), руб/кВт*ч недоотпуска 3 категории. */
+    private final double damageRubPerKwhCat3;
+
+
     public SystemParameters(BusSystemType busSystemType,
                             double firstCat,
                             double secondCat,
@@ -161,7 +200,20 @@ public class SystemParameters {
                             double switchgearRoomFailureRatePerYear,
                             int switchgearRoomRepairTimeHours,
                             double busCcfBetaSectional,
-                            double busCcfBetaDouble) {
+                            double busCcfBetaDouble,
+
+                            double discountRatePerYear,
+                            double costRuRub,
+                            double costDgRubPerKw,
+                            double costDgRubPerKwPerKmh,
+                            double costFuelRubPerKt,
+                            double costWtRubPerKw,
+                            double costWtRubPerKwPerYear,
+                            double costBtRubPerKwh,
+                            double costBtRubPerKwhPerYear,
+                            double damageRubPerKwhCat1,
+                            double damageRubPerKwhCat2,
+                            double damageRubPerKwhCat3) {
 
         this.busSystemType = busSystemType;
         this.firstCat = firstCat;
@@ -190,6 +242,21 @@ public class SystemParameters {
         this.switchgearRoomRepairTimeHours = switchgearRoomRepairTimeHours;
         this.busCcfBetaSectional = busCcfBetaSectional;
         this.busCcfBetaDouble = busCcfBetaDouble;
+
+
+        this.discountRatePerYear = discountRatePerYear;
+        this.costRuRub = costRuRub;
+        this.costDgRubPerKw = costDgRubPerKw;
+        this.costDgRubPerKwPerKmh = costDgRubPerKwPerKmh;
+        this.costFuelRubPerKt = costFuelRubPerKt;
+        this.costWtRubPerKw = costWtRubPerKw;
+        this.costWtRubPerKwPerYear = costWtRubPerKwPerYear;
+        this.costBtRubPerKwh = costBtRubPerKwh;
+        this.costBtRubPerKwhPerYear = costBtRubPerKwhPerYear;
+        this.damageRubPerKwhCat1 = damageRubPerKwhCat1;
+        this.damageRubPerKwhCat2 = damageRubPerKwhCat2;
+        this.damageRubPerKwhCat3 = damageRubPerKwhCat3;
+
     }
 
     // --------- Copy helpers ---------
@@ -220,7 +287,19 @@ public class SystemParameters {
                 switchgearRoomFailureRatePerYear,
                 switchgearRoomRepairTimeHours,
                 busCcfBetaSectional,
-                busCcfBetaDouble
+                busCcfBetaDouble,
+                discountRatePerYear,
+                costRuRub,
+                costDgRubPerKw,
+                costDgRubPerKwPerKmh,
+                costFuelRubPerKt,
+                costWtRubPerKw,
+                costWtRubPerKwPerYear,
+                costBtRubPerKwh,
+                costBtRubPerKwhPerYear,
+                damageRubPerKwhCat1,
+                damageRubPerKwhCat2,
+                damageRubPerKwhCat3
         );
     }
 
@@ -329,4 +408,20 @@ public class SystemParameters {
     public double getBusCcfBetaDouble() {
         return busCcfBetaDouble;
     }
+
+    // ---------- getters: economics ----------
+
+    public double getDiscountRatePerYear() { return discountRatePerYear; }
+    public double getCostRuRub() { return costRuRub; }
+    public double getCostDgRubPerKw() { return costDgRubPerKw; }
+    public double getCostDgRubPerKwPerKmh() { return costDgRubPerKwPerKmh; }
+    public double getCostFuelRubPerKt() { return costFuelRubPerKt; }
+    public double getCostWtRubPerKw() { return costWtRubPerKw; }
+    public double getCostWtRubPerKwPerYear() { return costWtRubPerKwPerYear; }
+    public double getCostBtRubPerKwh() { return costBtRubPerKwh; }
+    public double getCostBtRubPerKwhPerYear() { return costBtRubPerKwhPerYear; }
+    public double getDamageRubPerKwhCat1() { return damageRubPerKwhCat1; }
+    public double getDamageRubPerKwhCat2() { return damageRubPerKwhCat2; }
+    public double getDamageRubPerKwhCat3() { return damageRubPerKwhCat3; }
+
 }

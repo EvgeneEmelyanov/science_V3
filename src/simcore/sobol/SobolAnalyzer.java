@@ -79,15 +79,17 @@ public final class SobolAnalyzer {
         double[] sEns = new double[d], stEns = new double[d];
         double[] sFuel = new double[d], stFuel = new double[d];
         double[] sMoto = new double[d], stMoto = new double[d];
+        double[] sLcoe = new double[d], stLcoe = new double[d];
 
         computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.ENS,  sEns,  stEns, true);
         computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel, true);
         computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto, true);
+        computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.LCOE, sLcoe, stLcoe, true);
 
-        return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto);
+        return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto, sLcoe, stLcoe);
     }
 
-    private enum Metric { ENS, FUEL, MOTO }
+    private enum Metric { ENS, FUEL, MOTO, LCOE }
 
     private static void computeSobolIndicesSaltelli2010(List<MonteCarloEstimate> yA,
                                                         List<MonteCarloEstimate> yB,
@@ -165,6 +167,7 @@ public final class SobolAnalyzer {
             case ENS -> e.ensStats.getMean();
             case FUEL -> e.meanFuelLiters;
             case MOTO -> e.meanMotoHours;
+            case LCOE -> e.meanLcoeRubPerKwh;
         };
     }
 

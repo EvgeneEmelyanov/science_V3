@@ -92,6 +92,7 @@ public final class MonteCarloRunner {
                     m.fuelLiters,
                     (double) m.totalMotoHours,
                     wrePct,
+                    m.lcoeRubPerKwh,
                     wtPct,
                     dgPct,
                     btPct,
@@ -102,7 +103,18 @@ public final class MonteCarloRunner {
                     (double) m.failWt,
                     (double) m.failBt,
                     (double) m.failBrk,
-                    (double) m.repBt
+                    (double) m.repBt,
+                    (double) m.ensEventsTotal,
+                    (double) m.ensEventsStartOnly,
+                    (double) m.ensEvents1H,
+                    (double) m.ensEvents2H,
+                    (double) m.ensEvents3H,
+                    (double) m.ensEvents4H,
+                    (double) m.ensEvents5to8H,
+                    (double) m.ensEvents9to12H,
+                    (double) m.ensEvents13to24H,
+                    (double) m.ensEventsGt24H,
+                    (double) m.ensEventsMaxHours
             );
         }
 
@@ -127,6 +139,7 @@ public final class MonteCarloRunner {
         double ens2Sum = 0.0;
         double fuelSum = 0.0;
         double motoSum = 0.0;
+        double lcoeSum = 0.0;
 
         double wrePctSum = 0.0;
         double wtPctSum = 0.0;
@@ -141,10 +154,23 @@ public final class MonteCarloRunner {
         double failBrkSum = 0.0;
         double repBtSum = 0.0;
 
+        double ensEvtTotalSum = 0.0;
+        double ensEvtStartOnlySum = 0.0;
+        double ensEvt1HSum = 0.0;
+        double ensEvt2HSum = 0.0;
+        double ensEvt3HSum = 0.0;
+        double ensEvt4HSum = 0.0;
+        double ensEvt5to8HSum = 0.0;
+        double ensEvt9to12HSum = 0.0;
+        double ensEvt13to24HSum = 0.0;
+        double ensEvtGt24HSum = 0.0;
+        double ensEvtMaxHoursSum = 0.0;
+
         for (Future<ChunkAgg> f : futures) {
             ChunkAgg a = f.get();
             fuelSum += a.fuelSum;
             motoSum += a.motoSum;
+            lcoeSum += a.lcoeSum;
             ens1Sum += a.ens1Sum;
             ens2Sum += a.ens2Sum;
             wrePctSum += a.wrePctSum;
@@ -158,6 +184,18 @@ public final class MonteCarloRunner {
             failBtSum   += a.failBtSum;
             failBrkSum  += a.failBrkSum;
             repBtSum += a.repBtSum;
+
+            ensEvtTotalSum += a.ensEvtTotalSum;
+            ensEvtStartOnlySum += a.ensEvtStartOnlySum;
+            ensEvt1HSum += a.ensEvt1HSum;
+            ensEvt2HSum += a.ensEvt2HSum;
+            ensEvt3HSum += a.ensEvt3HSum;
+            ensEvt4HSum += a.ensEvt4HSum;
+            ensEvt5to8HSum += a.ensEvt5to8HSum;
+            ensEvt9to12HSum += a.ensEvt9to12HSum;
+            ensEvt13to24HSum += a.ensEvt13to24HSum;
+            ensEvtGt24HSum += a.ensEvtGt24HSum;
+            ensEvtMaxHoursSum += a.ensEvtMaxHoursSum;
 
 
             System.arraycopy(a.ens, 0, ens, a.ensOffset, a.ens.length);
@@ -175,6 +213,7 @@ public final class MonteCarloRunner {
                 fuelSum * inv,
                 motoSum * inv,
                 wrePctSum * inv,
+                lcoeSum * inv,
                 wtPctSum * inv,
                 dgPctSum * inv,
                 btPctSum * inv,
@@ -185,7 +224,18 @@ public final class MonteCarloRunner {
                 failWtSum * inv,
                 failBtSum * inv,
                 failBrkSum * inv,
-                repBtSum * inv
+                repBtSum * inv,
+                ensEvtTotalSum * inv,
+                ensEvtStartOnlySum * inv,
+                ensEvt1HSum * inv,
+                ensEvt2HSum * inv,
+                ensEvt3HSum * inv,
+                ensEvt4HSum * inv,
+                ensEvt5to8HSum * inv,
+                ensEvt9to12HSum * inv,
+                ensEvt13to24HSum * inv,
+                ensEvtGt24HSum * inv,
+                ensEvtMaxHoursSum * inv
         );
 
     }
@@ -201,12 +251,16 @@ public final class MonteCarloRunner {
 
         double fuelSum = 0.0;
         double motoSum = 0.0;
+        double lcoeSum = 0.0;   // <<< ВОТ ЭТОГО У ВАС НЕ ХВАТАЛО
+
         double ens1Sum = 0.0;
         double ens2Sum = 0.0;
+
         double wrePctSum = 0.0;
         double wtPctSum = 0.0;
         double dgPctSum = 0.0;
         double btPctSum = 0.0;
+
         double failRoomSum = 0.0;
         double failBusSum = 0.0;
         double failDgSum = 0.0;
@@ -215,6 +269,17 @@ public final class MonteCarloRunner {
         double failBrkSum = 0.0;
         double repBtSum = 0.0;
 
+        double ensEvtTotalSum = 0.0;
+        double ensEvtStartOnlySum = 0.0;
+        double ensEvt1HSum = 0.0;
+        double ensEvt2HSum = 0.0;
+        double ensEvt3HSum = 0.0;
+        double ensEvt4HSum = 0.0;
+        double ensEvt5to8HSum = 0.0;
+        double ensEvt9to12HSum = 0.0;
+        double ensEvt13to24HSum = 0.0;
+        double ensEvtGt24HSum = 0.0;
+        double ensEvtMaxHoursSum = 0.0;
 
         for (int mcIdx = fromInclusive; mcIdx < toExclusive; mcIdx++) {
             long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
@@ -222,31 +287,73 @@ public final class MonteCarloRunner {
 
             int k = mcIdx - fromInclusive;
             ens[k] = m.ensKwh;
+
             ens1Sum += m.ensCat1Kwh;
             ens2Sum += m.ensCat2Kwh;
 
             fuelSum += m.fuelLiters;
             motoSum += (double) m.totalMotoHours;
+            lcoeSum += m.lcoeRubPerKwh;
 
             wrePctSum += pct(m.wreKwh, m.loadKwh);
             wtPctSum += pct(m.wtToLoadKwh, m.loadKwh);
             dgPctSum += pct(m.dgToLoadKwh, m.loadKwh);
             btPctSum += pct(m.btToLoadKwh, m.loadKwh);
+
             failRoomSum += m.failRoom;
             failBusSum  += m.failBus;
             failDgSum   += m.failDg;
             failWtSum   += m.failWt;
             failBtSum   += m.failBt;
             failBrkSum  += m.failBrk;
-            repBtSum += m.repBt;
+            repBtSum    += m.repBt;
 
+            ensEvtTotalSum      += m.ensEventsTotal;
+            ensEvtStartOnlySum  += m.ensEventsStartOnly;
+            ensEvt1HSum         += m.ensEvents1H;
+            ensEvt2HSum         += m.ensEvents2H;
+            ensEvt3HSum         += m.ensEvents3H;
+            ensEvt4HSum         += m.ensEvents4H;
+            ensEvt5to8HSum      += m.ensEvents5to8H;
+            ensEvt9to12HSum     += m.ensEvents9to12H;
+            ensEvt13to24HSum    += m.ensEvents13to24H;
+            ensEvtGt24HSum      += m.ensEventsGt24H;
+            ensEvtMaxHoursSum   += m.ensEventsMaxHours;
         }
 
-        return new ChunkAgg(fromInclusive, ens, ens1Sum, ens2Sum, fuelSum, motoSum,
-                wrePctSum, wtPctSum, dgPctSum, btPctSum,
-                failRoomSum, failBusSum, failDgSum, failWtSum, failBtSum, failBrkSum, repBtSum);
-
+        return new ChunkAgg(
+                fromInclusive,
+                ens,
+                ens1Sum,
+                ens2Sum,
+                fuelSum,
+                motoSum,
+                lcoeSum,                // <<< теперь переменная существует
+                wrePctSum,
+                wtPctSum,
+                dgPctSum,
+                btPctSum,
+                failRoomSum,
+                failBusSum,
+                failDgSum,
+                failWtSum,
+                failBtSum,
+                failBrkSum,
+                repBtSum,
+                ensEvtTotalSum,
+                ensEvtStartOnlySum,
+                ensEvt1HSum,
+                ensEvt2HSum,
+                ensEvt3HSum,
+                ensEvt4HSum,
+                ensEvt5to8HSum,
+                ensEvt9to12HSum,
+                ensEvt13to24HSum,
+                ensEvtGt24HSum,
+                ensEvtMaxHoursSum
+        );
     }
+
 
     private static final class ChunkAgg {
         final int ensOffset;
@@ -255,6 +362,7 @@ public final class MonteCarloRunner {
         final double ens2Sum;
         final double fuelSum;
         final double motoSum;
+        final double lcoeSum;
         final double wrePctSum;
         final double wtPctSum;
         final double dgPctSum;
@@ -267,12 +375,25 @@ public final class MonteCarloRunner {
         final double failBrkSum;
         final double repBtSum;
 
+        final double ensEvtTotalSum;
+        final double ensEvtStartOnlySum;
+        final double ensEvt1HSum;
+        final double ensEvt2HSum;
+        final double ensEvt3HSum;
+        final double ensEvt4HSum;
+        final double ensEvt5to8HSum;
+        final double ensEvt9to12HSum;
+        final double ensEvt13to24HSum;
+        final double ensEvtGt24HSum;
+        final double ensEvtMaxHoursSum;
+
         ChunkAgg(int ensOffset,
                  double[] ens,
                  double ens1Sum,
                  double ens2Sum,
                  double fuelSum,
                  double motoSum,
+                 double lcoeSum,
                  double wrePctSum,
                  double wtPctSum,
                  double dgPctSum,
@@ -283,13 +404,25 @@ public final class MonteCarloRunner {
                  double failWtSum,
                  double failBtSum,
                  double failBrkSum,
-                 double repBtSum) {
+                 double repBtSum,
+                 double ensEvtTotalSum,
+                 double ensEvtStartOnlySum,
+                 double ensEvt1HSum,
+                 double ensEvt2HSum,
+                 double ensEvt3HSum,
+                 double ensEvt4HSum,
+                 double ensEvt5to8HSum,
+                 double ensEvt9to12HSum,
+                 double ensEvt13to24HSum,
+                 double ensEvtGt24HSum,
+                 double ensEvtMaxHoursSum) {
             this.ensOffset = ensOffset;
             this.ens = ens;
             this.ens1Sum = ens1Sum;
             this.ens2Sum = ens2Sum;
             this.fuelSum = fuelSum;
             this.motoSum = motoSum;
+            this.lcoeSum = lcoeSum;
             this.wrePctSum = wrePctSum;
             this.wtPctSum = wtPctSum;
             this.dgPctSum = dgPctSum;
@@ -301,6 +434,18 @@ public final class MonteCarloRunner {
             this.failBtSum = failBtSum;
             this.failBrkSum = failBrkSum;
             this.repBtSum = repBtSum;
+
+            this.ensEvtTotalSum = ensEvtTotalSum;
+            this.ensEvtStartOnlySum = ensEvtStartOnlySum;
+            this.ensEvt1HSum = ensEvt1HSum;
+            this.ensEvt2HSum = ensEvt2HSum;
+            this.ensEvt3HSum = ensEvt3HSum;
+            this.ensEvt4HSum = ensEvt4HSum;
+            this.ensEvt5to8HSum = ensEvt5to8HSum;
+            this.ensEvt9to12HSum = ensEvt9to12HSum;
+            this.ensEvt13to24HSum = ensEvt13to24HSum;
+            this.ensEvtGt24HSum = ensEvtGt24HSum;
+            this.ensEvtMaxHoursSum = ensEvtMaxHoursSum;
         }
     }
 

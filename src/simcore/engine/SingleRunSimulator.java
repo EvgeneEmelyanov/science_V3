@@ -8,7 +8,7 @@ import simcore.model.*;
 import simcore.engine.failures.FailureStepper;
 import simcore.engine.diesel.DieselFleetController;
 import simcore.engine.metrics.EnsAllocator;
-import simcore.engine.step.NetworkFailureStep;
+import simcore.engine.NetworkFailureStep;
 import simcore.engine.bus.BusLoadAllocator;
 import simcore.engine.bus.TieBreakerController;
 import simcore.engine.trace.ArrayTraceSession;
@@ -50,6 +50,13 @@ public final class SingleRunSimulator {
         FailureStepper.initFailureModels(seed, considerFailures, buses, breaker, rooms);
 
         final Totals totals = new Totals();
+
+        final int HOURS_PER_YEAR = 8760;
+        final int YEARS = (hours + HOURS_PER_YEAR - 1) / HOURS_PER_YEAR; // ceil
+        double[] servedKwhByYear = new double[YEARS];
+        double[] fuelLitersByYear = new double[YEARS];
+        double[] motoHoursByYear = new double[YEARS];
+        long[] btReplByYear = new long[YEARS];
         final TraceSession trace = traceEnabled ? new ArrayTraceSession() : new NoTraceSession();
 
         // For ENABLE_ZERO_LOAD_ALL_DG_READY: remember which buses had 0 load in previous hour.
@@ -127,6 +134,13 @@ public final class SingleRunSimulator {
                     ENABLE_MAINTENANCE_ONLY_AT_ZERO_LOAD,
                     wasWorkingAtHourStart
             );
+
+            // ENS event statistics: track per-hour ENS and "start ENS" (DG start delay ENS)
+            final double ensBeforeHour = totals.ensKwh;
+            final double startEnsBeforeHour = totals.startEnsKwh;
+            final double fuelBeforeHour = totals.fuelLiters;
+            final long motoBeforeHour = sumMotoHours(buses);
+            final long replBeforeHour = sumBatteryReplacements(buses);
             // ===== Bus system logic (SINGLE_SECTIONAL_BUS / DOUBLE_BUS) =====
             final BusSystemType busType = sp.getBusSystemType();
 
@@ -157,6 +171,20 @@ public final class SingleRunSimulator {
                 );
 
                 breaker.setClosed(sectionalClosedThisHour);
+
+                // If the tie-breaker is closed due to deficit balancing and one bus fails this hour,
+                // treat it as a coupled failure: both buses go down (no separate breaker failure needed).
+                if (sectionalClosedThisHour && (busFailedThisHour[0] ^ busFailedThisHour[1])) {
+                    int failed = busFailedThisHour[0] ? 0 : 1;
+                    int other = 1 - failed;
+                    // Force the other bus into failure now to couple the outage.
+                    buses.get(other).forceFailNow();
+                    busFailedThisHour[other] = true;
+                    busAlive[0] = false;
+                    busAlive[1] = false;
+                    busAvailAfter[0] = false;
+                    busAvailAfter[1] = false;
+                }
             } else {
                 if (breaker != null) breaker.setClosed(false);
             }
@@ -218,6 +246,19 @@ public final class SingleRunSimulator {
                     trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
                 }
 
+                // ENS event stats (whole system, per hour)
+                double ensThisHour = totals.ensKwh - ensBeforeHour;
+                double startEnsThisHour = totals.startEnsKwh - startEnsBeforeHour;
+                totals.ensEventStats.updateHour(ensThisHour, startEnsThisHour);
+
+                int y = t / HOURS_PER_YEAR;
+                double loadKwhThisHour = totalLoadAtTime; // kW over 1h
+                double servedKwhThisHour = Math.max(0.0, loadKwhThisHour - ensThisHour);
+                servedKwhByYear[y] += servedKwhThisHour;
+                fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
+                motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
+                btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
+
                 // Update "previous hour zero-load" markers for the next hour.
                 for (int b = 0; b < busCount; b++) {
                     prevZeroLoadByBus[b] = loads[b] <= SimulationConstants.EPSILON;
@@ -226,17 +267,46 @@ public final class SingleRunSimulator {
             }
 
             // ===== Standard per-bus dispatch =====
+            // DOUBLE_BUS: if one bus is down, from the 2nd repair hour transfer ALL DG and WT from the dead bus
+            // onto the live bus (in addition to load transfer performed in BusLoadAllocator).
+            int doubleBusDead = -1;
+            int doubleBusLive = -1;
+            boolean doubleBusTransferGen = false;
+            if (busType == BusSystemType.DOUBLE_BUS && busCount == 2 && (busAlive[0] ^ busAlive[1])) {
+                doubleBusDead = busAlive[0] ? 1 : 0;
+                doubleBusLive = 1 - doubleBusDead;
+                PowerBus deadBus = buses.get(doubleBusDead);
+                boolean firstRepairHour = (deadBus.getRepairDurationHours() == sp.getBusRepairTimeHours());
+                doubleBusTransferGen = !firstRepairHour;
+            }
+
             for (int b = 0; b < busCount; b++) {
                 final PowerBus bus = buses.get(b);
                 final double loadKw = (effectiveLoadKw != null) ? effectiveLoadKw[b] : bus.getLoadKw()[t];
 
-                PerBusDispatcher.dispatchOneBusOneHour(
-                        ctx,
-                        bus,
-                        busAlive[b],
-                        b,
-                        loadKw
-                );
+                if (!busAlive[b]) {
+                    // If gen transfer is active, do not stop diesels on the dead bus:
+                    // these diesels are being used on the live bus.
+                    if (doubleBusTransferGen && b == doubleBusDead) {
+                        ctx.totals.loadKwh += loadKw;
+
+                        final double defKw = loadKw;
+                        ctx.totals.ensKwh += defKw;
+                        EnsAllocator.addEnsByCategoryProportional(ctx.totals, loadKw, defKw, cat1, cat2);
+
+                        if (trace.enabled()) {
+                            trace.setBusDown(b, loadKw, defKw);
+                            // Note: DG/WT states belong to the physical bus objects; do not override here.
+                            trace.fillDgState(b, bus);
+                            trace.fillBatteryState(b, bus.getBattery());
+                        }
+                    } else {
+                        PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, false, b, loadKw);
+                    }
+                } else {
+                    PowerBus extra = (doubleBusTransferGen && b == doubleBusLive) ? buses.get(doubleBusDead) : null;
+                    PerBusDispatcher.dispatchOneBusOneHourWithExtraSources(ctx, bus, extra, true, b, loadKw);
+                }
 
                 // Update "previous hour zero-load" markers for the next hour.
                 prevZeroLoadByBus[b] = loadKw <= SimulationConstants.EPSILON;
@@ -250,7 +320,34 @@ public final class SingleRunSimulator {
                 Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
                 trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
             }
+
+            // ENS event stats (whole system, per hour)
+            double ensThisHour = totals.ensKwh - ensBeforeHour;
+            double startEnsThisHour = totals.startEnsKwh - startEnsBeforeHour;
+            totals.ensEventStats.updateHour(ensThisHour, startEnsThisHour);
+
+            int y = t / HOURS_PER_YEAR;
+            if (y >= YEARS) y = YEARS - 1;
+
+            double loadKwhThisHour = 0.0;
+            if (effectiveLoadKw != null) {
+                for (int b = 0; b < busCount; b++) loadKwhThisHour += effectiveLoadKw[b];
+            } else {
+                for (int b = 0; b < busCount; b++) loadKwhThisHour += buses.get(b).getLoadKw()[t];
+            }
+
+            double servedKwhThisHour = Math.max(0.0, loadKwhThisHour - ensThisHour);
+
+            servedKwhByYear[y] += servedKwhThisHour;
+            fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
+            motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
+            btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
+;
+
         }
+
+        // Close a trailing ENS event at the end of horizon, if any.
+        totals.ensEventStats.finish();
 
         // ===== total failures by internal counters =====
         long failRoom = 0;
@@ -282,6 +379,16 @@ public final class SingleRunSimulator {
             for (DieselGenerator dg : bus.getDieselGenerators()) moto += dg.getTotalTimeWorked();
         }
 
+        // ENS event stats
+        long[] bc = totals.ensEventStats.getBucketCounts();
+        long ensEventsTotal = totals.ensEventStats.getEventsTotal();
+        long ensEventsStartOnly = totals.ensEventStats.getEventsStartOnly();
+        long ensEventsMaxHours = totals.ensEventStats.getMaxRunHours();
+
+        // ===== LCOE (discounted), based on delivered energy (served = load - ENS) =====
+        double lcoeRubPerKwh = computeLcoeRubPerKwh(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear);
+
+
         return new SimulationMetrics(
                 totals.loadKwh,
                 totals.ensKwh,
@@ -291,6 +398,7 @@ public final class SingleRunSimulator {
                 totals.wtToLoadKwh,
                 totals.dgToLoadKwh,
                 totals.btToLoadKwh,
+                lcoeRubPerKwh,
                 totals.fuelLiters,
                 moto,
                 trace.records(),
@@ -300,13 +408,44 @@ public final class SingleRunSimulator {
                 failBt,
                 failBrk,
                 failRoom,
-                repBt
+                repBt,
+                ensEventsTotal,
+                ensEventsStartOnly,
+                bc[1],
+                bc[2],
+                bc[3],
+                bc[4],
+                bc[5],
+                bc[6],
+                bc[7],
+                bc[8],
+                ensEventsMaxHours
         );
     }
 
     // ======================================================================
     // Helpers
     // ======================================================================
+
+    private static long sumMotoHours(java.util.List<PowerBus> buses) {
+        long s = 0;
+        for (PowerBus bus : buses) {
+            for (DieselGenerator dg : bus.getDieselGenerators()) {
+                s += dg.getTotalTimeWorked();
+            }
+        }
+        return s;
+    }
+
+    private static long sumBatteryReplacements(java.util.List<PowerBus> buses) {
+        long s = 0;
+        for (PowerBus bus : buses) {
+            Battery bt = bus.getBattery();
+            if (bt != null) s += bt.getReplacementCount();
+        }
+        return s;
+    }
+
 
     static double computeWindPotential(PowerBus bus, double windV) {
         double pot = 0.0;
@@ -689,10 +828,6 @@ public final class SingleRunSimulator {
 
             double genKw = per;
 
-            // если per меньше dgMinKw — это уже твоя бизнес-логика:
-            // либо разрешаем "малую нагрузку" (тогда idleTime будет расти),
-            // либо поднимаем часть ДГУ до dgMinKw и остальных разгружаем/останавливаем.
-            // Здесь оставляю как есть: ставим per, а холостой ход/прожиг решает finalizeIdleAndBurn().
             if (genKw > dgMaxKw) genKw = dgMaxKw;
 
             dg.setCurrentLoad(genKw);
@@ -730,5 +865,81 @@ public final class SingleRunSimulator {
         }
         return sum;
     }
+
+// ======================================================================
+// LCOE (discounted): PV(cost) / PV(served energy)
+// served = load - ENS (ENS не входит в знаменатель)
+// ======================================================================
+
+    // ======================================================================
+// LCOE (discounted): PV(cost) / PV(served energy)
+// served = load - ENS (ENS не входит в знаменатель)
+// ======================================================================
+    private static double computeLcoeRubPerKwh(
+            SystemParameters sp,
+            java.util.List<PowerBus> buses,
+            double[] servedKwhByYear,
+            double[] fuelLitersByYear,
+            double[] motoHoursByYear,
+            long[] btReplByYear
+    ) {
+        final int years = servedKwhByYear.length;
+        if (years == 0) return 0.0;
+
+        final double r = sp.getDiscountRatePerYear();
+        final double eps = 1e-12;
+
+        // installed amounts (from actual built system)
+        double dgTotalKw = 0.0;
+        double wtTotalKw = 0.0;
+        double btTotalKwh = 0.0;
+
+        for (PowerBus bus : buses) {
+            dgTotalKw += (double) bus.getDieselGenerators().size() * sp.getDieselGeneratorPowerKw();
+            wtTotalKw += (double) bus.getWindTurbines().size() * sp.getWindTurbinePowerKw();
+            Battery bt = bus.getBattery();
+            if (bt != null) btTotalKwh += bt.getMaxCapacityKwh();
+        }
+
+        // CAPEX at t=0
+        final double capexRub =
+                sp.getCostRuRub()
+                        + sp.getCostDgRubPerKw() * dgTotalKw
+                        + sp.getCostWtRubPerKw() * wtTotalKw
+                        + sp.getCostBtRubPerKwh() * btTotalKwh;
+
+        double pvCostRub = capexRub;
+        double pvServedKwh = 0.0;
+
+        for (int y = 0; y < years; y++) {
+            final double df = 1.0 / Math.pow(1.0 + r, (y + 1));
+
+            pvServedKwh += servedKwhByYear[y] * df;
+
+            // fuel: rub/kt, simplest consistent conversion: kt = liters / 1e6
+            final double fuelKt = fuelLitersByYear[y] / 1_000_000.0;
+            final double fuelRub = fuelKt * sp.getCostFuelRubPerKt();
+
+            // moto: rub per (kW * 1000 moto-hours)
+            final double motoRub = (motoHoursByYear[y] / 1000.0) * dgTotalKw * sp.getCostDgRubPerKwPerKmh();
+
+            // annual opex
+            final double wtOpexRub = wtTotalKw * sp.getCostWtRubPerKwPerYear();
+            final double btOpexRub = btTotalKwh * sp.getCostBtRubPerKwhPerYear();
+
+            // battery replacements: replacementCount * (full pack cost)
+            final double btReplRub = (double) btReplByYear[y] * (sp.getCostBtRubPerKwh() * btTotalKwh);
+
+            final double yearCostRub = fuelRub + motoRub + wtOpexRub + btOpexRub + btReplRub;
+
+            pvCostRub += yearCostRub * df;
+        }
+
+        if (pvServedKwh <= eps) return 0.0;
+        return pvCostRub / pvServedKwh;
+    }
+
+
+
 
 }

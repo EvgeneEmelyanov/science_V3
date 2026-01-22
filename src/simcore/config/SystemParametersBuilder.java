@@ -44,6 +44,20 @@ public class SystemParametersBuilder {
     private double busCcfBetaSectional;
     private double busCcfBetaDouble;
 
+    // ----- economics -----
+    private double discountRatePerYear;
+    private double costRuRub;
+    private double costDgRubPerKw;
+    private double costDgRubPerKwPerKmh;
+    private double costFuelRubPerKt;
+    private double costWtRubPerKw;
+    private double costWtRubPerKwPerYear;
+    private double costBtRubPerKwh;
+    private double costBtRubPerKwhPerYear;
+    private double damageRubPerKwhCat1;
+    private double damageRubPerKwhCat2;
+    private double damageRubPerKwhCat3;
+
     public SystemParametersBuilder() {
     }
 
@@ -79,6 +93,18 @@ public class SystemParametersBuilder {
         b.switchgearRoomRepairTimeHours = base.getSwitchgearRoomRepairTimeHours();
         b.busCcfBetaSectional = base.getBusCcfBetaSectional();
         b.busCcfBetaDouble = base.getBusCcfBetaDouble();
+        b.discountRatePerYear = base.getDiscountRatePerYear();
+        b.costRuRub = base.getCostRuRub();
+        b.costDgRubPerKw = base.getCostDgRubPerKw();
+        b.costDgRubPerKwPerKmh = base.getCostDgRubPerKwPerKmh();
+        b.costFuelRubPerKt = base.getCostFuelRubPerKt();
+        b.costWtRubPerKw = base.getCostWtRubPerKw();
+        b.costWtRubPerKwPerYear = base.getCostWtRubPerKwPerYear();
+        b.costBtRubPerKwh = base.getCostBtRubPerKwh();
+        b.costBtRubPerKwhPerYear = base.getCostBtRubPerKwhPerYear();
+        b.damageRubPerKwhCat1 = base.getDamageRubPerKwhCat1();
+        b.damageRubPerKwhCat2 = base.getDamageRubPerKwhCat2();
+        b.damageRubPerKwhCat3 = base.getDamageRubPerKwhCat3();
         return b;
     }
 
@@ -110,7 +136,20 @@ public class SystemParametersBuilder {
                 switchgearRoomFailureRatePerYear,
                 switchgearRoomRepairTimeHours,
                 busCcfBetaSectional,
-                busCcfBetaDouble
+                busCcfBetaDouble,
+
+                discountRatePerYear,
+                costRuRub,
+                costDgRubPerKw,
+                costDgRubPerKwPerKmh,
+                costFuelRubPerKt,
+                costWtRubPerKw,
+                costWtRubPerKwPerYear,
+                costBtRubPerKwh,
+                costBtRubPerKwhPerYear,
+                damageRubPerKwhCat1,
+                damageRubPerKwhCat2,
+                damageRubPerKwhCat3
         );
     }
 
@@ -343,4 +382,43 @@ public class SystemParametersBuilder {
         this.busCcfBetaDouble = busCcfBetaDouble;
         return this;
     }
+
+    // ===== economics setters =====
+
+    public double getDiscountRatePerYear() { return discountRatePerYear; }
+    public SystemParametersBuilder setDiscountRatePerYear(double v) { this.discountRatePerYear = v; return this; }
+
+    public double getCostRuRub() { return costRuRub; }
+    public SystemParametersBuilder setCostRuRub(double v) { this.costRuRub = v; return this; }
+
+    public double getCostDgRubPerKw() { return costDgRubPerKw; }
+    public SystemParametersBuilder setCostDgRubPerKw(double v) { this.costDgRubPerKw = v; return this; }
+
+    public double getCostDgRubPerKwPerKmh() { return costDgRubPerKwPerKmh; }
+    public SystemParametersBuilder setCostDgRubPerKwPerKmh(double v) { this.costDgRubPerKwPerKmh = v; return this; }
+
+    public double getCostFuelRubPerKt() { return costFuelRubPerKt; }
+    public SystemParametersBuilder setCostFuelRubPerKt(double v) { this.costFuelRubPerKt = v; return this; }
+
+    public double getCostWtRubPerKw() { return costWtRubPerKw; }
+    public SystemParametersBuilder setCostWtRubPerKw(double v) { this.costWtRubPerKw = v; return this; }
+
+    public double getCostWtRubPerKwPerYear() { return costWtRubPerKwPerYear; }
+    public SystemParametersBuilder setCostWtRubPerKwPerYear(double v) { this.costWtRubPerKwPerYear = v; return this; }
+
+    public double getCostBtRubPerKwh() { return costBtRubPerKwh; }
+    public SystemParametersBuilder setCostBtRubPerKwh(double v) { this.costBtRubPerKwh = v; return this; }
+
+    public double getCostBtRubPerKwhPerYear() { return costBtRubPerKwhPerYear; }
+    public SystemParametersBuilder setCostBtRubPerKwhPerYear(double v) { this.costBtRubPerKwhPerYear = v; return this; }
+
+    public double getDamageRubPerKwhCat1() { return damageRubPerKwhCat1; }
+    public SystemParametersBuilder setDamageRubPerKwhCat1(double v) { this.damageRubPerKwhCat1 = v; return this; }
+
+    public double getDamageRubPerKwhCat2() { return damageRubPerKwhCat2; }
+    public SystemParametersBuilder setDamageRubPerKwhCat2(double v) { this.damageRubPerKwhCat2 = v; return this; }
+
+    public double getDamageRubPerKwhCat3() { return damageRubPerKwhCat3; }
+    public SystemParametersBuilder setDamageRubPerKwhCat3(double v) { this.damageRubPerKwhCat3 = v; return this; }
+
 }

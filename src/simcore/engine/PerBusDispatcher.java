@@ -20,6 +20,21 @@ final class PerBusDispatcher {
             int b,
             double loadKw
     ) {
+        dispatchOneBusOneHourWithExtraSources(ctx, bus, null, busAlive, b, loadKw);
+    }
+
+    /**
+     * Dispatch for a bus with optional extra generation sources (used for DOUBLE_BUS resource transfer logic).
+     * Only wind turbines and diesel generators from extraSourceBus are considered.
+     */
+    static void dispatchOneBusOneHourWithExtraSources(
+            HourContext ctx,
+            PowerBus bus,
+            PowerBus extraSourceBus,
+            boolean busAlive,
+            int b,
+            double loadKw
+    ) {
 
         ctx.totals.loadKwh += loadKw;
 
@@ -41,7 +56,10 @@ final class PerBusDispatcher {
 
         bus.addWorkTime(1);
 
-        final double windPotentialKw = SingleRunSimulator.computeWindPotential(bus, ctx.windV);
+        double windPotentialKw = SingleRunSimulator.computeWindPotential(bus, ctx.windV);
+        if (extraSourceBus != null) {
+            windPotentialKw += SingleRunSimulator.computeWindPotential(extraSourceBus, ctx.windV);
+        }
 
         final Battery battery = bus.getBattery();
         final boolean btAvail = battery != null && battery.isAvailable();
@@ -88,7 +106,15 @@ final class PerBusDispatcher {
                         ctx.dgStartDelayHours
                 );
             }
-            DieselGenerator[] dgsFinal = DieselFleetController.getSortedDgs(bus);
+            DieselGenerator[] dgsFinal;
+            if (extraSourceBus == null) {
+                dgsFinal = DieselFleetController.getSortedDgs(bus);
+            } else {
+                java.util.ArrayList<DieselGenerator> all = new java.util.ArrayList<>();
+                all.addAll(bus.getDieselGenerators());
+                all.addAll(extraSourceBus.getDieselGenerators());
+                dgsFinal = DieselFleetController.getSortedDgs(all);
+            }
             SingleRunSimulator.finalizeIdleAndBurn(ctx, dgsFinal, ctx.dgMinKw);
             SingleRunSimulator.finalizeStoppedDgs(dgsFinal);
 
@@ -99,7 +125,15 @@ final class PerBusDispatcher {
 
             final double btDisCapKw = btAvail ? battery.getDischargeCapacity(ctx.sp) : 0.0;
 
-            final DieselGenerator[] dgs = DieselFleetController.getSortedDgs(bus);
+            final DieselGenerator[] dgs;
+            if (extraSourceBus == null) {
+                dgs = DieselFleetController.getSortedDgs(bus);
+            } else {
+                java.util.ArrayList<DieselGenerator> all = new java.util.ArrayList<>();
+                all.addAll(bus.getDieselGenerators());
+                all.addAll(extraSourceBus.getDieselGenerators());
+                dgs = DieselFleetController.getSortedDgs(all);
+            }
             final int dgCountAll = dgs.length;
 
             final boolean maintenanceStartedThisHour = DieselFleetController.isMaintenanceStartedThisHour(dgs);
@@ -457,6 +491,8 @@ final class PerBusDispatcher {
 
         double startEns = Math.min(defKw, Math.max(0.0, startDelayEnsEstimateKwh));
         if (startEns > SimulationConstants.EPSILON) {
+            // Track start ENS separately for ENS event statistics.
+            ctx.totals.startEnsKwh += startEns;
             EnsAllocator.addEnsByCategoryProportional(ctx.totals, loadKw, startEns, ctx.cat1, ctx.cat2);
         }
         double restEns = Math.max(0.0, defKw - startEns);

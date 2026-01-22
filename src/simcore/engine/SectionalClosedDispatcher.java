@@ -321,6 +321,8 @@ final class SectionalClosedDispatcher {
         double[] startEnsByBus = new double[2];
         if (ens > SimulationConstants.EPSILON && startDelayEnsEstimateKwh > SimulationConstants.EPSILON) {
             double startEnsTotal = Math.min(ens, startDelayEnsEstimateKwh);
+            // Track start ENS separately for ENS event statistics.
+            ctx.totals.startEnsKwh += startEnsTotal;
             startEnsByBus[0] = startEnsTotal * (def[0] / ens);
             startEnsByBus[1] = startEnsTotal * (def[1] / ens);
         }
