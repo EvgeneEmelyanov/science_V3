@@ -105,8 +105,7 @@ public final class FailureStepper {
             boolean considerFailures,
             List<PowerBus> buses,
             boolean[] busAlive,
-            double[] rawLoadThisHourKw,
-            boolean deferMaintenanceUntilZeroLoad
+            double[] rawLoadThisHourKw
     ) {
         for (int b = 0; b < buses.size(); b++) {
             if (!busAlive[b]) continue;
@@ -133,10 +132,6 @@ public final class FailureStepper {
 
             for (DieselGenerator dg : bus.getDieselGenerators()) {
                 boolean allowMaintenanceStart = !maintenanceOnBus;
-                if (allowMaintenanceStart && deferMaintenanceUntilZeroLoad && !zeroLoadThisHour) {
-                    // Postpone the beginning of maintenance until a 0-load hour.
-                    allowMaintenanceStart = false;
-                }
 
                 dg.updateFailureOneHour(considerFailures, allowMaintenanceStart);
 

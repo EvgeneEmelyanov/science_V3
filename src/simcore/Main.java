@@ -26,20 +26,17 @@ public class Main {
     // Used by some dispatch formulas
     public static double MAX_LOAD;
 
-    // ======================================================================
-    // CLI
-    // ======================================================================
-
     private static final class Cli {
-        Task task = Task.RUN; // тип запуска: прогон / тяжелый или легкий соболь
+
+        Task task = Task.SOBOL_HARD; // тип запуска: прогон / тяжелый или легкий соболь
         LoadType loadType = LoadType.GOK; // тип нагрузки
 
         int mcIterations = 100;
-        int sobolN = 500;
+        int sobolN = 100;
         RunMode runMode = RunMode.SINGLE;
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
-        String loadFilePath = null;
+        String loadFilePath = null;                       // optional override
         String windFilePath = Defaults.WIND_PATH;
         String resultsXlsxPath = Defaults.RESULTS_XLSX;
         String traceCsvPath = Defaults.TRACE_CSV;
@@ -55,7 +52,7 @@ public class Main {
         // Econ sobol
         String econDriversPath = "D:/econ_drivers.csv";;
         String econCaseId = "case_0";
-        Integer econN = 1024;
+        Integer econN = null;
 
         static Cli parse(String[] args) {
             Cli c = new Cli();

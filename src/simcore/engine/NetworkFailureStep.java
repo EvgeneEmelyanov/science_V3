@@ -24,8 +24,7 @@ public final class NetworkFailureStep {
                                      boolean[] busAvailAfter,
                                      boolean[] busFailedThisHour,
                                      boolean[] busAlive,
-                                     double[] rawLoadThisHourKw,
-                                     boolean deferMaintenanceUntilZeroLoad) {
+                                     double[] rawLoadThisHourKw) {
 
         final int busCount = buses.size();
         final boolean tieWasClosedAtHourStart = (breaker != null && breaker.isClosed());
@@ -46,8 +45,7 @@ public final class NetworkFailureStep {
                 considerFailures,
                 buses,
                 busAlive,
-                rawLoadThisHourKw,
-                deferMaintenanceUntilZeroLoad
+                rawLoadThisHourKw
         );
 
         if (tieWasClosedAtHourStart && breaker != null) {

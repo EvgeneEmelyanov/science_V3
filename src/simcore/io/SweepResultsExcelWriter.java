@@ -112,8 +112,8 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "ENS_reqN", headerStyle);
             c = writeHeader(hdr, c, "ENS1_mean", headerStyle);
             c = writeHeader(hdr, c, "ENS2_mean", headerStyle);
-            c = writeHeader(hdr, c, "Расход топлива,\nтыс.тонн", headerStyle);
-            c = writeHeader(hdr, c, "Моточасы,\nтыс.мч", headerStyle);
+            c = writeHeader(hdr, c, "Расход топлива", headerStyle);
+            c = writeHeader(hdr, c, "Моточасы", headerStyle);
             c = writeHeader(hdr, c, "WRE_%", headerStyle);
             c = writeHeader(hdr, c, "WT_%", headerStyle);
             c = writeHeader(hdr, c, "DG_%", headerStyle);
@@ -324,7 +324,7 @@ public final class SweepResultsExcelWriter {
 
             // ===== Economics inputs table (RAW, below results) =====
             r++; // one blank row
-            r = writeEconomicsInputsBlock(raw, r, econMoneyStyle, headerStyle);
+            r = writeEconomicsInputsBlock(raw, r, baseParams, econMoneyStyle, headerStyle);
 
             // Autosize RAW columns except A (keep narrow A)
             int rawCols = hdr.getLastCellNum();
@@ -455,22 +455,23 @@ public final class SweepResultsExcelWriter {
     }
 
     private static int writeEconomicsInputsBlock(Sheet raw,
-                                                 int startRow0,
-                                                 CellStyle moneyStyle,
-                                                 CellStyle headerStyle) {
+                                                                int startRow0,
+                                                                SystemParameters baseParams,
+                                                                CellStyle moneyStyle,
+                                                                CellStyle headerStyle) {
 
-        // базовые стоимости (целые значения, без дробной части)
-        startRow0 = writeEconRow(raw, startRow0, 0L,  "РУ", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 0L,     "ДГУ 1кВт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 1_600L,      "ДГУ 1 тыс.мчт/1 кВт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 90_000_000L, "топливо 1 кт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 0L,    "ВЭУ 1 кВт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 0L,      "ВЭУ 1 кВт/год", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 88_000L,     "АКБ 1 кВт*ч", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 2_200L,      "АКБ 1 кВт*ч/год", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 7_000L,      "ущерб 1 кат за 1 кВт*ч", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 2_100L,      "ущерб 2 кат за 1 кВт*ч", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, 700L,        "ущерб 3 кат за 1 кВт*ч", moneyStyle, headerStyle);
+        // базовые стоимости (берём из baseParams, чтобы совпадало с Defaults/SystemParameters)
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostRuRub(),               "РУ", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostDgRubPerKw(),          "ДГУ 1кВт", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostDgRubPerKwPerKmh(),    "ДГУ 1 тыс.мчт/1 кВт", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostFuelRubPerKt(),        "топливо 1 кт", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostWtRubPerKw(),          "ВЭУ 1 кВт", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostWtRubPerKwPerYear(),   "ВЭУ 1 кВт/год", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostBtRubPerKwh(),         "АКБ 1 кВт*ч", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostBtRubPerKwhPerYear(),  "АКБ 1 кВт*ч/год", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getDamageRubPerKwhCat1(),     "ущерб 1 кат за 1 кВт*ч", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getDamageRubPerKwhCat2(),     "ущерб 2 кат за 1 кВт*ч", moneyStyle, headerStyle);
+        startRow0 = writeEconRow(raw, startRow0, baseParams.getDamageRubPerKwhCat3(),     "ущерб 3 кат за 1 кВт*ч", moneyStyle, headerStyle);
 
         raw.setColumnWidth(1, Math.max(raw.getColumnWidth(1), 42 * 256)); // label
         raw.setColumnWidth(0, Math.max(raw.getColumnWidth(0), 16 * 256)); // price/value
@@ -480,7 +481,7 @@ public final class SweepResultsExcelWriter {
 
     private static int writeEconRow(Sheet raw,
                                     int row0,
-                                    long unitValue,
+                                    double unitValue,
                                     String label,
                                     CellStyle moneyStyle,
                                     CellStyle headerStyle) {

@@ -89,23 +89,20 @@ final class PerBusDispatcher {
 
             wreLocal = Math.max(0.0, surplusKw);
 
-            if (SingleRunSimulator.ENABLE_ZERO_LOAD_ALL_DG_READY && loadKw <= SimulationConstants.EPSILON) {
-                DieselFleetController.stopAllDieselsOnBus(bus);
-            } else {
-                SingleRunSimulator.applyIdleReserveInWindSurplus(
-                        bus,
-                        ctx.sp,
-                        loadKw,
-                        windToLoadKw,
-                        ctx.cat1,
-                        ctx.cat2,
-                        btAvail,
-                        battery,
-                        ctx.dgRatedKw,
-                        ctx.dgMinKw,
-                        ctx.dgStartDelayHours
-                );
-            }
+            SingleRunSimulator.applyIdleReserveInWindSurplus(
+                    bus,
+                    ctx.sp,
+                    loadKw,
+                    windToLoadKw,
+                    ctx.cat1,
+                    ctx.cat2,
+                    btAvail,
+                    battery,
+                    ctx.dgRatedKw,
+                    ctx.dgMinKw,
+                    ctx.dgStartDelayHours
+            );
+
             DieselGenerator[] dgsFinal;
             if (extraSourceBus == null) {
                 dgsFinal = DieselFleetController.getSortedDgs(bus);
@@ -138,14 +135,7 @@ final class PerBusDispatcher {
 
             final boolean maintenanceStartedThisHour = DieselFleetController.isMaintenanceStartedThisHour(dgs);
 
-            final boolean prevHourZeroLoad =
-                    SingleRunSimulator.ENABLE_ZERO_LOAD_ALL_DG_READY
-                            && ctx.prevZeroLoadByBus != null
-                            && b >= 0
-                            && b < ctx.prevZeroLoadByBus.length
-                            && ctx.prevZeroLoadByBus[b];
-
-            final double tauEff = maintenanceStartedThisHour ? 0.0 : (prevHourZeroLoad ? 0.0 : ctx.dgStartDelayHours);
+            final double tauEff = maintenanceStartedThisHour ? 0.0 : ctx.dgStartDelayHours;
 
             int available = 0;
             int readyWorking = 0;

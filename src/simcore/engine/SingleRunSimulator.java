@@ -20,8 +20,6 @@ import java.util.List;
 
 public final class SingleRunSimulator {
 
-    static final boolean ENABLE_ZERO_LOAD_ALL_DG_READY = true;
-    static final boolean ENABLE_MAINTENANCE_ONLY_AT_ZERO_LOAD = false;
     static boolean considerRotationReserve;
 
     public SimulationMetrics simulate(SimInput input, long seed, boolean traceEnabled) {
@@ -59,10 +57,6 @@ public final class SingleRunSimulator {
         double[] motoHoursByYear = new double[YEARS];
         long[] btReplByYear = new long[YEARS];
         final TraceSession trace = traceEnabled ? new ArrayTraceSession() : new NoTraceSession();
-
-        // For ENABLE_ZERO_LOAD_ALL_DG_READY: remember which buses had 0 load in previous hour.
-        final boolean[] prevZeroLoadByBus = new boolean[busCount];
-        final boolean[] zeroLoadThisHourByBus = new boolean[busCount];
 
         final boolean[] busAvailBefore = new boolean[busCount];
         final boolean[] busAvailAfter = new boolean[busCount];
@@ -103,8 +97,7 @@ public final class SingleRunSimulator {
                     busAvailAfter,
                     busFailedThisHour,
                     busAlive,
-                    rawLoadThisHourKw,
-                    ENABLE_MAINTENANCE_ONLY_AT_ZERO_LOAD
+                    rawLoadThisHourKw
             );
 
             // Snapshot DG "working" states at the beginning of the hour (after failures, before dispatch).
@@ -131,8 +124,6 @@ public final class SingleRunSimulator {
                     totals,
                     hourWreRef,
                     trace,
-                    prevZeroLoadByBus,
-                    ENABLE_MAINTENANCE_ONLY_AT_ZERO_LOAD,
                     wasWorkingAtHourStart
             );
 
@@ -259,11 +250,6 @@ public final class SingleRunSimulator {
                 fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
                 motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
                 btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
-
-                // Update "previous hour zero-load" markers for the next hour.
-                for (int b = 0; b < busCount; b++) {
-                    prevZeroLoadByBus[b] = loads[b] <= SimulationConstants.EPSILON;
-                }
                 continue;
             }
 
@@ -308,9 +294,6 @@ public final class SingleRunSimulator {
                     PowerBus extra = (doubleBusTransferGen && b == doubleBusLive) ? buses.get(doubleBusDead) : null;
                     PerBusDispatcher.dispatchOneBusOneHourWithExtraSources(ctx, bus, extra, true, b, loadKw);
                 }
-
-                // Update "previous hour zero-load" markers for the next hour.
-                prevZeroLoadByBus[b] = loadKw <= SimulationConstants.EPSILON;
             }
 
             if (doTrace) {

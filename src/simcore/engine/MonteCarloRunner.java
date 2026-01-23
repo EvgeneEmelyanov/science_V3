@@ -303,14 +303,7 @@ public final class MonteCarloRunner {
 
         double fuelSum = 0.0;
         double motoSum = 0.0;
-        double lcoeSum = 0.0;   // <<< ВОТ ЭТОГО У ВАС НЕ ХВАТАЛО
-
-
-        EconomyDrivers firstDriversLocal = null;
-        double[] servedSumByYearLocal = null;
-        double[] fuelSumByYearLocal = null;
-        double[] motoSumByYearLocal = null;
-        double[] btReplSumByYearLocal = null; // double for averaging
+        double lcoeSum = 0.0;
 
         double ens1Sum = 0.0;
         double ens2Sum = 0.0;
@@ -320,13 +313,7 @@ public final class MonteCarloRunner {
         double dgPctSum = 0.0;
         double btPctSum = 0.0;
 
-        // Optional: accumulate discounted LCOE drivers (per-year arrays) for fast post-processing.
-        double[] servedSumByYear = null;
-        double[] fuelSumByYear = null;
-        double[] motoSumByYear = null;
-        double[] btReplSumByYear = null; // keep as double to average; later rounded to long
-        EconomyDrivers firstDrivers = null;
-
+        // failures
         double failRoomSum = 0.0;
         double failBusSum = 0.0;
         double failDgSum = 0.0;
@@ -335,6 +322,7 @@ public final class MonteCarloRunner {
         double failBrkSum = 0.0;
         double repBtSum = 0.0;
 
+        // ENS events
         double ensEvtTotalSum = 0.0;
         double ensEvtStartOnlySum = 0.0;
         double ensEvt1HSum = 0.0;
@@ -346,6 +334,13 @@ public final class MonteCarloRunner {
         double ensEvt13to24HSum = 0.0;
         double ensEvtGt24HSum = 0.0;
         double ensEvtMaxHoursSum = 0.0;
+
+        // ===== Economy drivers aggregation (IMPORTANT) =====
+        EconomyDrivers firstDriversLocal = null;
+        double[] servedSumByYearLocal = null;
+        double[] fuelSumByYearLocal = null;
+        double[] motoSumByYearLocal = null;
+        double[] btReplSumByYearLocal = null; // double for averaging later
 
         for (int mcIdx = fromInclusive; mcIdx < toExclusive; mcIdx++) {
             long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
@@ -361,7 +356,6 @@ public final class MonteCarloRunner {
                     motoSumByYearLocal = new double[years];
                     btReplSumByYearLocal = new double[years];
                 }
-                // basic sanity: assume same years for this theta
                 int years = firstDriversLocal.years();
                 for (int yy = 0; yy < years; yy++) {
                     servedSumByYearLocal[yy] += m.economyDrivers.servedKwhByYear[yy];
@@ -407,6 +401,7 @@ public final class MonteCarloRunner {
             ensEvtMaxHoursSum   += m.ensEventsMaxHours;
         }
 
+        // ===== IMPORTANT: return FULL ChunkAgg with drivers =====
         return new ChunkAgg(
                 fromInclusive,
                 ens,
@@ -414,7 +409,7 @@ public final class MonteCarloRunner {
                 ens2Sum,
                 fuelSum,
                 motoSum,
-                lcoeSum,                // <<< теперь переменная существует
+                lcoeSum,
                 wrePctSum,
                 wtPctSum,
                 dgPctSum,
@@ -436,10 +431,14 @@ public final class MonteCarloRunner {
                 ensEvt9to12HSum,
                 ensEvt13to24HSum,
                 ensEvtGt24HSum,
-                ensEvtMaxHoursSum
+                ensEvtMaxHoursSum,
+                firstDriversLocal,
+                servedSumByYearLocal,
+                fuelSumByYearLocal,
+                motoSumByYearLocal,
+                btReplSumByYearLocal
         );
     }
-
 
     private static final class ChunkAgg {
         final int ensOffset;
