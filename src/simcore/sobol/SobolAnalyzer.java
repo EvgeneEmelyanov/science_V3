@@ -30,7 +30,7 @@ public final class SobolAnalyzer {
             );
         }
 
-        double[][][] ab = generateABBySobolSequence(N, d /*, 1024*/);
+        double[][][] ab = generateABBySobolSequence(N, d, 1024);
         double[][] A = ab[0];
         double[][] B = ab[1];
 
@@ -138,7 +138,7 @@ public final class SobolAnalyzer {
             for (int i = 0; i < N; i++) {
                 double ab = extractMetric(yAB.get(j).get(i), metric);
 
-                sumProd += a[i] * ab;
+                sumProd += b[i] * ab;
 
                 double diff = a[i] - ab;
                 sumSt += diff * diff;
@@ -171,11 +171,15 @@ public final class SobolAnalyzer {
         };
     }
 
-    private static double[][][] generateABBySobolSequence(int N, int d /*, int skip*/) {
+    private static double[][][] generateABBySobolSequence(int N, int d, int skip) {
         SobolSequenceGenerator sobol = new SobolSequenceGenerator(2 * d);
 
+        // Skip early points (recommended) by advancing the generator.
+        for (int i = 0; i < skip; i++) sobol.nextVector();
+
         // optional (if you want): skip early points
-        // sobol.skip(skip);
+        // Apache Commons Math Sobol has no skip(); advance manually.
+        // for (int i = 0; i < skip; i++) sobol.nextVector();
 
         double[][] A = new double[N][d];
         double[][] B = new double[N][d];

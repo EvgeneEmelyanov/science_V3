@@ -14,6 +14,7 @@ import simcore.engine.bus.TieBreakerController;
 import simcore.engine.trace.ArrayTraceSession;
 import simcore.engine.trace.NoTraceSession;
 import simcore.engine.trace.TraceSession;
+import simcore.economy.*;
 
 import java.util.List;
 
@@ -342,7 +343,7 @@ public final class SingleRunSimulator {
             fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
             motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
             btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
-;
+            ;
 
         }
 
@@ -386,9 +387,19 @@ public final class SingleRunSimulator {
         long ensEventsMaxHours = totals.ensEventStats.getMaxRunHours();
 
         // ===== LCOE (discounted), based on delivered energy (served = load - ENS) =====
-        double lcoeRubPerKwh = computeLcoeRubPerKwh(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear);
-
-
+        // ===== LCOE (discounted), based on delivered energy (served = load - ENS) =====
+        EconomyDrivers econDrivers = buildEconomyDrivers(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear);
+        UnitCosts unitCosts = new UnitCosts(
+                sp.getCostRuRub(),
+                sp.getCostDgRubPerKw(),
+                sp.getCostWtRubPerKw(),
+                sp.getCostBtRubPerKwh(),
+                sp.getCostFuelRubPerKt(),
+                sp.getCostDgRubPerKwPerKmh(),
+                sp.getCostWtRubPerKwPerYear(),
+                sp.getCostBtRubPerKwhPerYear()
+        );
+        double lcoeRubPerKwh = DiscountedLcoeCalculator.computeRubPerKwh(econDrivers, unitCosts);
         return new SimulationMetrics(
                 totals.loadKwh,
                 totals.ensKwh,
@@ -420,6 +431,8 @@ public final class SingleRunSimulator {
                 bc[7],
                 bc[8],
                 ensEventsMaxHours
+                ,
+                econDrivers
         );
     }
 
@@ -883,12 +896,30 @@ public final class SingleRunSimulator {
             double[] motoHoursByYear,
             long[] btReplByYear
     ) {
-        final int years = servedKwhByYear.length;
-        if (years == 0) return 0.0;
+        EconomyDrivers d = buildEconomyDrivers(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear);
+        UnitCosts c = new UnitCosts(
+                sp.getCostRuRub(),
+                sp.getCostDgRubPerKw(),
+                sp.getCostWtRubPerKw(),
+                sp.getCostBtRubPerKwh(),
+                sp.getCostFuelRubPerKt(),
+                sp.getCostDgRubPerKwPerKmh(),
+                sp.getCostWtRubPerKwPerYear(),
+                sp.getCostBtRubPerKwhPerYear()
+        );
+        return DiscountedLcoeCalculator.computeRubPerKwh(d, c);
 
-        final double r = sp.getDiscountRatePerYear();
-        final double eps = 1e-12;
+    }
 
+    // Добавьте в SingleRunSimulator (например, в секции Helpers)
+    private static EconomyDrivers buildEconomyDrivers(
+            SystemParameters sp,
+            java.util.List<PowerBus> buses,
+            double[] servedKwhByYear,
+            double[] fuelLitersByYear,
+            double[] motoHoursByYear,
+            long[] btReplByYear
+    ) {
         // installed amounts (from actual built system)
         double dgTotalKw = 0.0;
         double wtTotalKw = 0.0;
@@ -901,44 +932,18 @@ public final class SingleRunSimulator {
             if (bt != null) btTotalKwh += bt.getMaxCapacityKwh();
         }
 
-        // CAPEX at t=0
-        final double capexRub =
-                sp.getCostRuRub()
-                        + sp.getCostDgRubPerKw() * dgTotalKw
-                        + sp.getCostWtRubPerKw() * wtTotalKw
-                        + sp.getCostBtRubPerKwh() * btTotalKwh;
-
-        double pvCostRub = capexRub;
-        double pvServedKwh = 0.0;
-
-        for (int y = 0; y < years; y++) {
-            final double df = 1.0 / Math.pow(1.0 + r, (y + 1));
-
-            pvServedKwh += servedKwhByYear[y] * df;
-
-            // fuel: rub/kt, simplest consistent conversion: kt = liters / 1e6
-            final double fuelKt = fuelLitersByYear[y] / 1_000_000.0;
-            final double fuelRub = fuelKt * sp.getCostFuelRubPerKt();
-
-            // moto: rub per (kW * 1000 moto-hours)
-            final double motoRub = (motoHoursByYear[y] / 1000.0) * dgTotalKw * sp.getCostDgRubPerKwPerKmh();
-
-            // annual opex
-            final double wtOpexRub = wtTotalKw * sp.getCostWtRubPerKwPerYear();
-            final double btOpexRub = btTotalKwh * sp.getCostBtRubPerKwhPerYear();
-
-            // battery replacements: replacementCount * (full pack cost)
-            final double btReplRub = (double) btReplByYear[y] * (sp.getCostBtRubPerKwh() * btTotalKwh);
-
-            final double yearCostRub = fuelRub + motoRub + wtOpexRub + btOpexRub + btReplRub;
-
-            pvCostRub += yearCostRub * df;
-        }
-
-        if (pvServedKwh <= eps) return 0.0;
-        return pvCostRub / pvServedKwh;
+        // Важно: массивы по годам передаём как есть (это и есть "драйверы")
+        return new EconomyDrivers(
+                servedKwhByYear,
+                fuelLitersByYear,
+                motoHoursByYear,
+                btReplByYear,
+                dgTotalKw,
+                wtTotalKw,
+                btTotalKwh,
+                sp.getDiscountRatePerYear()
+        );
     }
-
 
 
 

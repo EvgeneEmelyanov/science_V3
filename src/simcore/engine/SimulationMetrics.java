@@ -1,6 +1,7 @@
 package simcore.engine;
 
 import java.util.List;
+import simcore.economy.EconomyDrivers;
 
 public final class SimulationMetrics {
 
@@ -16,6 +17,9 @@ public final class SimulationMetrics {
 
     /** LCOE, руб/кВт·ч (discounted), на отпущенную энергию (без ENS). */
     public final double lcoeRubPerKwh;
+
+    /** Optional: per-year cost drivers for fast LCOE post-processing (may be null). */
+    public final EconomyDrivers economyDrivers;
 
     public final double fuelLiters;    // суммарный расход топлива за горизонт
     public final long totalMotoHours;  // суммарные моточасы ДГУ за горизонт
@@ -74,7 +78,7 @@ public final class SimulationMetrics {
                              long ensEvents13to24H,
                              long ensEventsGt24H,
                              long ensEventsMaxHours
-    ) {
+            , EconomyDrivers economyDrivers) {
         this.loadKwh = loadKwh;
         this.ensKwh = ensKwh;
         this.ensCat1Kwh = ensCat1Kwh;
@@ -84,6 +88,7 @@ public final class SimulationMetrics {
         this.dgToLoadKwh = dgToLoadKwh;
         this.btToLoadKwh = btToLoadKwh;
         this.lcoeRubPerKwh = lcoeRubPerKwh;
+        this.economyDrivers = economyDrivers;
         this.fuelLiters = fuelLiters;
         this.totalMotoHours = totalMotoHours;
         this.trace = trace;

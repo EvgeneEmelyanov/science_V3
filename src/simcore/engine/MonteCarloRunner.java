@@ -5,6 +5,7 @@ import simcore.config.SimulationConstants;
 import simcore.config.SystemParameters;
 import simcore.sobol.ParameterSet;
 import simcore.sobol.SobolConfig;
+import simcore.economy.EconomyDrivers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -86,6 +87,7 @@ public final class MonteCarloRunner {
 
             return new MonteCarloEstimate(
                     theta,
+                    m.economyDrivers,
                     ensStats,
                     m.ensCat1Kwh,
                     m.ensCat2Kwh,
@@ -146,6 +148,13 @@ public final class MonteCarloRunner {
         double dgPctSum = 0.0;
         double btPctSum = 0.0;
 
+        // Optional: accumulate discounted LCOE drivers (per-year arrays) for fast post-processing.
+        double[] servedSumByYear = null;
+        double[] fuelSumByYear = null;
+        double[] motoSumByYear = null;
+        double[] btReplSumByYear = null; // keep as double to average; later rounded to long
+        EconomyDrivers firstDrivers = null;
+
         double failRoomSum = 0.0;
         double failBusSum = 0.0;
         double failDgSum = 0.0;
@@ -185,6 +194,26 @@ public final class MonteCarloRunner {
             failBrkSum  += a.failBrkSum;
             repBtSum += a.repBtSum;
 
+            // economy drivers
+            if (a.firstDrivers != null) {
+                if (firstDrivers == null) {
+                    firstDrivers = a.firstDrivers;
+                    int years = firstDrivers.years();
+                    servedSumByYear = new double[years];
+                    fuelSumByYear = new double[years];
+                    motoSumByYear = new double[years];
+                    btReplSumByYear = new double[years];
+                }
+                int years = firstDrivers.years();
+                for (int yy = 0; yy < years; yy++) {
+                    servedSumByYear[yy] += a.servedSumByYear[yy];
+                    fuelSumByYear[yy] += a.fuelSumByYear[yy];
+                    motoSumByYear[yy] += a.motoSumByYear[yy];
+                    btReplSumByYear[yy] += a.btReplSumByYear[yy];
+                }
+            }
+
+
             ensEvtTotalSum += a.ensEvtTotalSum;
             ensEvtStartOnlySum += a.ensEvtStartOnlySum;
             ensEvt1HSum += a.ensEvt1HSum;
@@ -205,8 +234,31 @@ public final class MonteCarloRunner {
 
         double inv = 1.0 / mcIterations;
 
+        EconomyDrivers meanEconomyDrivers = null;
+        if (firstDrivers != null && servedSumByYear != null) {
+            int years = firstDrivers.years();
+            double[] servedMean = new double[years];
+            double[] fuelMean = new double[years];
+            double[] motoMean = new double[years];
+            long[] replMean = new long[years];
+            for (int yy = 0; yy < years; yy++) {
+                servedMean[yy] = servedSumByYear[yy] * inv;
+                fuelMean[yy] = fuelSumByYear[yy] * inv;
+                motoMean[yy] = motoSumByYear[yy] * inv;
+                // replacements: average then round to nearest long for post-processing
+                replMean[yy] = Math.round(btReplSumByYear[yy] * inv);
+            }
+            meanEconomyDrivers = new EconomyDrivers(
+                    servedMean, fuelMean, motoMean, replMean,
+                    firstDrivers.dgTotalKw, firstDrivers.wtTotalKw, firstDrivers.btTotalKwh,
+                    firstDrivers.discountRatePerYear
+            );
+        }
+
+
         return new MonteCarloEstimate(
                 theta,
+                meanEconomyDrivers,
                 ensStats,
                 ens1Sum * inv,
                 ens2Sum * inv,
@@ -253,6 +305,13 @@ public final class MonteCarloRunner {
         double motoSum = 0.0;
         double lcoeSum = 0.0;   // <<< ВОТ ЭТОГО У ВАС НЕ ХВАТАЛО
 
+
+        EconomyDrivers firstDriversLocal = null;
+        double[] servedSumByYearLocal = null;
+        double[] fuelSumByYearLocal = null;
+        double[] motoSumByYearLocal = null;
+        double[] btReplSumByYearLocal = null; // double for averaging
+
         double ens1Sum = 0.0;
         double ens2Sum = 0.0;
 
@@ -260,6 +319,13 @@ public final class MonteCarloRunner {
         double wtPctSum = 0.0;
         double dgPctSum = 0.0;
         double btPctSum = 0.0;
+
+        // Optional: accumulate discounted LCOE drivers (per-year arrays) for fast post-processing.
+        double[] servedSumByYear = null;
+        double[] fuelSumByYear = null;
+        double[] motoSumByYear = null;
+        double[] btReplSumByYear = null; // keep as double to average; later rounded to long
+        EconomyDrivers firstDrivers = null;
 
         double failRoomSum = 0.0;
         double failBusSum = 0.0;
@@ -284,6 +350,26 @@ public final class MonteCarloRunner {
         for (int mcIdx = fromInclusive; mcIdx < toExclusive; mcIdx++) {
             long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
             SimulationMetrics m = simulator.simulate(input, seed, false);
+
+            // accumulate economy drivers (if present)
+            if (m.economyDrivers != null) {
+                if (firstDriversLocal == null) {
+                    firstDriversLocal = m.economyDrivers;
+                    int years = firstDriversLocal.years();
+                    servedSumByYearLocal = new double[years];
+                    fuelSumByYearLocal = new double[years];
+                    motoSumByYearLocal = new double[years];
+                    btReplSumByYearLocal = new double[years];
+                }
+                // basic sanity: assume same years for this theta
+                int years = firstDriversLocal.years();
+                for (int yy = 0; yy < years; yy++) {
+                    servedSumByYearLocal[yy] += m.economyDrivers.servedKwhByYear[yy];
+                    fuelSumByYearLocal[yy] += m.economyDrivers.fuelLitersByYear[yy];
+                    motoSumByYearLocal[yy] += m.economyDrivers.motoHoursByYear[yy];
+                    btReplSumByYearLocal[yy] += m.economyDrivers.btReplByYear[yy];
+                }
+            }
 
             int k = mcIdx - fromInclusive;
             ens[k] = m.ensKwh;
@@ -375,6 +461,13 @@ public final class MonteCarloRunner {
         final double failBrkSum;
         final double repBtSum;
 
+
+        final EconomyDrivers firstDrivers;
+        final double[] servedSumByYear;
+        final double[] fuelSumByYear;
+        final double[] motoSumByYear;
+        final double[] btReplSumByYear;
+
         final double ensEvtTotalSum;
         final double ensEvtStartOnlySum;
         final double ensEvt1HSum;
@@ -415,7 +508,12 @@ public final class MonteCarloRunner {
                  double ensEvt9to12HSum,
                  double ensEvt13to24HSum,
                  double ensEvtGt24HSum,
-                 double ensEvtMaxHoursSum) {
+                 double ensEvtMaxHoursSum,
+                 EconomyDrivers firstDrivers,
+                 double[] servedSumByYear,
+                 double[] fuelSumByYear,
+                 double[] motoSumByYear,
+                 double[] btReplSumByYear) {
             this.ensOffset = ensOffset;
             this.ens = ens;
             this.ens1Sum = ens1Sum;
@@ -434,6 +532,12 @@ public final class MonteCarloRunner {
             this.failBtSum = failBtSum;
             this.failBrkSum = failBrkSum;
             this.repBtSum = repBtSum;
+
+            this.firstDrivers = firstDrivers;
+            this.servedSumByYear = servedSumByYear;
+            this.fuelSumByYear = fuelSumByYear;
+            this.motoSumByYear = motoSumByYear;
+            this.btReplSumByYear = btReplSumByYear;
 
             this.ensEvtTotalSum = ensEvtTotalSum;
             this.ensEvtStartOnlySum = ensEvtStartOnlySum;

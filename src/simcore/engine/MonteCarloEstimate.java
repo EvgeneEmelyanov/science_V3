@@ -1,6 +1,7 @@
 package simcore.engine;
 
 import simcore.sobol.ParameterSet;
+import simcore.economy.EconomyDrivers;
 
 /**
  * Итог MC для одной точки параметров (theta):
@@ -13,6 +14,9 @@ public final class MonteCarloEstimate {
 
     /** Набор параметров (null для обычного MC без Соболя). */
     public final ParameterSet theta;
+
+    /** Optional: mean per-year cost drivers for fast LCOE post-processing (may be null). */
+    public final EconomyDrivers economyDrivers;
 
     /** Статистика ENS по MC-выборке. */
     public final MonteCarloStats.Stats ensStats;
@@ -71,6 +75,7 @@ public final class MonteCarloEstimate {
 
 
     public MonteCarloEstimate(ParameterSet theta,
+                              EconomyDrivers economyDrivers,
                               MonteCarloStats.Stats ensStats,
                               double meanEnsCat1Kwh,
                               double meanEnsCat2Kwh,
@@ -102,6 +107,7 @@ public final class MonteCarloEstimate {
                               double meanEnsEventsMaxHours
     ) {
         this.theta = theta;
+        this.economyDrivers = economyDrivers;
         this.ensStats = ensStats;
         this.meanEnsCat1Kwh = meanEnsCat1Kwh;
         this.meanEnsCat2Kwh = meanEnsCat2Kwh;
