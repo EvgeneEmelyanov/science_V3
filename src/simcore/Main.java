@@ -28,31 +28,31 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.SOBOL_HARD; // тип запуска: прогон / тяжелый или легкий соболь
         LoadType loadType = LoadType.GOK; // тип нагрузки
 
-        int mcIterations = 100;
-        int sobolN = 100;
-        RunMode runMode = RunMode.SINGLE;
+        int mcIterations = 10;
+        int sobolN = 256;
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
-        String loadFilePath = null;                       // optional override
+        Task task = Task.SOBOL_HARD;
+        RunMode runMode = RunMode.SWEEP_2;
+
+        String loadFilePath = null;
         String windFilePath = Defaults.WIND_PATH;
         String resultsXlsxPath = Defaults.RESULTS_XLSX;
         String traceCsvPath = Defaults.TRACE_CSV;
-
-        int threads = Runtime.getRuntime().availableProcessors();
-        long mcBaseSeed = 1_000_000L;
-
         Integer maxLoadOverride = 1000;
 
         // Export drivers from RUN
-        String exportDriversPath = "D:/econ_drivers.csv";
-
+//        String exportDriversPath = "D:/econ_drivers.csv";
+        String exportDriversPath = null;
         // Econ sobol
         String econDriversPath = "D:/econ_drivers.csv";;
         String econCaseId = "case_0";
         Integer econN = null;
+
+        int threads = Runtime.getRuntime().availableProcessors();
+        long mcBaseSeed = 1_000_000L;
 
         static Cli parse(String[] args) {
             Cli c = new Cli();
@@ -173,8 +173,8 @@ public class Main {
         // ---- SimulationConfig defaults (match SimulationConfig constructor) ----
         static final boolean CFG_CONSIDER_FAILURES = true;
         static final boolean CFG_CONSIDER_MAINTENANCE = true;
-        static final boolean CFG_CONSIDER_CHARGE_BY_DG = false;
-        static final boolean CFG_CONSIDER_HOT_RESERVE = false;
+        static final boolean CFG_RESERVE_THIRD_CATEGORY = false;
+        static final boolean CFG_CONSIDER_HOT_RESERVE = true;
         static final boolean CFG_CONSIDER_BATTERY_DEGRADATION = true;
         static final boolean CFG_CONSIDER_ROTATION_RESERVE = true;
     }
@@ -298,11 +298,15 @@ public class Main {
 
     private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
         List<TunableParamId> ids = List.of(
-                TunableParamId.WT_FAILURE_RATE,
-                TunableParamId.DG_FAILURE_RATE,
-                TunableParamId.BT_FAILURE_RATE,
-                TunableParamId.BUS_FAILURE_RATE,
-                TunableParamId.BRK_FAILURE_RATE
+//                TunableParamId.WT_FAILURE_RATE,
+//                TunableParamId.DG_FAILURE_RATE,
+//                TunableParamId.BT_FAILURE_RATE,
+//                TunableParamId.BUS_FAILURE_RATE,
+//                TunableParamId.BRK_FAILURE_RATE
+                TunableParamId.BT_CAPACITY_PER_BUS,
+                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                TunableParamId.BT_MAX_CHARGE_CURRENT,
+                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
         );
 
         SobolConfig sobolCfg = SobolConfig.fromIds(
@@ -354,7 +358,7 @@ public class Main {
         }
 
         UnitCosts base = new UnitCosts(
-                baseParams.getCostRuRub(),
+                simcore.economy.RuCostAdjuster.effectiveRuCost(baseParams.getBusSystemType(), baseParams.getCostRuRub()),
                 baseParams.getCostDgRubPerKw(),
                 baseParams.getCostWtRubPerKw(),
                 baseParams.getCostBtRubPerKwh(),
@@ -525,7 +529,7 @@ public class Main {
                     threads,
                     Defaults.CFG_CONSIDER_FAILURES,
                     Defaults.CFG_CONSIDER_MAINTENANCE,
-                    Defaults.CFG_CONSIDER_CHARGE_BY_DG,
+                    Defaults.CFG_RESERVE_THIRD_CATEGORY,
                     Defaults.CFG_CONSIDER_HOT_RESERVE,
                     Defaults.CFG_CONSIDER_BATTERY_DEGRADATION,
                     Defaults.CFG_CONSIDER_ROTATION_RESERVE
@@ -603,7 +607,7 @@ public class Main {
             double sumSt = 0.0;
             for (int i = 0; i < N; i++) {
                 double yAB = ab[j][i];
-                sumProd += b[i] * yAB; // Saltelli 2010 first-order (covariance form)
+                sumProd += a[i] * yAB; // Saltelli 2010 first-order (covariance form)
                 double diff = a[i] - yAB;
                 sumSt += diff * diff;  // Jansen total-order
             }

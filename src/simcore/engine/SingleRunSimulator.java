@@ -16,6 +16,8 @@ import simcore.engine.trace.NoTraceSession;
 import simcore.engine.trace.TraceSession;
 import simcore.economy.*;
 
+import static simcore.economy.RuCostAdjuster.effectiveRuCost;
+
 import java.util.List;
 
 public final class SingleRunSimulator {
@@ -32,7 +34,7 @@ public final class SingleRunSimulator {
 
         final boolean considerFailures = config.isConsiderFailures();
         final boolean considerDegradation = config.isConsiderBatteryDegradation();
-        final boolean considerChargeByDg = config.isConsiderChargeByDg();
+        final boolean reserveThirdCategory = config.isReserveThirdCategory();
 //        final boolean considerRotationReserve = config.isConsiderRotationReserve();
         considerRotationReserve = config.isConsiderRotationReserve();
 
@@ -81,10 +83,36 @@ public final class SingleRunSimulator {
             double totalWreAtTime;
             final double[] hourWreRef = doTrace ? new double[]{0.0} : null;
 
-            // Raw (pre-transfer) loads for maintenance deferral decision.
+    // === Extra own-use load (does not count as delivered energy for LCOE) ===
+    // Apply only when hot reserve is considered.
+            final double[] ownUseKwByBus = new double[busCount];
+
+            if (config.isConsiderHotReserve()) {
+                if (t == 0) {
+                    for (int b = 0; b < busCount; b++) {
+                        int dgCount = buses.get(b).getDieselGenerators().size();
+                        ownUseKwByBus[b] = dgCount * 0.01 * dgRatedKw;
+                    }
+                } else {
+                    for (int b = 0; b < busCount; b++) {
+                        double add = 0.0;
+                        for (DieselGenerator dg : buses.get(b).getDieselGenerators()) {
+                            if (Math.abs(dg.getCurrentLoad()) <= SimulationConstants.EPSILON) {
+                                add += 0.01 * dgRatedKw;
+                            }
+                        }
+                        ownUseKwByBus[b] = add;
+                    }
+                }
+            }
+
+            final double ownUseTotalKwThisHour = java.util.Arrays.stream(ownUseKwByBus).sum();
+
+
+            // Raw (pre-transfer) loads for maintenance deferral decision (consumer load + own-use).
             final double[] rawLoadThisHourKw = new double[busCount];
             for (int b = 0; b < busCount; b++) {
-                rawLoadThisHourKw[b] = buses.get(b).getLoadKw()[t];
+                rawLoadThisHourKw[b] = buses.get(b).getLoadKw()[t] + ownUseKwByBus[b];
             }
 
             NetworkFailureStep.updateOneHour(
@@ -112,7 +140,7 @@ public final class SingleRunSimulator {
                     sp,
                     windV,
                     considerDegradation,
-                    considerChargeByDg,
+                    reserveThirdCategory,
                     considerRotationReserve,
                     cat1,
                     cat2,
@@ -144,7 +172,8 @@ public final class SingleRunSimulator {
                     cat1,
                     cat2,
                     windV,
-                    dgMaxKw
+                    dgMaxKw,
+                    rawLoadThisHourKw
             );
 
             boolean sectionalClosedThisHour = false;
@@ -156,7 +185,7 @@ public final class SingleRunSimulator {
 
                 double[] loadsForDecision = (effectiveLoadKw != null)
                         ? effectiveLoadKw
-                        : new double[]{buses.get(0).getLoadKw()[t], buses.get(1).getLoadKw()[t]};
+                        : new double[]{rawLoadThisHourKw[0], rawLoadThisHourKw[1]};
 
                 sectionalClosedThisHour = TieBreakerController.shouldCloseTieBreakerThisHour(
                         sp, buses, loadsForDecision, windV, dgMaxKw
@@ -186,7 +215,7 @@ public final class SingleRunSimulator {
 
                 final double[] loads = (effectiveLoadKw != null)
                         ? effectiveLoadKw
-                        : new double[]{buses.get(0).getLoadKw()[t], buses.get(1).getLoadKw()[t]};
+                        : new double[]{rawLoadThisHourKw[0], rawLoadThisHourKw[1]};
 
                 SectionalClosedResult r = SectionalClosedDispatcher.dispatchSectionalClosedOneHour(
                         ctx,
@@ -245,8 +274,9 @@ public final class SingleRunSimulator {
 
                 int y = t / HOURS_PER_YEAR;
                 double loadKwhThisHour = totalLoadAtTime; // kW over 1h
-                double servedKwhThisHour = Math.max(0.0, loadKwhThisHour - ensThisHour);
-                servedKwhByYear[y] += servedKwhThisHour;
+                double servedIncludingOwnUse = Math.max(0.0, loadKwhThisHour - ensThisHour);
+                double servedToConsumers = Math.max(0.0, servedIncludingOwnUse - ownUseTotalKwThisHour);
+                servedKwhByYear[y] += servedToConsumers;
                 fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
                 motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
                 btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
@@ -269,7 +299,7 @@ public final class SingleRunSimulator {
 
             for (int b = 0; b < busCount; b++) {
                 final PowerBus bus = buses.get(b);
-                final double loadKw = (effectiveLoadKw != null) ? effectiveLoadKw[b] : bus.getLoadKw()[t];
+                final double loadKw = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
 
                 if (!busAlive[b]) {
                     // If gen transfer is active, do not stop diesels on the dead bus:
@@ -298,7 +328,7 @@ public final class SingleRunSimulator {
 
             if (doTrace) {
                 for (int b = 0; b < busCount; b++) {
-                    totalLoadAtTime += buses.get(b).getLoadKw()[t]; // или effectiveLoadKw[b] если он не null — ниже см.
+                    totalLoadAtTime += rawLoadThisHourKw[b]; // consumer load + own-use
                 }
                 totalWreAtTime = hourWreRef[0];
                 Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
@@ -317,12 +347,13 @@ public final class SingleRunSimulator {
             if (effectiveLoadKw != null) {
                 for (int b = 0; b < busCount; b++) loadKwhThisHour += effectiveLoadKw[b];
             } else {
-                for (int b = 0; b < busCount; b++) loadKwhThisHour += buses.get(b).getLoadKw()[t];
+                for (int b = 0; b < busCount; b++) loadKwhThisHour += rawLoadThisHourKw[b];
             }
 
-            double servedKwhThisHour = Math.max(0.0, loadKwhThisHour - ensThisHour);
+            double servedIncludingOwnUse = Math.max(0.0, loadKwhThisHour - ensThisHour);
+            double servedToConsumers = Math.max(0.0, servedIncludingOwnUse - ownUseTotalKwThisHour);
 
-            servedKwhByYear[y] += servedKwhThisHour;
+            servedKwhByYear[y] += servedToConsumers;
             fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
             motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
             btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
@@ -373,7 +404,7 @@ public final class SingleRunSimulator {
         // ===== LCOE (discounted), based on delivered energy (served = load - ENS) =====
         EconomyDrivers econDrivers = buildEconomyDrivers(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear);
         UnitCosts unitCosts = new UnitCosts(
-                sp.getCostRuRub(),
+                effectiveRuCost(sp.getBusSystemType(), sp.getCostRuRub()),
                 sp.getCostDgRubPerKw(),
                 sp.getCostWtRubPerKw(),
                 sp.getCostBtRubPerKwh(),
@@ -642,6 +673,7 @@ public final class SingleRunSimulator {
             double windToLoadKw,
             double cat1,
             double cat2,
+            boolean reserveThirdCategory,
             boolean btAvail,
             Battery battery,
             SystemParameters sp,
@@ -653,7 +685,10 @@ public final class SingleRunSimulator {
     ) {
         int dgCountAll = dgs.length;
 
-        double pCrit = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
+        double cat3 = Math.max(0.0, 1.0 - cat1 - cat2);
+        double reserveShare = cat1 + SimulationConstants.DG_IDLE_K2 * cat2 + (reserveThirdCategory ? cat3 : 0.0);
+
+        double pCrit = loadKw * reserveShare;
         double windLoss = Math.min(windToLoadKw, pCrit);
 
         double btFirm = 0.0;
@@ -674,7 +709,7 @@ public final class SingleRunSimulator {
         }
         // РЕЗЕРВ
 //        double reserveNeed = windLoss - (btFirm + dgFirm);
-        double reserveNeed = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
+        double reserveNeed = loadKw * reserveShare;
 //        double reserveNeed = windLoss;
         reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
         if (reserveNeed < 0.0) reserveNeed = 0.0;
@@ -741,7 +776,8 @@ public final class SingleRunSimulator {
             double dgMaxKw,
             double dgMinKw,
             double currentSumDieselKw,
-            double cat1, double cat2
+            double cat1, double cat2,
+            boolean reserveThirdCategory
     ) {
         final int n = dgs.length;
 
@@ -750,8 +786,10 @@ public final class SingleRunSimulator {
         double needDieselNowKw = loadKw - windToLoadKw - btToLoadKw;
         if (needDieselNowKw < 0.0) needDieselNowKw = 0.0;
 
-        // 1) Уставка резерва N−1 (только 1+2 категория)
-        double reserveTargetKw = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
+        // 1) Уставка резерва N−1 (I/II; optionally III)
+        double cat3 = Math.max(0.0, 1.0 - cat1 - cat2);
+        double reserveShare = cat1 + SimulationConstants.DG_IDLE_K2 * cat2 + (reserveThirdCategory ? cat3 : 0.0);
+        double reserveTargetKw = loadKw * reserveShare;
         if (reserveTargetKw < 0.0) reserveTargetKw = 0.0;
         if (reserveTargetKw > loadKw) reserveTargetKw = loadKw;
 
@@ -881,7 +919,7 @@ public final class SingleRunSimulator {
     ) {
         EconomyDrivers d = buildEconomyDrivers(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear);
         UnitCosts c = new UnitCosts(
-                sp.getCostRuRub(),
+                effectiveRuCost(sp.getBusSystemType(), sp.getCostRuRub()),
                 sp.getCostDgRubPerKw(),
                 sp.getCostWtRubPerKw(),
                 sp.getCostBtRubPerKwh(),

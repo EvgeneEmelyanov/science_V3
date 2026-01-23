@@ -19,7 +19,7 @@ final class HourContext {
     final double windV;
 
     final boolean considerDegradation;
-    final boolean considerChargeByDg;
+    final boolean reserveThirdCategory;
     final boolean considerRotationReserve;
 
     final double cat1;
@@ -46,7 +46,7 @@ final class HourContext {
             SystemParameters sp,
             double windV,
             boolean considerDegradation,
-            boolean considerChargeByDg,
+            boolean reserveThirdCategory,
             boolean considerRotationReserve,
             double cat1,
             double cat2,
@@ -63,7 +63,7 @@ final class HourContext {
         this.sp = sp;
         this.windV = windV;
         this.considerDegradation = considerDegradation;
-        this.considerChargeByDg = considerChargeByDg;
+        this.reserveThirdCategory = reserveThirdCategory;
         this.considerRotationReserve = considerRotationReserve;
         this.cat1 = cat1;
         this.cat2 = cat2;

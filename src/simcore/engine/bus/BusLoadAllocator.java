@@ -29,6 +29,22 @@ public final class BusLoadAllocator {
                                                       double cat2,
                                                       double windV,
                                                       double dgMaxKw) {
+        return maybeComputeEffectiveLoads(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw, null);
+    }
+
+    /**
+     * Variant that allows passing per-bus base loads for the given hour (instead of reading buses.get(i).getLoadKw()[t]).
+     * This is used when we apply extra own-use load adjustments on the fly.
+     */
+    public static double[] maybeComputeEffectiveLoads(SystemParameters sp,
+                                                      List<PowerBus> buses,
+                                                      boolean[] busAlive,
+                                                      int t,
+                                                      double cat1,
+                                                      double cat2,
+                                                      double windV,
+                                                      double dgMaxKw,
+                                                      double[] baseLoadsThisHourKw) {
         final int busCount = buses.size();
         final BusSystemType busType = sp.getBusSystemType();
 
@@ -41,11 +57,11 @@ public final class BusLoadAllocator {
 
         if (busType == BusSystemType.SINGLE_SECTIONAL_BUS) {
             // Перенос 1/2 категории только при отказе секции (если одна секция недоступна)
-            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, false);
+            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, false, baseLoadsThisHourKw);
         }
 
         // DOUBLE_BUS: перенос 1/2 категории при отказе шины И при дефиците мощности на одной из шин
-        return computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw);
+        return computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw, baseLoadsThisHourKw);
     }
 
     private static double[] computeEffectiveLoadsForSectional(SystemParameters sp,
@@ -54,10 +70,11 @@ public final class BusLoadAllocator {
                                                               int t,
                                                               double cat1,
                                                               double cat2,
-                                                              boolean allowCat3AfterFirstHour) {
+                                                              boolean allowCat3AfterFirstHour,
+                                                              double[] baseLoadsThisHourKw) {
         double[] out = new double[buses.size()];
         for (int i = 0; i < buses.size(); i++) {
-            out[i] = buses.get(i).getLoadKw()[t];
+            out[i] = (baseLoadsThisHourKw != null) ? baseLoadsThisHourKw[i] : buses.get(i).getLoadKw()[t];
         }
 
         if (buses.size() != 2) {
@@ -97,11 +114,12 @@ public final class BusLoadAllocator {
                                                               double cat1,
                                                               double cat2,
                                                               double windV,
-                                                              double dgMaxKw) {
+                                                              double dgMaxKw,
+                                                              double[] baseLoadsThisHourKw) {
         // Базовая нагрузка по шинам
         double[] out = new double[buses.size()];
         for (int i = 0; i < buses.size(); i++) {
-            out[i] = buses.get(i).getLoadKw()[t];
+            out[i] = (baseLoadsThisHourKw != null) ? baseLoadsThisHourKw[i] : buses.get(i).getLoadKw()[t];
         }
 
         if (buses.size() != 2) {
@@ -110,7 +128,7 @@ public final class BusLoadAllocator {
 
         // Если одна шина недоступна — используем ту же логику переноса (1-я сразу, 2-я с задержкой)
         if (busAlive[0] != busAlive[1]) {
-            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, true);
+            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, true, baseLoadsThisHourKw);
         }
 
         // Если обе недоступны или обе доступны — работаем далее только для случая "обе доступны"

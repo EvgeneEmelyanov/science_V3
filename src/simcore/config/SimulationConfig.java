@@ -20,8 +20,8 @@ public class SimulationConfig {
     /** Выводить ли ДГУ в ТО */
     private final boolean considerMaintenance;
 
-    /** Подзаряжать АКБ от ДГУ */
-    private final boolean considerChargeByDg;
+    /** Резервировать ли нагрузку III категории (учитывать ли её в ХХ/вращающемся резерве). */
+    private final boolean reserveThirdCategory;
 
     /** Учитывать расход энергии на горячий резерв */
     private final boolean considerHotReserve;
@@ -37,7 +37,7 @@ public class SimulationConfig {
                             int threads,
                             boolean considerFailures,
                             boolean considerMaintenance,
-                            boolean considerChargeByDg,
+                            boolean reserveThirdCategory,
                             boolean considerHotReserve,
                             boolean considerBatteryDegradation,
                             boolean considerRotationReserve) {
@@ -46,7 +46,7 @@ public class SimulationConfig {
         this.threads = threads;
         this.considerFailures = considerFailures;
         this.considerMaintenance = considerMaintenance;
-        this.considerChargeByDg = considerChargeByDg;
+        this.reserveThirdCategory = reserveThirdCategory;
         this.considerHotReserve = considerHotReserve;
         this.considerBatteryDegradation = considerBatteryDegradation;
         this.considerRotationReserve = considerRotationReserve;
@@ -68,8 +68,8 @@ public class SimulationConfig {
         return considerMaintenance;
     }
 
-    public boolean isConsiderChargeByDg() {
-        return considerChargeByDg;
+    public boolean isReserveThirdCategory() {
+        return reserveThirdCategory;
     }
 
     public boolean isConsiderHotReserve() {

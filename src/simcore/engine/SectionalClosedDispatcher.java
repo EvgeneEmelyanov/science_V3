@@ -213,6 +213,7 @@ final class SectionalClosedDispatcher {
                             usedWind,
                             ctx.cat1,
                             ctx.cat2,
+                            ctx.reserveThirdCategory,
                             false,
                             null,
                             ctx.sp,
@@ -239,7 +240,8 @@ final class SectionalClosedDispatcher {
                             ctx.dgMinKw,
                             sumDieselKw,
                             ctx.cat1,
-                            ctx.cat2
+                            ctx.cat2,
+                            ctx.reserveThirdCategory
                     );
                 }
 
@@ -264,7 +266,7 @@ final class SectionalClosedDispatcher {
 
                 // charge from DG surplus (to both batteries, own first)
                 double dieselSurplus = Math.max(0.0, dgProducedKw - dgToLoadTotal);
-                boolean allowChargeNow = ctx.considerChargeByDg || anyBurnThisHour;
+                boolean allowChargeNow = anyBurnThisHour;
 
                 if (allowChargeNow && dieselSurplus > SimulationConstants.EPSILON) {
                     if (bt0Avail && bt0.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {

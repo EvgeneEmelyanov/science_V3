@@ -380,6 +380,7 @@ final class PerBusDispatcher {
                             windToLoadKw,
                             ctx.cat1,
                             ctx.cat2,
+                            ctx.reserveThirdCategory,
                             btAvail,
                             battery,
                             ctx.sp,
@@ -407,7 +408,8 @@ final class PerBusDispatcher {
                             ctx.dgMinKw,
                             sumDieselKw,
                             ctx.cat1,
-                            ctx.cat2
+                            ctx.cat2,
+                            ctx.reserveThirdCategory
                     );
                 }
                 double firstsumFinalDieselKw = 0.0;
@@ -440,7 +442,8 @@ final class PerBusDispatcher {
                 }
 
                 // ---- заряд от ДГУ ----
-                boolean allowChargeNow = canCharge && (ctx.considerChargeByDg || anyBurnThisHour);
+                // Charging from DG surplus is allowed only when there is an explicit burn/idle fuel consumption.
+                boolean allowChargeNow = canCharge && anyBurnThisHour;
 
                 double btDisToLoadKw = Math.max(0.0, btNetKw);
                 double needFromDieselToLoadKw = loadKw - windToLoadKw - btDisToLoadKw;
