@@ -153,6 +153,9 @@ public final class MonteCarloRunner {
         double[] fuelSumByYear = null;
         double[] motoSumByYear = null;
         double[] btReplSumByYear = null; // keep as double to average; later rounded to long
+        double[] ensCat1SumByYear = null;
+        double[] ensCat2SumByYear = null;
+        double[] ensCat3SumByYear = null;
         EconomyDrivers firstDrivers = null;
 
         double failRoomSum = 0.0;
@@ -203,6 +206,9 @@ public final class MonteCarloRunner {
                     fuelSumByYear = new double[years];
                     motoSumByYear = new double[years];
                     btReplSumByYear = new double[years];
+                    ensCat1SumByYear = new double[years];
+                    ensCat2SumByYear = new double[years];
+                    ensCat3SumByYear = new double[years];
                 }
                 int years = firstDrivers.years();
                 for (int yy = 0; yy < years; yy++) {
@@ -210,6 +216,9 @@ public final class MonteCarloRunner {
                     fuelSumByYear[yy] += a.fuelSumByYear[yy];
                     motoSumByYear[yy] += a.motoSumByYear[yy];
                     btReplSumByYear[yy] += a.btReplSumByYear[yy];
+                    ensCat1SumByYear[yy] += a.ensCat1SumByYear[yy];
+                    ensCat2SumByYear[yy] += a.ensCat2SumByYear[yy];
+                    ensCat3SumByYear[yy] += a.ensCat3SumByYear[yy];
                 }
             }
 
@@ -241,15 +250,22 @@ public final class MonteCarloRunner {
             double[] fuelMean = new double[years];
             double[] motoMean = new double[years];
             long[] replMean = new long[years];
+            double[] ensCat1Mean = new double[years];
+            double[] ensCat2Mean = new double[years];
+            double[] ensCat3Mean = new double[years];
             for (int yy = 0; yy < years; yy++) {
                 servedMean[yy] = servedSumByYear[yy] * inv;
                 fuelMean[yy] = fuelSumByYear[yy] * inv;
                 motoMean[yy] = motoSumByYear[yy] * inv;
                 // replacements: average then round to nearest long for post-processing
                 replMean[yy] = Math.round(btReplSumByYear[yy] * inv);
+                ensCat1Mean[yy] = ensCat1SumByYear[yy] * inv;
+                ensCat2Mean[yy] = ensCat2SumByYear[yy] * inv;
+                ensCat3Mean[yy] = ensCat3SumByYear[yy] * inv;
             }
             meanEconomyDrivers = new EconomyDrivers(
                     servedMean, fuelMean, motoMean, replMean,
+                    ensCat1Mean, ensCat2Mean, ensCat3Mean,
                     firstDrivers.dgTotalKw, firstDrivers.wtTotalKw, firstDrivers.btTotalKwh,
                     firstDrivers.discountRatePerYear
             );
@@ -341,6 +357,9 @@ public final class MonteCarloRunner {
         double[] fuelSumByYearLocal = null;
         double[] motoSumByYearLocal = null;
         double[] btReplSumByYearLocal = null; // double for averaging later
+        double[] ensCat1SumByYearLocal = null;
+        double[] ensCat2SumByYearLocal = null;
+        double[] ensCat3SumByYearLocal = null;
 
         for (int mcIdx = fromInclusive; mcIdx < toExclusive; mcIdx++) {
             long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
@@ -355,6 +374,9 @@ public final class MonteCarloRunner {
                     fuelSumByYearLocal = new double[years];
                     motoSumByYearLocal = new double[years];
                     btReplSumByYearLocal = new double[years];
+                    ensCat1SumByYearLocal = new double[years];
+                    ensCat2SumByYearLocal = new double[years];
+                    ensCat3SumByYearLocal = new double[years];
                 }
                 int years = firstDriversLocal.years();
                 for (int yy = 0; yy < years; yy++) {
@@ -362,6 +384,9 @@ public final class MonteCarloRunner {
                     fuelSumByYearLocal[yy] += m.economyDrivers.fuelLitersByYear[yy];
                     motoSumByYearLocal[yy] += m.economyDrivers.motoHoursByYear[yy];
                     btReplSumByYearLocal[yy] += m.economyDrivers.btReplByYear[yy];
+                    ensCat1SumByYearLocal[yy] += m.economyDrivers.ensCat1KwhByYear[yy];
+                    ensCat2SumByYearLocal[yy] += m.economyDrivers.ensCat2KwhByYear[yy];
+                    ensCat3SumByYearLocal[yy] += m.economyDrivers.ensCat3KwhByYear[yy];
                 }
             }
 
@@ -436,7 +461,10 @@ public final class MonteCarloRunner {
                 servedSumByYearLocal,
                 fuelSumByYearLocal,
                 motoSumByYearLocal,
-                btReplSumByYearLocal
+                btReplSumByYearLocal,
+                ensCat1SumByYearLocal,
+                ensCat2SumByYearLocal,
+                ensCat3SumByYearLocal
         );
     }
 
@@ -466,6 +494,10 @@ public final class MonteCarloRunner {
         final double[] fuelSumByYear;
         final double[] motoSumByYear;
         final double[] btReplSumByYear;
+
+        final double[] ensCat1SumByYear;
+        final double[] ensCat2SumByYear;
+        final double[] ensCat3SumByYear;
 
         final double ensEvtTotalSum;
         final double ensEvtStartOnlySum;
@@ -512,7 +544,10 @@ public final class MonteCarloRunner {
                  double[] servedSumByYear,
                  double[] fuelSumByYear,
                  double[] motoSumByYear,
-                 double[] btReplSumByYear) {
+                 double[] btReplSumByYear,
+                 double[] ensCat1SumByYear,
+                 double[] ensCat2SumByYear,
+                 double[] ensCat3SumByYear) {
             this.ensOffset = ensOffset;
             this.ens = ens;
             this.ens1Sum = ens1Sum;
@@ -537,6 +572,10 @@ public final class MonteCarloRunner {
             this.fuelSumByYear = fuelSumByYear;
             this.motoSumByYear = motoSumByYear;
             this.btReplSumByYear = btReplSumByYear;
+            this.ensCat1SumByYear = ensCat1SumByYear;
+            this.ensCat2SumByYear = ensCat2SumByYear;
+            this.ensCat3SumByYear = ensCat3SumByYear;
+
 
             this.ensEvtTotalSum = ensEvtTotalSum;
             this.ensEvtStartOnlySum = ensEvtStartOnlySum;

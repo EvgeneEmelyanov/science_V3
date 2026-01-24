@@ -48,7 +48,12 @@ public final class DiscountedLcoeCalculator {
             // battery replacements: replacementCount * (full pack cost)
             final double btReplRub = (double) d.btReplByYear[y] * (c.costBtRubPerKwh * d.btTotalKwh);
 
-            final double yearCostRub = fuelRub + motoRub + wtOpexRub + btOpexRub + btReplRub;
+            final double damageRub =
+                    d.ensCat1KwhByYear[y] * c.damageRubPerKwhCat1
+                            + d.ensCat2KwhByYear[y] * c.damageRubPerKwhCat2
+                            + d.ensCat3KwhByYear[y] * c.damageRubPerKwhCat3;
+
+            final double yearCostRub = fuelRub + motoRub + wtOpexRub + btOpexRub + btReplRub + damageRub;
             pvCostRub += yearCostRub * df;
         }
 

@@ -16,6 +16,10 @@ public final class UnitCosts {
     public final double costWtRubPerKwPerYear;
     public final double costBtRubPerKwhPerYear;
 
+    public final double damageRubPerKwhCat1;
+    public final double damageRubPerKwhCat2;
+    public final double damageRubPerKwhCat3;
+
     public UnitCosts(double costRuRub,
                      double costDgRubPerKw,
                      double costWtRubPerKw,
@@ -23,7 +27,10 @@ public final class UnitCosts {
                      double costFuelRubPerKt,
                      double costDgRubPerKwPerKmh,
                      double costWtRubPerKwPerYear,
-                     double costBtRubPerKwhPerYear) {
+                     double costBtRubPerKwhPerYear,
+                     double damageRubPerKwhCat1,
+                     double damageRubPerKwhCat2,
+                     double damageRubPerKwhCat3) {
         this.costRuRub = costRuRub;
         this.costDgRubPerKw = costDgRubPerKw;
         this.costWtRubPerKw = costWtRubPerKw;
@@ -32,5 +39,8 @@ public final class UnitCosts {
         this.costDgRubPerKwPerKmh = costDgRubPerKwPerKmh;
         this.costWtRubPerKwPerYear = costWtRubPerKwPerYear;
         this.costBtRubPerKwhPerYear = costBtRubPerKwhPerYear;
+        this.damageRubPerKwhCat1 = damageRubPerKwhCat1;
+        this.damageRubPerKwhCat2 = damageRubPerKwhCat2;
+        this.damageRubPerKwhCat3 = damageRubPerKwhCat3;
     }
 }

@@ -13,6 +13,10 @@ public final class EconomyDrivers {
     public final double[] motoHoursByYear;
     public final long[] btReplByYear;
 
+    public final double[] ensCat1KwhByYear;
+    public final double[] ensCat2KwhByYear;
+    public final double[] ensCat3KwhByYear;
+
     public final double dgTotalKw;
     public final double wtTotalKw;
     public final double btTotalKwh;
@@ -23,6 +27,9 @@ public final class EconomyDrivers {
                           double[] fuelLitersByYear,
                           double[] motoHoursByYear,
                           long[] btReplByYear,
+                          double[] ensCat1KwhByYear,
+                          double[] ensCat2KwhByYear,
+                          double[] ensCat3KwhByYear,
                           double dgTotalKw,
                           double wtTotalKw,
                           double btTotalKwh,
@@ -31,6 +38,9 @@ public final class EconomyDrivers {
         this.fuelLitersByYear = fuelLitersByYear;
         this.motoHoursByYear = motoHoursByYear;
         this.btReplByYear = btReplByYear;
+        this.ensCat1KwhByYear = ensCat1KwhByYear;
+        this.ensCat2KwhByYear = ensCat2KwhByYear;
+        this.ensCat3KwhByYear = ensCat3KwhByYear;
         this.dgTotalKw = dgTotalKw;
         this.wtTotalKw = wtTotalKw;
         this.btTotalKwh = btTotalKwh;
@@ -47,6 +57,9 @@ public final class EconomyDrivers {
                 Arrays.copyOf(fuelLitersByYear, fuelLitersByYear.length),
                 Arrays.copyOf(motoHoursByYear, motoHoursByYear.length),
                 Arrays.copyOf(btReplByYear, btReplByYear.length),
+                Arrays.copyOf(ensCat1KwhByYear, ensCat1KwhByYear.length),
+                Arrays.copyOf(ensCat2KwhByYear, ensCat2KwhByYear.length),
+                Arrays.copyOf(ensCat3KwhByYear, ensCat3KwhByYear.length),
                 dgTotalKw, wtTotalKw, btTotalKwh, discountRatePerYear
         );
     }

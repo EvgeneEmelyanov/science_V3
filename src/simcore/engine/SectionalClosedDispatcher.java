@@ -1,6 +1,5 @@
 package simcore.engine;
 
-import simcore.engine.diesel.DieselFleetController;
 import simcore.config.SimulationConstants;
 import simcore.model.*;
 import java.util.List;
@@ -94,7 +93,7 @@ final class SectionalClosedDispatcher {
         List<DieselGenerator> allDgs = new ArrayList<>();
         allDgs.addAll(b0.getDieselGenerators());
         allDgs.addAll(b1.getDieselGenerators());
-        DieselGenerator[] dgs = DieselFleetController.getSortedDgs(allDgs);
+        DieselGenerator[] dgs = DieselGenerator.getSortedDgs(allDgs);
 
         int available = 0;
         int readyWorking = 0;
@@ -149,7 +148,7 @@ final class SectionalClosedDispatcher {
                 final int dgCountPlanned = Math.min(needed, available);
                 int dgToUse = dgCountPlanned;
 
-                final boolean maintenanceStartedThisHour = DieselFleetController.isMaintenanceStartedThisHour(dgs);
+                final boolean maintenanceStartedThisHour = DieselGenerator.isMaintenanceStartedThisHour(dgs);
 
                 final double tauEff = maintenanceStartedThisHour ? 0.0 : ctx.dgStartDelayHours;
 

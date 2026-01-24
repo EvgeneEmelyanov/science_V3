@@ -1,6 +1,5 @@
 package simcore;
 
-import org.apache.commons.math3.random.SobolSequenceGenerator;
 import simcore.config.*;
 import simcore.economy.*;
 import simcore.engine.*;
@@ -19,40 +18,37 @@ public class Main {
     // Public knobs
     // ======================================================================
 
-    public enum Task { RUN, SOBOL_HARD, SOBOL_ECON }
-    public enum RunMode { SINGLE, SWEEP_1, SWEEP_2 }
-    public enum LoadType { GOK, KOMUNAL, SELHOZ, DEF }
+    public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
+    public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
+    public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
     // Used by some dispatch formulas
     public static double MAX_LOAD;
 
     private static final class Cli {
 
+        Task task = Task.RUN;
+        RunMode runMode = RunMode.SINGLE;
         LoadType loadType = LoadType.GOK; // тип нагрузки
-
-        int mcIterations = 10;
+        int mcIterations = 1;
         int sobolN = 256;
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
-
-        Task task = Task.SOBOL_HARD;
-        RunMode runMode = RunMode.SWEEP_2;
-
-        String loadFilePath = null;
-        String windFilePath = Defaults.WIND_PATH;
-        String resultsXlsxPath = Defaults.RESULTS_XLSX;
-        String traceCsvPath = Defaults.TRACE_CSV;
         Integer maxLoadOverride = 1000;
 
         // Export drivers from RUN
 //        String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
         // Econ sobol
-        String econDriversPath = "D:/econ_drivers.csv";;
-        String econCaseId = "case_0";
+        String econDriversPath = "D:/econ_drivers.csv";
+        String econCaseId = "case_7";
         Integer econN = null;
 
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
+        String loadFilePath = null;
+        String windFilePath = Defaults.WIND_PATH;
+        String resultsXlsxPath = Defaults.RESULTS_XLSX;
+        String traceCsvPath = Defaults.TRACE_CSV;
 
         static Cli parse(String[] args) {
             Cli c = new Cli();
@@ -62,8 +58,10 @@ public class Main {
                 if (a.startsWith("--task=")) c.task = Task.valueOf(a.substring("--task=".length()).trim());
 
                 if (a.startsWith("--runMode=")) c.runMode = RunMode.valueOf(a.substring("--runMode=".length()).trim());
-                if (a.startsWith("--loadType=")) c.loadType = LoadType.valueOf(a.substring("--loadType=".length()).trim());
-                if (a.startsWith("--busType=")) c.busType = BusSystemType.valueOf(a.substring("--busType=".length()).trim());
+                if (a.startsWith("--loadType="))
+                    c.loadType = LoadType.valueOf(a.substring("--loadType=".length()).trim());
+                if (a.startsWith("--busType="))
+                    c.busType = BusSystemType.valueOf(a.substring("--busType=".length()).trim());
 
                 if (a.startsWith("--load=")) c.loadFilePath = a.substring("--load=".length()).trim();
                 if (a.startsWith("--wind=")) c.windFilePath = a.substring("--wind=".length()).trim();
@@ -74,11 +72,13 @@ public class Main {
                 if (a.startsWith("--mc=")) c.mcIterations = Integer.parseInt(a.substring("--mc=".length()).trim());
                 if (a.startsWith("--mcSeed=")) c.mcBaseSeed = Long.parseLong(a.substring("--mcSeed=".length()).trim());
 
-                if (a.startsWith("--maxLoad=")) c.maxLoadOverride = Integer.parseInt(a.substring("--maxLoad=".length()).trim());
+                if (a.startsWith("--maxLoad="))
+                    c.maxLoadOverride = Integer.parseInt(a.substring("--maxLoad=".length()).trim());
 
                 if (a.startsWith("--sobolN=")) c.sobolN = Integer.parseInt(a.substring("--sobolN=".length()).trim());
 
-                if (a.startsWith("--exportDrivers=")) c.exportDriversPath = a.substring("--exportDrivers=".length()).trim();
+                if (a.startsWith("--exportDrivers="))
+                    c.exportDriversPath = a.substring("--exportDrivers=".length()).trim();
 
                 if (a.startsWith("--econDrivers=")) c.econDriversPath = a.substring("--econDrivers=".length()).trim();
                 if (a.startsWith("--econCase=")) c.econCaseId = a.substring("--econCase=".length()).trim();
@@ -93,7 +93,8 @@ public class Main {
     // ======================================================================
 
     private static final class Defaults {
-        private Defaults() {}
+        private Defaults() {
+        }
 
         // Paths
         static final String WIND_PATH = "D:/08_ModelingData/02_Wind.txt";
@@ -128,31 +129,28 @@ public class Main {
 
         // Battery
         static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 300.0;
-
-        // Battery current / discharge policy
         static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1.0;
         static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
         static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.8;
 
         // Reliability (rates are double, repair times are int)
         static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;
-        static final int    DEFAULT_WT_REPAIR_TIME_HOURS = 46;
+        static final int DEFAULT_WT_REPAIR_TIME_HOURS = 46;
 
         static final double DEFAULT_DG_FAILURE_RATE_PER_YEAR = 4.75;
-        static final int    DEFAULT_DG_REPAIR_TIME_HOURS = 50;
+        static final int DEFAULT_DG_REPAIR_TIME_HOURS = 50;
 
         static final double DEFAULT_BT_FAILURE_RATE_PER_YEAR = 0.575;
-        static final int    DEFAULT_BT_REPAIR_TIME_HOURS = 44;
+        static final int DEFAULT_BT_REPAIR_TIME_HOURS = 44;
 
         static final double DEFAULT_BUS_FAILURE_RATE_PER_YEAR = 0.02;
-        static final int    DEFAULT_BUS_REPAIR_TIME_HOURS = 12;
+        static final int DEFAULT_BUS_REPAIR_TIME_HOURS = 12;
 
         static final double DEFAULT_BRK_FAILURE_RATE_PER_YEAR = 0.1;
-        static final int    DEFAULT_BRK_REPAIR_TIME_HOURS = 10;
+        static final int DEFAULT_BRK_REPAIR_TIME_HOURS = 10;
 
         static final double DEFAULT_SWITCHGEAR_ROOM_FAILURE_RATE_PER_YEAR = 0.0;
-        static final int    DEFAULT_SWITCHGEAR_ROOM_REPAIR_TIME_HOURS = 24;
-
+        static final int DEFAULT_SWITCHGEAR_ROOM_REPAIR_TIME_HOURS = 24;
         static final double DEFAULT_BUS_CCF_BETA_SECTIONAL = 0.0;
         static final double DEFAULT_BUS_CCF_BETA_DOUBLE = 0.0;
 
@@ -173,7 +171,7 @@ public class Main {
         // ---- SimulationConfig defaults (match SimulationConfig constructor) ----
         static final boolean CFG_CONSIDER_FAILURES = true;
         static final boolean CFG_CONSIDER_MAINTENANCE = true;
-        static final boolean CFG_RESERVE_THIRD_CATEGORY = false;
+        static final boolean CFG_RESERVE_THIRD_CATEGORY = true;
         static final boolean CFG_CONSIDER_HOT_RESERVE = true;
         static final boolean CFG_CONSIDER_BATTERY_DEGRADATION = true;
         static final boolean CFG_CONSIDER_ROTATION_RESERVE = true;
@@ -211,8 +209,8 @@ public class Main {
         for (double p1 : param1) {
             for (double p2 : param2) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setNonReserveDischargeLevel(p1)
-                        .setBatteryCapacityKwhPerBus(p2)
+                        .setBatteryCapacityKwhPerBus(p1)
+                        .setNonReserveDischargeLevel(p2)
                         .build();
                 paramSets.add(p);
             }
@@ -245,8 +243,8 @@ public class Main {
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
         // ===== Axes (edit here) =====
-        double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
-        double[] param2 = new double[]{0.0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500};
+        double[] param1 = new double[]{0.0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500};
+        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
 
         final boolean sweepCatsTriangle = false;
         final double catStep = 0.1;
@@ -365,7 +363,10 @@ public class Main {
                 baseParams.getCostFuelRubPerKt(),
                 baseParams.getCostDgRubPerKwPerKmh(),
                 baseParams.getCostWtRubPerKwPerYear(),
-                baseParams.getCostBtRubPerKwhPerYear()
+                baseParams.getCostBtRubPerKwhPerYear(),
+                baseParams.getDamageRubPerKwhCat1(),
+                baseParams.getDamageRubPerKwhCat2(),
+                baseParams.getDamageRubPerKwhCat3()
         );
 
         List<CostFactor> factors = List.of(
@@ -376,13 +377,16 @@ public class Main {
                 new CostFactor("COST_FUEL_RUB_PER_KT", base.costFuelRubPerKt),
                 new CostFactor("COST_DG_RUB_PER_KW_PER_KMH", base.costDgRubPerKwPerKmh),
                 new CostFactor("COST_WT_RUB_PER_KW_PER_YEAR", base.costWtRubPerKwPerYear),
-                new CostFactor("COST_BT_RUB_PER_KWH_PER_YEAR", base.costBtRubPerKwhPerYear)
+                new CostFactor("COST_BT_RUB_PER_KWH_PER_YEAR", base.costBtRubPerKwhPerYear),
+                new CostFactor("DAMAGE_RUB_PER_KWH_CAT1", base.damageRubPerKwhCat1),
+                new CostFactor("DAMAGE_RUB_PER_KWH_CAT2", base.damageRubPerKwhCat2),
+                new CostFactor("DAMAGE_RUB_PER_KWH_CAT3", base.damageRubPerKwhCat3)
         );
 
         int d = factors.size();
         int N = (cli.econN != null) ? cli.econN : 8192;
 
-        double[][][] ab = generateABBySobolSequence(N, d, 1024);
+        double[][][] ab = simcore.sobol.SobolMath.generateABBySobolSequence(N, d, 1024);
         double[][] A = ab[0];
         double[][] B = ab[1];
 
@@ -408,7 +412,7 @@ public class Main {
 
         double[] S = new double[d];
         double[] ST = new double[d];
-        computeSobolIndicesSaltelliJansen(yA, yB, yAB, S, ST);
+        simcore.sobol.SobolMath.computeIndicesSaltelli2002Jansen(yA, yB, yAB, S, ST);
 
         System.out.println("=== ECON Sobol (LCOE vs unit costs) ===");
         System.out.println("drivers=" + cli.econDriversPath + " case=" + useCase + " N=" + N + " years=" + drivers.years());
@@ -449,7 +453,8 @@ public class Main {
     // ======================================================================
 
     private static final class ScenarioFactory {
-        private ScenarioFactory() {}
+        private ScenarioFactory() {
+        }
 
         static LoadedInput load(String loadPath, String windPath) throws Exception {
             InputData input = new InputDataLoader().load(loadPath, windPath);
@@ -536,7 +541,8 @@ public class Main {
             );
         }
 
-        record LoadedInput(double[] totalLoadKw, double[] windMs) {}
+        record LoadedInput(double[] totalLoadKw, double[] windMs) {
+        }
     }
 
     private static String resolveLoadPath(LoadType lt) {
@@ -584,67 +590,10 @@ public class Main {
         double moto = factors.get(5).scaleFromUnit(u01[5]);
         double wtOpex = factors.get(6).scaleFromUnit(u01[6]);
         double btOpex = factors.get(7).scaleFromUnit(u01[7]);
-        return new UnitCosts(ru, dg, wt, bt, fuel, moto, wtOpex, btOpex);
-    }
-
-    private static void computeSobolIndicesSaltelliJansen(double[] a, double[] b, double[][] ab, double[] S, double[] ST) {
-        int N = a.length;
-        double[] yAll = new double[2 * N];
-        System.arraycopy(a, 0, yAll, 0, N);
-        System.arraycopy(b, 0, yAll, N, N);
-
-        double meanY = mean(yAll);
-        double varY = variancePopulation(yAll, meanY);
-        if (!(varY > 0.0) || Double.isNaN(varY) || Double.isInfinite(varY)) {
-            Arrays.fill(S, Double.NaN);
-            Arrays.fill(ST, Double.NaN);
-            return;
-        }
-
-        int d = ab.length;
-        for (int j = 0; j < d; j++) {
-            double sumProd = 0.0;
-            double sumSt = 0.0;
-            for (int i = 0; i < N; i++) {
-                double yAB = ab[j][i];
-                sumProd += a[i] * yAB; // Saltelli 2010 first-order (covariance form)
-                double diff = a[i] - yAB;
-                sumSt += diff * diff;  // Jansen total-order
-            }
-            double meanProd = sumProd / N;
-            S[j] = (meanProd - meanY * meanY) / varY;
-            ST[j] = (sumSt / (2.0 * N)) / varY;
-        }
-    }
-
-    private static double mean(double[] x) {
-        double s = 0.0;
-        for (double v : x) s += v;
-        return s / x.length;
-    }
-
-    private static double variancePopulation(double[] x, double mean) {
-        double s = 0.0;
-        for (double v : x) {
-            double d = v - mean;
-            s += d * d;
-        }
-        return s / x.length;
-    }
-
-    private static double[][][] generateABBySobolSequence(int N, int d, int skip) {
-        SobolSequenceGenerator sobol = new SobolSequenceGenerator(2 * d);
-        for (int i = 0; i < skip; i++) sobol.nextVector();
-
-        double[][] A = new double[N][d];
-        double[][] B = new double[N][d];
-
-        for (int i = 0; i < N; i++) {
-            double[] v = sobol.nextVector();
-            System.arraycopy(v, 0, A[i], 0, d);
-            System.arraycopy(v, d, B[i], 0, d);
-        }
-        return new double[][][] { A, B };
+        double dmg1 = factors.get(8).scaleFromUnit(u01[8]);
+        double dmg2 = factors.get(9).scaleFromUnit(u01[9]);
+        double dmg3 = factors.get(10).scaleFromUnit(u01[10]);
+        return new UnitCosts(ru, dg, wt, bt, fuel, moto, wtOpex, btOpex, dmg1, dmg2, dmg3);
     }
 
     private static double[] buildGrid01(double step) {

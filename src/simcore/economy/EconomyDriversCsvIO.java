@@ -47,7 +47,10 @@ public final class EconomyDriversCsvIO {
                 + "\t" + joinDoubles(d.servedKwhByYear)
                 + "\t" + joinDoubles(d.fuelLitersByYear)
                 + "\t" + joinDoubles(d.motoHoursByYear)
-                + "\t" + joinLongs(d.btReplByYear);
+                + "\t" + joinLongs(d.btReplByYear)
+                + "\t" + joinDoubles(d.ensCat1KwhByYear)
+                + "\t" + joinDoubles(d.ensCat2KwhByYear)
+                + "\t" + joinDoubles(d.ensCat3KwhByYear);
     }
 
     private static Parsed parseLine(String line) {
@@ -68,7 +71,12 @@ public final class EconomyDriversCsvIO {
         double[] moto = parseDoubles(parts[8], years);
         long[] repl = parseLongs(parts[9], years);
 
-        EconomyDrivers d = new EconomyDrivers(served, fuel, moto, repl, dg, wt, bt, r);
+        // Backward compatible: old format had only 10 columns (no ENS-by-category arrays).
+        double[] ens1 = (parts.length >= 13) ? parseDoubles(parts[10], years) : new double[years];
+        double[] ens2 = (parts.length >= 13) ? parseDoubles(parts[11], years) : new double[years];
+        double[] ens3 = (parts.length >= 13) ? parseDoubles(parts[12], years) : new double[years];
+
+        EconomyDrivers d = new EconomyDrivers(served, fuel, moto, repl, ens1, ens2, ens3, dg, wt, bt, r);
         return new Parsed(caseId, d);
     }
 

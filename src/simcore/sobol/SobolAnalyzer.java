@@ -1,7 +1,5 @@
-// File: simcore/sobol/SobolAnalyzer.java
 package simcore.sobol;
 
-import org.apache.commons.math3.random.SobolSequenceGenerator;
 import simcore.engine.MonteCarloEstimate;
 import simcore.engine.MonteCarloRunner;
 import simcore.engine.SimInput;
@@ -30,7 +28,7 @@ public final class SobolAnalyzer {
             );
         }
 
-        double[][][] ab = generateABBySobolSequence(N, d, 1024);
+        double[][][] ab = SobolMath.generateABBySobolSequence(N, d, 1024);
         double[][] A = ab[0];
         double[][] B = ab[1];
 
@@ -39,38 +37,44 @@ public final class SobolAnalyzer {
         List<List<MonteCarloEstimate>> yAB = new ArrayList<>(d);
         for (int j = 0; j < d; j++) yAB.add(new ArrayList<>(N));
 
+        // CRN strategy for stochastic model:
+        // A(i) and AB_j(i) share stream; B(i) uses independent stream.
         for (int i = 0; i < N; i++) {
+            final long rowA = (long) i;
+            final long rowB = (long) (i + N);
+
             ParameterSet thetaA = buildThetaFromUnitRow(A[i], cfg);
             ParameterSet thetaB = buildThetaFromUnitRow(B[i], cfg);
 
             yA.add(mcRunner.evaluateForTheta(
                     baseInput, thetaA, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    (long) i,
+                    rowA,
                     false
             ));
 
             yB.add(mcRunner.evaluateForTheta(
                     baseInput, thetaB, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    (long) (i + N),
+                    rowB,
                     false
             ));
         }
 
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < N; i++) {
+                final long rowA = (long) i;
+
                 double[] row = new double[d];
                 System.arraycopy(A[i], 0, row, 0, d);
                 row[j] = B[i][j];
 
                 ParameterSet thetaAB = buildThetaFromUnitRow(row, cfg);
-                long sobolRowIdx = i + (2L + j) * (long) N;
 
                 yAB.get(j).add(mcRunner.evaluateForTheta(
                         baseInput, thetaAB, cfg,
                         cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                        sobolRowIdx,
+                        rowA,
                         false
                 ));
             }
@@ -81,27 +85,27 @@ public final class SobolAnalyzer {
         double[] sMoto = new double[d], stMoto = new double[d];
         double[] sLcoe = new double[d], stLcoe = new double[d];
 
-        computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.ENS,  sEns,  stEns, true);
-        computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel, true);
-        computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto, true);
-        computeSobolIndicesSaltelli2010(yA, yB, yAB, d, Metric.LCOE, sLcoe, stLcoe, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.ENS,  sEns,  stEns, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.LCOE, sLcoe, stLcoe, true);
 
         return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto, sLcoe, stLcoe);
     }
 
     private enum Metric { ENS, FUEL, MOTO, LCOE }
 
-    private static void computeSobolIndicesSaltelli2010(List<MonteCarloEstimate> yA,
-                                                        List<MonteCarloEstimate> yB,
-                                                        List<List<MonteCarloEstimate>> yAB,
-                                                        int d,
-                                                        Metric metric,
-                                                        double[] S,
-                                                        double[] ST,
-                                                        boolean printDiagnostics) {
+    private static void computeSobolIndicesSaltelli2002Jansen(
+            List<MonteCarloEstimate> yA,
+            List<MonteCarloEstimate> yB,
+            List<List<MonteCarloEstimate>> yAB,
+            int d,
+            Metric metric,
+            double[] S,
+            double[] ST,
+            boolean printDiagnostics) {
 
         final int N = yA.size();
-
         double[] a = new double[N];
         double[] b = new double[N];
 
@@ -132,20 +136,21 @@ public final class SobolAnalyzer {
         double sumST = 0.0;
 
         for (int j = 0; j < d; j++) {
-            double sumProd = 0.0;
+            double sumS_first = 0.0;
             double sumSt = 0.0;
 
             for (int i = 0; i < N; i++) {
                 double ab = extractMetric(yAB.get(j).get(i), metric);
 
-                sumProd += b[i] * ab;
+                // First-order: Saltelli 2002 (robust under noise)
+                sumS_first += b[i] * (ab - a[i]);
 
+                // Total-order: Jansen
                 double diff = a[i] - ab;
                 sumSt += diff * diff;
             }
 
-            double meanProd = sumProd / N;
-            double sj = (meanProd - meanY * meanY) / varY;
+            double sj  = (sumS_first / N) / varY;
             double stj = (sumSt / (2.0 * N)) / varY;
 
             S[j] = sj;
@@ -169,27 +174,6 @@ public final class SobolAnalyzer {
             case MOTO -> e.meanMotoHours;
             case LCOE -> e.meanLcoeRubPerKwh;
         };
-    }
-
-    private static double[][][] generateABBySobolSequence(int N, int d, int skip) {
-        SobolSequenceGenerator sobol = new SobolSequenceGenerator(2 * d);
-
-        // Skip early points (recommended) by advancing the generator.
-        for (int i = 0; i < skip; i++) sobol.nextVector();
-
-        // optional (if you want): skip early points
-        // Apache Commons Math Sobol has no skip(); advance manually.
-        // for (int i = 0; i < skip; i++) sobol.nextVector();
-
-        double[][] A = new double[N][d];
-        double[][] B = new double[N][d];
-
-        for (int i = 0; i < N; i++) {
-            double[] v = sobol.nextVector();
-            System.arraycopy(v, 0, A[i], 0, d);
-            System.arraycopy(v, d, B[i], 0, d);
-        }
-        return new double[][][] { A, B };
     }
 
     private static ParameterSet buildThetaFromUnitRow(double[] u01, SobolConfig cfg) {

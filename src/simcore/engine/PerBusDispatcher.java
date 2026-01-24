@@ -1,6 +1,5 @@
 package simcore.engine;
 
-import simcore.engine.diesel.DieselFleetController;
 import simcore.engine.metrics.EnsAllocator;
 import simcore.config.SimulationConstants;
 import simcore.model.*;
@@ -39,7 +38,7 @@ final class PerBusDispatcher {
         ctx.totals.loadKwh += loadKw;
 
         if (!busAlive) {
-            DieselFleetController.stopAllDieselsOnBus(bus);
+            DieselGenerator.stopAllDieselsOnBus(bus);
 
             final double defKw = loadKw;
             ctx.totals.ensKwh += defKw;
@@ -105,12 +104,12 @@ final class PerBusDispatcher {
 
             DieselGenerator[] dgsFinal;
             if (extraSourceBus == null) {
-                dgsFinal = DieselFleetController.getSortedDgs(bus);
+                dgsFinal = DieselGenerator.getSortedDgs(bus);
             } else {
                 java.util.ArrayList<DieselGenerator> all = new java.util.ArrayList<>();
                 all.addAll(bus.getDieselGenerators());
                 all.addAll(extraSourceBus.getDieselGenerators());
-                dgsFinal = DieselFleetController.getSortedDgs(all);
+                dgsFinal = DieselGenerator.getSortedDgs(all);
             }
             SingleRunSimulator.finalizeIdleAndBurn(ctx, dgsFinal, ctx.dgMinKw);
             SingleRunSimulator.finalizeStoppedDgs(dgsFinal);
@@ -124,16 +123,16 @@ final class PerBusDispatcher {
 
             final DieselGenerator[] dgs;
             if (extraSourceBus == null) {
-                dgs = DieselFleetController.getSortedDgs(bus);
+                dgs = DieselGenerator.getSortedDgs(bus);
             } else {
                 java.util.ArrayList<DieselGenerator> all = new java.util.ArrayList<>();
                 all.addAll(bus.getDieselGenerators());
                 all.addAll(extraSourceBus.getDieselGenerators());
-                dgs = DieselFleetController.getSortedDgs(all);
+                dgs = DieselGenerator.getSortedDgs(all);
             }
             final int dgCountAll = dgs.length;
 
-            final boolean maintenanceStartedThisHour = DieselFleetController.isMaintenanceStartedThisHour(dgs);
+            final boolean maintenanceStartedThisHour = DieselGenerator.isMaintenanceStartedThisHour(dgs);
 
             final double tauEff = maintenanceStartedThisHour ? 0.0 : ctx.dgStartDelayHours;
 
@@ -154,7 +153,6 @@ final class PerBusDispatcher {
             } else {
 
                 final boolean canUseOptimal = (ctx.perDgOptimalKw * available >= deficitAfterWindKw);
-
                 final int needed = canUseOptimal
                         ? (int) Math.ceil(deficitAfterWindKw / ctx.perDgOptimalKw)
                         : (int) Math.ceil(deficitAfterWindKw / ctx.dgMaxKw);
