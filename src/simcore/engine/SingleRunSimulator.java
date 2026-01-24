@@ -804,14 +804,13 @@ public final class SingleRunSimulator {
 
         // 0) Реальная потребность дизеля для покрытия нагрузки (энергетика), а не резерв
         final double btToLoadKw = Math.max(0.0, btNetKw);
-//        double needDieselNowKw = loadKw - windToLoadKw - btToLoadKw;
-        double needDieselNowKw = loadKw - btToLoadKw;
+        double needDieselNowKw = loadKw - windToLoadKw - btToLoadKw;
         if (needDieselNowKw < 0.0) needDieselNowKw = 0.0;
 
         // 1) Уставка резерва N−1 (I/II; optionally III)
         double cat3 = Math.max(0.0, 1.0 - cat1 - cat2);
         double reserveShare = cat1 + SimulationConstants.DG_IDLE_K2 * cat2 + (reserveThirdCategory ? cat3 : 0.0);
-        double reserveTargetKw = needDieselNowKw * reserveShare;
+        double reserveTargetKw = loadKw * reserveShare;
         if (reserveTargetKw < 0.0) reserveTargetKw = 0.0;
         if (reserveTargetKw > loadKw) reserveTargetKw = loadKw;
 
