@@ -27,11 +27,11 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.RUN;
+        Task task = Task.SOBOL_HARD;
         RunMode runMode = RunMode.SINGLE;
         LoadType loadType = LoadType.GOK; // тип нагрузки
-        int mcIterations = 1;
-        int sobolN = 256;
+        int mcIterations = 50;
+        int sobolN = 128;
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
         Integer maxLoadOverride = 1000;
 

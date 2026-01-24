@@ -62,6 +62,12 @@ public final class SingleRunSimulator {
         double[] ensCat3KwhByYear = new double[YEARS];
         final TraceSession trace = traceEnabled ? new ArrayTraceSession() : new NoTraceSession();
 
+        // Reusable per-hour buffers (avoid allocations inside the main hourly loop).
+        final double[] ownUseKwByBus = new double[busCount];
+        final double[] rawLoadThisHourKw = new double[busCount];
+        final double[] loadsBuf = (busCount == 2) ? new double[2] : null; // used for sectional-closed fast paths
+        final double[] hourWreRef = traceEnabled ? new double[1] : null;
+
         final boolean[] busAvailBefore = new boolean[busCount];
         final boolean[] busAvailAfter = new boolean[busCount];
         final boolean[] busFailedThisHour = new boolean[busCount];
@@ -83,16 +89,14 @@ public final class SingleRunSimulator {
             double totalLoadAtTime = 0.0;
             double totalDefAtTime = 0.0;
             double totalWreAtTime;
-            final double[] hourWreRef = doTrace ? new double[]{0.0} : null;
+            if (doTrace) hourWreRef[0] = 0.0;
 
             // === Extra own-use load (does not count as delivered energy for LCOE) ===
             // Hot reserve own-use is modeled as an extra load on the bus (NOT as negative wind generation).
             // Each DG that is available and has zero electrical load contributes 1% of rated power as own-use.
-            final double[] ownUseKwByBus = new double[busCount];
-
             // Raw (pre-transfer) loads for maintenance deferral decision (consumer load only for now).
-            final double[] rawLoadThisHourKw = new double[busCount];
             for (int b = 0; b < busCount; b++) {
+                ownUseKwByBus[b] = 0.0;
                 rawLoadThisHourKw[b] = buses.get(b).getLoadKw()[t];
             }
 
@@ -123,13 +127,13 @@ public final class SingleRunSimulator {
                 }
             }
 
-            final double ownUseTotalKwThisHour = java.util.Arrays.stream(ownUseKwByBus).sum();
+            double ownUseTotalKwThisHour = 0.0;
+            for (int b = 0; b < busCount; b++) ownUseTotalKwThisHour += ownUseKwByBus[b];
 
             // Snapshot DG "working" states at the beginning of the hour (after failures, before dispatch).
-            java.util.IdentityHashMap<DieselGenerator, Boolean> wasWorkingAtHourStart = new java.util.IdentityHashMap<>();
             for (PowerBus bus : buses) {
                 for (DieselGenerator dg : bus.getDieselGenerators()) {
-                    wasWorkingAtHourStart.put(dg, dg.isWorking());
+                    dg.snapshotWorkingAtHourStart();
                 }
             }
 
@@ -148,8 +152,7 @@ public final class SingleRunSimulator {
                     dgStartDelayHours,
                     totals,
                     hourWreRef,
-                    trace,
-                    wasWorkingAtHourStart
+                    trace
             );
 
             // ENS event statistics: track per-hour ENS and "start ENS" (DG start delay ENS)
@@ -182,9 +185,14 @@ public final class SingleRunSimulator {
                     && breaker.isAvailable()
                     && busAlive[0] && busAlive[1]) {
 
-                double[] loadsForDecision = (effectiveLoadKw != null)
-                        ? effectiveLoadKw
-                        : new double[]{rawLoadThisHourKw[0], rawLoadThisHourKw[1]};
+                double[] loadsForDecision;
+                if (effectiveLoadKw != null) {
+                    loadsForDecision = effectiveLoadKw;
+                } else {
+                    loadsBuf[0] = rawLoadThisHourKw[0];
+                    loadsBuf[1] = rawLoadThisHourKw[1];
+                    loadsForDecision = loadsBuf;
+                }
 
                 sectionalClosedThisHour = TieBreakerController.shouldCloseTieBreakerThisHour(
                         sp, buses, loadsForDecision, windV, dgMaxKw
@@ -212,9 +220,14 @@ public final class SingleRunSimulator {
 
             if (sectionalClosedThisHour) {
 
-                final double[] loads = (effectiveLoadKw != null)
-                        ? effectiveLoadKw
-                        : new double[]{rawLoadThisHourKw[0], rawLoadThisHourKw[1]};
+                final double[] loads;
+                if (effectiveLoadKw != null) {
+                    loads = effectiveLoadKw;
+                } else {
+                    loadsBuf[0] = rawLoadThisHourKw[0];
+                    loadsBuf[1] = rawLoadThisHourKw[1];
+                    loads = loadsBuf;
+                }
 
                 SectionalClosedResult r = SectionalClosedDispatcher.dispatchSectionalClosedOneHour(
                         ctx,
@@ -522,12 +535,9 @@ public final class SingleRunSimulator {
             // Холостой ход / малая нагрузка
             if (pAbs + SimulationConstants.EPSILON < dgMinKw) {
 
-                boolean wasWorkingAtHourStart = false;
-                if (ctx != null && ctx.wasWorkingAtHourStart != null) {
-                    Boolean v = ctx.wasWorkingAtHourStart.get(dg);
-                    wasWorkingAtHourStart = (v != null && v);
-                }
-                boolean startedThisHour = !wasWorkingAtHourStart;
+                // For idle/burn logic we need to know if the DG was started during the current hour.
+                // Snapshot is captured once per hour (after failures, before dispatch).
+                boolean startedThisHour = !dg.wasWorkingAtHourStart();
 
                 int nextIdle = dg.getIdleTime() + 1;
                 boolean reachesBurnThresholdNow = nextIdle >= SimulationConstants.DG_MAX_IDLE_HOURS;

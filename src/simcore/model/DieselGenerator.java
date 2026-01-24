@@ -7,16 +7,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
-/**
- * Дизель-генератор с:
- * - случайными отказами по экспоненте;
- * - плановым ТО каждые MAINTENANCE_INTERVAL_HOURS часов работы
- * на MAINTENANCE_DURATION_HOURS часов.
- * <p>
- * Важно: ограничение "одна ДГУ в ТО на шине" реализуется тем,
- * что движок/шина передаёт allowMaintenanceStart=false, если на шине
- * уже есть ДГУ в ТО.
- */
 public class DieselGenerator extends Equipment {
 
     private final double ratedPowerKw;
@@ -34,6 +24,9 @@ public class DieselGenerator extends Equipment {
     private boolean isWorking = true;
     private boolean inMaintenance = false;
     private boolean isIdle = false;
+
+    /** Snapshot of {@link #isWorking} taken at the beginning of the current simulation hour. */
+    private boolean workingAtHourStart = true;
 
     // ===== Fuel model constants (из старого кода) =====
     private static final double K11 = 0.0185;
@@ -67,6 +60,16 @@ public class DieselGenerator extends Equipment {
 
     public boolean isWorking() {
         return isWorking;
+    }
+
+    /** Capture {@link #isWorking} at the start of an hour (after failures, before dispatch). */
+    public void snapshotWorkingAtHourStart() {
+        this.workingAtHourStart = this.isWorking;
+    }
+
+    /** @return {@code true} if the DG was working at the beginning of the current hour. */
+    public boolean wasWorkingAtHourStart() {
+        return workingAtHourStart;
     }
 
     public int getIdleTime() {
@@ -147,25 +150,14 @@ public class DieselGenerator extends Equipment {
         return Math.min(ratedPowerKw, demandedKw);
     }
 
-    /**
-     * Старый метод оставлен для совместимости: ТО разрешено.
-     */
     @Override
     public void updateFailureOneHour(boolean considerFailures) {
         updateFailureOneHour(considerFailures, true);
     }
 
-    /**
-     * Обновление состояния на один час.
-     *
-     * @param considerFailures      учитывать ли отказы/ТО
-     * @param allowMaintenanceStart разрешено ли НАЧИНАТЬ ТО в этом часу
-     *                              (движок ставит false, если на шине уже есть ДГУ в ТО)
-     */
     public void updateFailureOneHour(boolean considerFailures, boolean allowMaintenanceStart) {
         if (!considerFailures) return;
 
-        // Ремонт или ТО: просто считаем таймер
         if (repairDurationHours > 0) {
             repairDurationHours--;
             if (repairDurationHours <= 0) {
@@ -189,13 +181,8 @@ public class DieselGenerator extends Equipment {
             return;
         }
 
-        // Если отключён внешне — ничего не делаем
         if (!status) return;
 
-        // ЖЁСТКО разрешаем начинать ТО всегда
-//        allowMaintenanceStart = true;
-
-        // ТО: начинать можно только если allowMaintenanceStart == true
         if (allowMaintenanceStart && hoursSinceMaintenance >= MAINTENANCE_INTERVAL_HOURS) {
             status = false;
             inMaintenance = true;
@@ -208,7 +195,6 @@ public class DieselGenerator extends Equipment {
             return;
         }
 
-        // Случайный отказ
         if (getFailureRatePerYear() > 0.0 && timeWorked >= nextFailureTimeHours) {
             status = false;
             inMaintenance = false;
@@ -220,7 +206,6 @@ public class DieselGenerator extends Equipment {
         }
     }
 
-
     public static Comparator<DieselGenerator> DISPATCH_COMPARATOR =
             (dg1, dg2) -> {
                 if (dg1.isWorking() != dg2.isWorking()) {
@@ -229,13 +214,8 @@ public class DieselGenerator extends Equipment {
                 return Integer.compare(dg1.timeWorked, dg2.timeWorked);
             };
 
-    // =====================================================================
-    // Fleet-level helpers (formerly DieselFleetController)
-    // =====================================================================
-
     private static final ThreadLocal<DieselGenerator[]> DG_SORT_BUF = new ThreadLocal<>();
 
-    /** Sorted dispatch order for diesel generators on a given bus (working first, then by runtime). */
     public static DieselGenerator[] getSortedDgs(PowerBus bus) {
         List<DieselGenerator> dgList = bus.getDieselGenerators();
         int n = dgList.size();
@@ -251,7 +231,6 @@ public class DieselGenerator extends Equipment {
         return buf;
     }
 
-    /** Sorted array from an arbitrary list (used by shared-bus dispatch helpers). */
     public static DieselGenerator[] getSortedDgs(List<DieselGenerator> dgList) {
         int n = dgList.size();
         DieselGenerator[] arr = new DieselGenerator[n];
@@ -273,7 +252,6 @@ public class DieselGenerator extends Equipment {
         }
     }
 
-    /** If load == 0, keep all available DGs in hot-standby: working==true, load==0. */
     public static void keepAllDieselsReadyHotStandby(PowerBus bus) {
         DieselGenerator[] dgs = getSortedDgs(bus);
 
@@ -302,7 +280,6 @@ public class DieselGenerator extends Equipment {
         dg.setCurrentLoad(0.0);
         dg.setIdle(false);
     }
-
 
     public double fuelLitersOneHour(double ratedKw) {
         if (!isAvailable()) return 0.0;

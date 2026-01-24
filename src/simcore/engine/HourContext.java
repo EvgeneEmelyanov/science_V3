@@ -2,20 +2,10 @@ package simcore.engine;
 
 import simcore.config.SystemParameters;
 import simcore.engine.trace.TraceSession;
-import simcore.model.DieselGenerator;
 
-import java.util.IdentityHashMap;
-
-/**
- * Immutable context for one simulation hour.
- *
- * The purpose is to reduce huge argument lists and prevent accidental parameter mixups.
- * This class is deliberately a plain data holder; it must not contain logic.
- */
 final class HourContext {
 
     final SystemParameters sp;
-
     final double windV;
 
     final boolean considerDegradation;
@@ -36,12 +26,6 @@ final class HourContext {
     final double[] hourWreRef;
     final TraceSession trace;
 
-    /**
-     * Snapshot of dg.isWorking() at the beginning of the current hour (before any dispatch changes).
-     * Keyed by DieselGenerator instance identity.
-     */
-    final IdentityHashMap<DieselGenerator, Boolean> wasWorkingAtHourStart;
-
     HourContext(
             SystemParameters sp,
             double windV,
@@ -57,8 +41,7 @@ final class HourContext {
             double dgStartDelayHours,
             Totals totals,
             double[] hourWreRef,
-            TraceSession trace,
-            IdentityHashMap<DieselGenerator, Boolean> wasWorkingAtHourStart
+            TraceSession trace
     ) {
         this.sp = sp;
         this.windV = windV;
@@ -75,6 +58,5 @@ final class HourContext {
         this.totals = totals;
         this.hourWreRef = hourWreRef;
         this.trace = trace;
-        this.wasWorkingAtHourStart = wasWorkingAtHourStart;
     }
 }
