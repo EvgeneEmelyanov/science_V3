@@ -39,9 +39,7 @@ public final class SobolAnalyzer {
 
         // CRN strategy for stochastic model:
         // For noisy (MC) model we use common random numbers (same noise stream) for A(i), B(i) and AB_j(i)
-        // within the same i. This stabilizes BOTH first- and total-order estimators.
-        // Independence is required for the Sobol x-samples (A/B matrices), not for the noise dimension ω.
-        // Therefore we bind the MC seed stream to the Sobol row index i for all variants.
+        // within the same i.
         for (int i = 0; i < N; i++) {
             final long sobolRowIdx = (long) i;
             ParameterSet thetaA = buildThetaFromUnitRow(A[i], cfg);
@@ -85,17 +83,24 @@ public final class SobolAnalyzer {
         double[] sMoto = new double[d], stMoto = new double[d];
         double[] sLcoe = new double[d], stLcoe = new double[d];
 
-        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.ENS, sEns, stEns, true);
-        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel, true);
-        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto, true);
-        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.LCOE, sLcoe, stLcoe, true);
+        computeSobolIndicesJansen(yA, yB, yAB, d, Metric.ENS,  sEns,  stEns, true);
+        computeSobolIndicesJansen(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel, true);
+        computeSobolIndicesJansen(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto, true);
+        computeSobolIndicesJansen(yA, yB, yAB, d, Metric.LCOE, sLcoe, stLcoe, true);
 
         return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto, sLcoe, stLcoe);
     }
 
-    private enum Metric {ENS, FUEL, MOTO, LCOE}
+    private enum Metric { ENS, FUEL, MOTO, LCOE }
 
-    private static void computeSobolIndicesSaltelli2002Jansen(
+    /**
+     * Jansen estimators (recommended for noisy/stochastic models):
+     *  ST_j = E[(A-AB_j)^2] / (2 Var(Y))
+     *   S_j = 1 - E[(B-AB_j)^2] / (2 Var(Y))
+     *
+     * Var(Y) computed on concatenation of A and B (population variance).
+     */
+    private static void computeSobolIndicesJansen(
             List<MonteCarloEstimate> yA,
             List<MonteCarloEstimate> yB,
             List<List<MonteCarloEstimate>> yAB,
@@ -135,57 +140,30 @@ public final class SobolAnalyzer {
         double sumS = 0.0;
         double sumST = 0.0;
 
-        // СТАРЫЙ ВАРИАНТ First-order Saltelli 2002:
-//        for (int j = 0; j < d; j++) {
-//            double sumS_first = 0.0;
-//            double sumSt = 0.0;
-//
-//            for (int i = 0; i < N; i++) {
-//                double ab = extractMetric(yAB.get(j).get(i), metric);
-//
-//                // First-order: Saltelli 2002 (robust under noise)
-//                sumS_first += b[i] * (ab - a[i]);
-//
-//                // Total-order: Jansen
-//                double diff = a[i] - ab;
-//                sumSt += diff * diff;
-//            }
-//
-//            double sj  = (sumS_first / N) / varY;
-//            double stj = (sumSt / (2.0 * N)) / varY;
-//
-//            S[j] = sj;
-//            ST[j] = stj;
-//
-//            sumS += sj;
-//            sumST += stj;
-//            if (stj + 1e-12 < sj) stLessThanS++;
-//        }
-
-        // НОВЫЙ ВАРИАНТ
         for (int j = 0; j < d; j++) {
-            double sumSq_B_minus_AB = 0.0; // для S_jansen
-            double sumSq_A_minus_AB = 0.0; // для ST_jansen (у тебя уже было sumSt)
+            double sumSq_B_minus_AB = 0.0;
+            double sumSq_A_minus_AB = 0.0;
 
             for (int i = 0; i < N; i++) {
                 double ab = extractMetric(yAB.get(j).get(i), metric);
 
-                // First-order: Jansen
-                double diffBA = b[i] - ab;
+                double diffBA = b[i] - ab; // for S
                 sumSq_B_minus_AB += diffBA * diffBA;
 
-                // Total-order: Jansen
-                double diffAA = a[i] - ab;
+                double diffAA = a[i] - ab; // for ST
                 sumSq_A_minus_AB += diffAA * diffAA;
             }
 
-            double sj = 1.0 - (sumSq_B_minus_AB / (2.0 * N)) / varY;
-            double stj = (sumSq_A_minus_AB / (2.0 * N)) / varY;
+            double sj  = 1.0 - (sumSq_B_minus_AB / (2.0 * N)) / varY;
+            double stj =        (sumSq_A_minus_AB / (2.0 * N)) / varY;
 
             S[j] = sj;
             ST[j] = stj;
-        }
 
+            sumS += sj;
+            sumST += stj;
+            if (stj + 1e-12 < sj) stLessThanS++;
+        }
 
         if (printDiagnostics) {
             System.out.printf("Sobol metric=%s: sumS=%.6f sumST=%.6f count(ST<S)=%d/%d%n",
