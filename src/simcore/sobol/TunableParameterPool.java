@@ -92,7 +92,7 @@ public final class TunableParameterPool {
         m.put(TunableParamId.ROOM_REPAIR_TIME,
                 new TunableParameter(
                         TunableParamId.ROOM_REPAIR_TIME,
-                        "BUS_REPAIR_TIME",
+                        "ROOM_REPAIR_TIME",
                         12, 48,
                         (b, v) -> b.setBusRepairTimeHours((int) Math.round(v))
                 ));
@@ -110,7 +110,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_COUNT,
                         "WT_COUNT",
-                        1.0, 20.0,
+                        2.0, 16,
                         (b, v) -> b.setTotalWindTurbineCount((int) Math.round(v))
                 ));
 
@@ -118,7 +118,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_POWER,
                         "WT_POWER",
-                        100.0, 500.0,
+                        250, 1000,
                         (b, v) -> b.setWindTurbinePowerKw(v)
                 ));
 
@@ -127,7 +127,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DG_COUNT,
                         "DG_COUNT",
-                        2, 20.0,
+                        4, 8,
                         (b, v) -> b.setTotalDieselGeneratorCount((int) Math.round(v))
                 ));
 
@@ -135,7 +135,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DG_POWER,
                         "DG_POWER",
-                        100.0, 800.0,
+                        250, 500,
                         (b, v) -> b.setDieselGeneratorPowerKw(v)
                 ));
 
@@ -144,28 +144,28 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_CAPACITY_PER_BUS,
                         "BT_CAPACITY_PER_BUS",
-                        0.0, 500,
+                        200, 450,
                         (b, v) -> b.setBatteryCapacityKwhPerBus(v)
                 ));
         m.put(TunableParamId.BT_MAX_CHARGE_CURRENT,
                 new TunableParameter(
                         TunableParamId.BT_MAX_CHARGE_CURRENT,
                         "BT_MAX_CHARGE_CURRENT",
-                        0.2, 1,
+                        0.6, 1,
                         (b, v) -> b.setMaxChargeCurrent(v)
                 ));
         m.put(TunableParamId.BT_MAX_DISCHARGE_CURRENT,
                 new TunableParameter(
                         TunableParamId.BT_MAX_DISCHARGE_CURRENT,
                         "BT_MAX_DISCHARGE_CURRENT",
-                        0.5, 5,
+                        1, 3,
                         (b, v) -> b.setMaxDischargeCurrent(v)
                 ));
         m.put(TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
                 new TunableParameter(
                         TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
                         "BT_NON_RESERVE_DISCHARGE_LVL",
-                        0, 0.8,
+                        0.6, 0.8,
                         (b, v) -> b.setNonReserveDischargeLevel(v)
                 ));
 

@@ -10,13 +10,18 @@ import java.util.List;
 /**
  * Расчет "эффективных" нагрузок по шинам с учетом возможности переноса нагрузки
  * в зависимости от схемы шин.
- *
- * Логика перенесена 1:1 из SingleRunSimulator.
  */
 public final class BusLoadAllocator {
 
     private BusLoadAllocator() {
     }
+
+    /**
+     * Avoid per-hour allocations for the common case busCount==2.
+     * ThreadLocal is required because MC/Sobol can run in parallel.
+     */
+    private static final ThreadLocal<double[]> TL_OUT_2 = ThreadLocal.withInitial(() -> new double[2]);
+    private static final ThreadLocal<double[]> TL_POT_2 = ThreadLocal.withInitial(() -> new double[2]);
 
     /**
      * @return массив эффективных нагрузок по шинам или null, если перенос не применим
@@ -72,8 +77,9 @@ public final class BusLoadAllocator {
                                                               double cat2,
                                                               boolean allowCat3AfterFirstHour,
                                                               double[] baseLoadsThisHourKw) {
-        double[] out = new double[buses.size()];
-        for (int i = 0; i < buses.size(); i++) {
+        final int n = buses.size();
+        final double[] out = (n == 2) ? TL_OUT_2.get() : new double[n];
+        for (int i = 0; i < n; i++) {
             out[i] = (baseLoadsThisHourKw != null) ? baseLoadsThisHourKw[i] : buses.get(i).getLoadKw()[t];
         }
 
@@ -117,8 +123,9 @@ public final class BusLoadAllocator {
                                                               double dgMaxKw,
                                                               double[] baseLoadsThisHourKw) {
         // Базовая нагрузка по шинам
-        double[] out = new double[buses.size()];
-        for (int i = 0; i < buses.size(); i++) {
+        final int n = buses.size();
+        final double[] out = (n == 2) ? TL_OUT_2.get() : new double[n];
+        for (int i = 0; i < n; i++) {
             out[i] = (baseLoadsThisHourKw != null) ? baseLoadsThisHourKw[i] : buses.get(i).getLoadKw()[t];
         }
 
@@ -138,7 +145,8 @@ public final class BusLoadAllocator {
 
         // Перенос при дефиците: если на одной шине не хватает потенциальной генерации (WT + DGmax + АКБ),
         // а на другой есть запас, переносим часть двухвводных потребителей (cat1+cat2) на другую шину.
-        double[] pot = new double[2];
+        double[] pot = TL_POT_2.get();
+        pot[0] = pot[1] = 0.0;
         for (int b = 0; b < 2; b++) {
             PowerBus bus = buses.get(b);
             double windPot = BusPotential.windPotentialNoSideEffects(bus, windV);

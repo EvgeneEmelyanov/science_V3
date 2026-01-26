@@ -30,7 +30,6 @@ public final class SingleRunSimulator {
 
         final double[] windMs = config.getWindMs();
         final int hours = windMs.length;
-
         final boolean considerFailures = config.isConsiderFailures();
         final boolean considerDegradation = config.isConsiderBatteryDegradation();
         final boolean reserveThirdCategory = config.isReserveThirdCategory();
@@ -303,9 +302,6 @@ public final class SingleRunSimulator {
                 continue;
             }
 
-            if (t == 0) {
-                System.out.println();
-            }
             // ===== Standard per-bus dispatch =====
             // DOUBLE_BUS: if one bus is down, from the 2nd repair hour transfer ALL DG and WT from the dead bus
             // onto the live bus (in addition to load transfer performed in BusLoadAllocator).

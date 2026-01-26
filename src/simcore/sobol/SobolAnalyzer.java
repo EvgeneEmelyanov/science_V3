@@ -38,43 +38,43 @@ public final class SobolAnalyzer {
         for (int j = 0; j < d; j++) yAB.add(new ArrayList<>(N));
 
         // CRN strategy for stochastic model:
-        // A(i) and AB_j(i) share stream; B(i) uses independent stream.
+        // For noisy (MC) model we use common random numbers (same noise stream) for A(i), B(i) and AB_j(i)
+        // within the same i. This stabilizes BOTH first- and total-order estimators.
+        // Independence is required for the Sobol x-samples (A/B matrices), not for the noise dimension ω.
+        // Therefore we bind the MC seed stream to the Sobol row index i for all variants.
         for (int i = 0; i < N; i++) {
-            final long rowA = (long) i;
-            final long rowB = (long) (i + N);
-
+            final long sobolRowIdx = (long) i;
             ParameterSet thetaA = buildThetaFromUnitRow(A[i], cfg);
             ParameterSet thetaB = buildThetaFromUnitRow(B[i], cfg);
 
             yA.add(mcRunner.evaluateForTheta(
                     baseInput, thetaA, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    rowA,
+                    sobolRowIdx,
                     false
             ));
 
             yB.add(mcRunner.evaluateForTheta(
                     baseInput, thetaB, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    rowB,
+                    sobolRowIdx,
                     false
             ));
         }
 
         for (int j = 0; j < d; j++) {
+            final double[] unitRow = new double[d];
             for (int i = 0; i < N; i++) {
-                final long rowA = (long) i;
+                final long sobolRowIdx = (long) i;
+                System.arraycopy(A[i], 0, unitRow, 0, d);
+                unitRow[j] = B[i][j];
 
-                double[] row = new double[d];
-                System.arraycopy(A[i], 0, row, 0, d);
-                row[j] = B[i][j];
-
-                ParameterSet thetaAB = buildThetaFromUnitRow(row, cfg);
+                ParameterSet thetaAB = buildThetaFromUnitRow(unitRow, cfg);
 
                 yAB.get(j).add(mcRunner.evaluateForTheta(
                         baseInput, thetaAB, cfg,
                         cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                        rowA,
+                        sobolRowIdx,
                         false
                 ));
             }
@@ -85,7 +85,7 @@ public final class SobolAnalyzer {
         double[] sMoto = new double[d], stMoto = new double[d];
         double[] sLcoe = new double[d], stLcoe = new double[d];
 
-        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.ENS,  sEns,  stEns, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.ENS, sEns, stEns, true);
         computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel, true);
         computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto, true);
         computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.LCOE, sLcoe, stLcoe, true);
@@ -93,7 +93,7 @@ public final class SobolAnalyzer {
         return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto, sLcoe, stLcoe);
     }
 
-    private enum Metric { ENS, FUEL, MOTO, LCOE }
+    private enum Metric {ENS, FUEL, MOTO, LCOE}
 
     private static void computeSobolIndicesSaltelli2002Jansen(
             List<MonteCarloEstimate> yA,
@@ -135,31 +135,57 @@ public final class SobolAnalyzer {
         double sumS = 0.0;
         double sumST = 0.0;
 
+        // СТАРЫЙ ВАРИАНТ First-order Saltelli 2002:
+//        for (int j = 0; j < d; j++) {
+//            double sumS_first = 0.0;
+//            double sumSt = 0.0;
+//
+//            for (int i = 0; i < N; i++) {
+//                double ab = extractMetric(yAB.get(j).get(i), metric);
+//
+//                // First-order: Saltelli 2002 (robust under noise)
+//                sumS_first += b[i] * (ab - a[i]);
+//
+//                // Total-order: Jansen
+//                double diff = a[i] - ab;
+//                sumSt += diff * diff;
+//            }
+//
+//            double sj  = (sumS_first / N) / varY;
+//            double stj = (sumSt / (2.0 * N)) / varY;
+//
+//            S[j] = sj;
+//            ST[j] = stj;
+//
+//            sumS += sj;
+//            sumST += stj;
+//            if (stj + 1e-12 < sj) stLessThanS++;
+//        }
+
+        // НОВЫЙ ВАРИАНТ
         for (int j = 0; j < d; j++) {
-            double sumS_first = 0.0;
-            double sumSt = 0.0;
+            double sumSq_B_minus_AB = 0.0; // для S_jansen
+            double sumSq_A_minus_AB = 0.0; // для ST_jansen (у тебя уже было sumSt)
 
             for (int i = 0; i < N; i++) {
                 double ab = extractMetric(yAB.get(j).get(i), metric);
 
-                // First-order: Saltelli 2002 (robust under noise)
-                sumS_first += b[i] * (ab - a[i]);
+                // First-order: Jansen
+                double diffBA = b[i] - ab;
+                sumSq_B_minus_AB += diffBA * diffBA;
 
                 // Total-order: Jansen
-                double diff = a[i] - ab;
-                sumSt += diff * diff;
+                double diffAA = a[i] - ab;
+                sumSq_A_minus_AB += diffAA * diffAA;
             }
 
-            double sj  = (sumS_first / N) / varY;
-            double stj = (sumSt / (2.0 * N)) / varY;
+            double sj = 1.0 - (sumSq_B_minus_AB / (2.0 * N)) / varY;
+            double stj = (sumSq_A_minus_AB / (2.0 * N)) / varY;
 
             S[j] = sj;
             ST[j] = stj;
-
-            sumS += sj;
-            sumST += stj;
-            if (stj + 1e-12 < sj) stLessThanS++;
         }
+
 
         if (printDiagnostics) {
             System.out.printf("Sobol metric=%s: sumS=%.6f sumST=%.6f count(ST<S)=%d/%d%n",

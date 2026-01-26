@@ -8,8 +8,6 @@ import java.util.List;
 
 /**
  * Решение о замыкании межсекционного выключателя (для SINGLE_SECTIONAL_BUS).
- *
- * Логика перенесена 1:1 из SingleRunSimulator.
  */
 public final class TieBreakerController {
 
@@ -21,27 +19,29 @@ public final class TieBreakerController {
                                                         double[] loads,
                                                         double windV,
                                                         double dgMaxKw) {
-        double[] deficit = new double[2];
-        double[] surplus = new double[2];
+        // Avoid small array allocations in the hourly loop: use scalars.
+        PowerBus bus0 = buses.get(0);
+        PowerBus bus1 = buses.get(1);
 
-        for (int b = 0; b < 2; b++) {
-            PowerBus bus = buses.get(b);
-            double load = loads[b];
+        double load0 = loads[0];
+        double load1 = loads[1];
 
-            double windPot = BusPotential.windPotentialNoSideEffects(bus, windV);
-            double dgPot = BusPotential.dieselPotential(bus, dgMaxKw);
-            double btPot = BusPotential.batteryDischargePotential(bus, sp);
+        double pot0 = BusPotential.windPotentialNoSideEffects(bus0, windV)
+                + BusPotential.dieselPotential(bus0, dgMaxKw)
+                + BusPotential.batteryDischargePotential(bus0, sp);
+        double pot1 = BusPotential.windPotentialNoSideEffects(bus1, windV)
+                + BusPotential.dieselPotential(bus1, dgMaxKw)
+                + BusPotential.batteryDischargePotential(bus1, sp);
 
-            double pot = windPot + dgPot + btPot;
-
-            deficit[b] = Math.max(0.0, load - pot);
-            surplus[b] = Math.max(0.0, pot - load);
-        }
+        double deficit0 = Math.max(0.0, load0 - pot0);
+        double deficit1 = Math.max(0.0, load1 - pot1);
+        double surplus0 = Math.max(0.0, pot0 - load0);
+        double surplus1 = Math.max(0.0, pot1 - load1);
 
         // Замыкать межсекционный имеет смысл только если на одной секции есть дефицит,
         // а на другой есть запас для покрытия (иначе объединение не помогает).
-        boolean close01 = deficit[0] > SimulationConstants.EPSILON && surplus[1] > SimulationConstants.EPSILON;
-        boolean close10 = deficit[1] > SimulationConstants.EPSILON && surplus[0] > SimulationConstants.EPSILON;
+        boolean close01 = deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON;
+        boolean close10 = deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON;
         return close01 || close10;
     }
 }

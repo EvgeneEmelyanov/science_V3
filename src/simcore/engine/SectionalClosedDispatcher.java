@@ -2,8 +2,8 @@ package simcore.engine;
 
 import simcore.config.SimulationConstants;
 import simcore.model.*;
-import java.util.List;
-import java.util.ArrayList;
+
+import java.util.Arrays;
 
 /**
  * Dispatching logic for one hour when the sectional tie breaker is closed.
@@ -11,6 +11,27 @@ import java.util.ArrayList;
  */
 final class SectionalClosedDispatcher {
     private SectionalClosedDispatcher() {}
+
+    /**
+     * Per-thread reusable buffers to avoid per-hour allocations in the hottest dispatching path.
+     * SOBOL/MC can run in parallel, so we keep buffers thread-local.
+     */
+    private static final ThreadLocal<Buffers> BUFFERS = ThreadLocal.withInitial(Buffers::new);
+
+    private static final class Buffers {
+        final double[] windToLoad = new double[2];
+        final double[] btNet = new double[2];
+        final double[] dgToLoad = new double[2];
+        final double[] def = new double[2];
+        final double[] startEnsByBus = new double[2];
+        DieselGenerator[] dgs = new DieselGenerator[0];
+
+        void ensureDgCapacity(int n) {
+            if (dgs.length != n) {
+                dgs = new DieselGenerator[n];
+            }
+        }
+    }
 
 
     static SectionalClosedResult dispatchSectionalClosedOneHour(
@@ -31,7 +52,20 @@ final class SectionalClosedDispatcher {
         double windPot1 = SingleRunSimulator.computeWindPotential(b1, ctx.windV);
         double windPot = windPot0 + windPot1;
 
-        double[] windToLoad = new double[2];
+        Buffers buf = BUFFERS.get();
+
+        double[] windToLoad = buf.windToLoad;
+        double[] btNet = buf.btNet;
+        double[] dgToLoad = buf.dgToLoad;
+        double[] def = buf.def;
+        double[] startEnsByBus = buf.startEnsByBus;
+
+        // reset per-hour buffers
+        windToLoad[0] = windToLoad[1] = 0.0;
+        btNet[0] = btNet[1] = 0.0;
+        dgToLoad[0] = dgToLoad[1] = 0.0;
+        def[0] = def[1] = 0.0;
+        startEnsByBus[0] = startEnsByBus[1] = 0.0;
         if (totalLoad > SimulationConstants.EPSILON) {
             windToLoad[0] = Math.min(load0, windPot * (load0 / totalLoad));
             windToLoad[1] = Math.min(load1, windPot * (load1 / totalLoad));
@@ -55,7 +89,7 @@ final class SectionalClosedDispatcher {
         double bt0DisCap = bt0Avail ? bt0.getDischargeCapacity(ctx.sp) : 0.0;
         double bt1DisCap = bt1Avail ? bt1.getDischargeCapacity(ctx.sp) : 0.0;
 
-        double[] btNet = new double[2]; // >0 discharge, <0 charge
+        // btNet: >0 discharge, <0 charge
 
         double dis0 = bt0Avail ? Math.min(rem0, bt0DisCap) : 0.0;
         if (dis0 > SimulationConstants.EPSILON && bt0Avail) {
@@ -90,10 +124,15 @@ final class SectionalClosedDispatcher {
         double btDisToLoadTotal = Math.max(0.0, btNet[0]) + Math.max(0.0, btNet[1]);
         double deficitAfterWindBt = rem0 + rem1;
 
-        List<DieselGenerator> allDgs = new ArrayList<>();
-        allDgs.addAll(b0.getDieselGenerators());
-        allDgs.addAll(b1.getDieselGenerators());
-        DieselGenerator[] dgs = DieselGenerator.getSortedDgs(allDgs);
+        int n0 = b0.getDieselGenerators().size();
+        int n1 = b1.getDieselGenerators().size();
+        int n = n0 + n1;
+        buf.ensureDgCapacity(n);
+        DieselGenerator[] dgs = buf.dgs;
+        int p = 0;
+        for (int i = 0; i < n0; i++) dgs[p++] = b0.getDieselGenerators().get(i);
+        for (int i = 0; i < n1; i++) dgs[p++] = b1.getDieselGenerators().get(i);
+        Arrays.sort(dgs, DieselGenerator.DISPATCH_COMPARATOR);
 
         int available = 0;
         int readyWorking = 0;
@@ -254,8 +293,8 @@ final class SectionalClosedDispatcher {
                 double sumFinalDieselKw = 0.0;
                 for (DieselGenerator dg : dgs) {
                     if (!dg.isAvailable()) continue;
-                    double p = dg.getCurrentLoad();
-                    if (p > SimulationConstants.EPSILON) sumFinalDieselKw += p;
+                    double pKw = dg.getCurrentLoad();
+                    if (pKw > SimulationConstants.EPSILON) sumFinalDieselKw += pKw;
                 }
                 dgProducedKw = sumFinalDieselKw;
 
@@ -290,7 +329,6 @@ final class SectionalClosedDispatcher {
             }
         }
 
-        double[] dgToLoad = new double[2];
         double need0 = Math.max(0.0, load0 - windToLoad[0] - Math.max(0.0, btNet[0]));
         double need1 = Math.max(0.0, load1 - windToLoad[1] - Math.max(0.0, btNet[1]));
         double needSum = need0 + need1;
@@ -299,7 +337,6 @@ final class SectionalClosedDispatcher {
             dgToLoad[1] = dgToLoadTotal * (need1 / needSum);
         }
 
-        double[] def = new double[2];
         double supplied0 = windToLoad[0] + dgToLoad[0] + Math.max(0.0, btNet[0]);
         double supplied1 = windToLoad[1] + dgToLoad[1] + Math.max(0.0, btNet[1]);
         def[0] = Math.max(0.0, load0 - supplied0);
@@ -307,7 +344,6 @@ final class SectionalClosedDispatcher {
 
         double ens = def[0] + def[1];
 
-        double[] startEnsByBus = new double[2];
         if (ens > SimulationConstants.EPSILON && startDelayEnsEstimateKwh > SimulationConstants.EPSILON) {
             double startEnsTotal = Math.min(ens, startDelayEnsEstimateKwh);
             // Track start ENS separately for ENS event statistics.

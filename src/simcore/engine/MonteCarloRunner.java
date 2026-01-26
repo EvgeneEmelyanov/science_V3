@@ -592,7 +592,14 @@ public final class MonteCarloRunner {
     }
 
     private static int estimateParallelism(ExecutorService executor) {
-        if (executor instanceof ForkJoinPool fjp) return Math.max(1, fjp.getParallelism());
+        if (executor instanceof ForkJoinPool fjp) {
+            return Math.max(1, fjp.getParallelism());
+        }
+        if (executor instanceof java.util.concurrent.ThreadPoolExecutor tpe) {
+            int n = tpe.getMaximumPoolSize();
+            if (n <= 0 || n == Integer.MAX_VALUE) n = tpe.getCorePoolSize();
+            if (n > 0) return Math.max(1, n);
+        }
         return Math.max(1, Runtime.getRuntime().availableProcessors());
     }
 

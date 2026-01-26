@@ -19,7 +19,9 @@ public class Main {
     // ======================================================================
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
+
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
+
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
     // Used by some dispatch formulas
@@ -28,7 +30,7 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.SOBOL_HARD;
-        RunMode runMode = RunMode.SINGLE;
+        RunMode runMode = RunMode.SWEEP_2;
         LoadType loadType = LoadType.GOK; // тип нагрузки
         int mcIterations = 50;
         int sobolN = 128;
@@ -40,7 +42,7 @@ public class Main {
         String exportDriversPath = null;
         // Econ sobol
         String econDriversPath = "D:/econ_drivers.csv";
-        String econCaseId = "case_7";
+        String econCaseId = "case_0";
         Integer econN = null;
 
         int threads = Runtime.getRuntime().availableProcessors();
@@ -117,19 +119,19 @@ public class Main {
 
         // Categories share (k1, k2); k3 implied = 1 - k1 - k2
         static final double DEFAULT_FIRST_CAT = 0.65;
-        static final double DEFAULT_SECOND_CAT = 0.25;
+        static final double DEFAULT_SECOND_CAT = 0;
 
         // WT
         static final int DEFAULT_WT_COUNT_TOTAL = 4;
-        static final double DEFAULT_WT_POWER_KW = 500.0;
+        static final double DEFAULT_WT_POWER_KW = 500;
 
         // DG
         static final int DEFAULT_DG_COUNT_TOTAL = 6;
         static final double DEFAULT_DG_POWER_KW = 250.0;
 
         // Battery
-        static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 300.0;
-        static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1.0;
+        static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 300;
+        static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.8;
         static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
         static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.8;
 
@@ -205,28 +207,31 @@ public class Main {
             return paramSets;
         }
 
-        // SWEEP_2 (your current active variant)
-        for (double p1 : param1) {
-            for (double p2 : param2) {
-                SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setBatteryCapacityKwhPerBus(p1)
-                        .setNonReserveDischargeLevel(p2)
-                        .build();
-                paramSets.add(p);
-            }
-        }
-
-        if (sweepCatsTriangle) {
-            int n = (int) Math.round(1.0 / catStep);
-            for (int i = 0; i <= n; i++) {
-                double k1 = i * catStep;
-                for (int j = 0; j <= n - i; j++) {
-                    double k2 = j * catStep;
-                    SystemParameters p = SystemParametersBuilder.from(baseParams)
-                            .setFirstCat(k1)
-                            .setSecondCat(k2)
-                            .build();
-                    paramSets.add(p);
+        if (mode == RunMode.SWEEP_2) {
+            if (sweepCatsTriangle) {
+                int n = (int) Math.round(1.0 / catStep);
+                for (int i = 0; i <= n; i++) {
+                    double k1 = i * catStep;
+                    for (int j = 0; j <= n - i; j++) {
+                        double k2 = j * catStep;
+                        SystemParameters p = SystemParametersBuilder.from(baseParams)
+                                .setFirstCat(k1)
+                                .setSecondCat(k2)
+                                .build();
+                        paramSets.add(p);
+                    }
+                }
+            } else {
+                for (double p1 : param1) {
+                    for (double p2 : param2) {
+                        SystemParameters p = SystemParametersBuilder.from(baseParams)
+                                .setBatteryCapacityKwhPerBus(p1)
+//                        .setNonReserveDischargeLevel(p2)
+//                        .setFirstCat(p2)
+                                .setMaxDischargeCurrent(p2)
+                                .build();
+                        paramSets.add(p);
+                    }
                 }
             }
         }
@@ -244,7 +249,9 @@ public class Main {
 
         // ===== Axes (edit here) =====
         double[] param1 = new double[]{0.0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500};
-        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
+//        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
+//        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        double[] param2 = new double[]{1, 2, 3, 4, 5};
 
         final boolean sweepCatsTriangle = false;
         final double catStep = 0.1;
@@ -301,6 +308,7 @@ public class Main {
 //                TunableParamId.BT_FAILURE_RATE,
 //                TunableParamId.BUS_FAILURE_RATE,
 //                TunableParamId.BRK_FAILURE_RATE
+
                 TunableParamId.BT_CAPACITY_PER_BUS,
                 TunableParamId.BT_MAX_DISCHARGE_CURRENT,
                 TunableParamId.BT_MAX_CHARGE_CURRENT,
