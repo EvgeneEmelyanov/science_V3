@@ -31,11 +31,11 @@ public final class TunableParameter {
 
     public SobolFactor toSobolFactor() {
         return new SobolFactor(
+                id,
                 name,
                 min,
                 max,
                 (base, value) -> {
-                    // копия через builder.from(base) -> применяем параметр -> build
                     SystemParametersBuilder b = SystemParametersBuilder.from(base);
                     applier.apply(b, value);
                     return b.build();

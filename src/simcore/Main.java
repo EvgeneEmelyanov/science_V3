@@ -14,10 +14,6 @@ import java.util.concurrent.Executors;
 
 public class Main {
 
-    // ======================================================================
-    // Public knobs
-    // ======================================================================
-
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
 
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
@@ -32,7 +28,7 @@ public class Main {
         Task task = Task.SOBOL_HARD;
         RunMode runMode = RunMode.SWEEP_1;
         LoadType loadType = LoadType.GOK; // тип нагрузки
-        int mcIterations = 25;
+        int mcIterations = 50;
         int sobolN = 128;
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
         Integer maxLoadOverride = 1000;
@@ -305,17 +301,26 @@ public class Main {
 
     private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
         List<TunableParamId> ids = List.of(
+                TunableParamId.FIRST_CAT,
+
+                TunableParamId.DG_POWER,
+                TunableParamId.DG_COUNT,
+                TunableParamId.WT_POWER,
+                TunableParamId.WT_COUNT,
+                TunableParamId.BT_CAPACITY_PER_BUS,
+
                 TunableParamId.WT_FAILURE_RATE,
                 TunableParamId.DG_FAILURE_RATE,
                 TunableParamId.BT_FAILURE_RATE,
                 TunableParamId.BUS_FAILURE_RATE,
                 TunableParamId.BRK_FAILURE_RATE,
 
-                TunableParamId.DG_POWER,
-                TunableParamId.DG_COUNT,
-                TunableParamId.WT_POWER,
-                TunableParamId.WT_COUNT,
-                TunableParamId.BT_CAPACITY_PER_BUS
+                TunableParamId.WT_FAILURE_RATE,
+                TunableParamId.DG_REPAIR_TIME,
+                TunableParamId.BT_REPAIR_TIME,
+                TunableParamId.BUS_REPAIR_TIME,
+                TunableParamId.BRK_REPAIR_TIME
+
 
 //                TunableParamId.BT_CAPACITY_PER_BUS,
 //                TunableParamId.BT_MAX_DISCHARGE_CURRENT,

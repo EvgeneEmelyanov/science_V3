@@ -9,6 +9,16 @@ import java.util.concurrent.ExecutionException;
 
 public final class SobolAnalyzer {
 
+    /**
+     * We encode (row i, streamId) -> sobolRowIdx.
+     * MonteCarloRunner then expands sobolRowIdx into a seed block:
+     * seed = mcBaseSeed + sobolRowIdx * SOBOL_ROW_SEED_STRIDE + mcIdx * MC_SEED_STRIDE
+     *
+     * Pick a large stride in "row units" so different streams don't overlap even for large N.
+     * N is typically <= 8192..16384; streamId <= 100 + d.
+     */
+    private static final long SOBOL_STREAM_STRIDE_ROWS = 1_000_000L;
+
     private final MonteCarloRunner mcRunner;
 
     public SobolAnalyzer(MonteCarloRunner mcRunner) {
@@ -37,33 +47,44 @@ public final class SobolAnalyzer {
         List<List<MonteCarloEstimate>> yAB = new ArrayList<>(d);
         for (int j = 0; j < d; j++) yAB.add(new ArrayList<>(N));
 
-        // CRN strategy for stochastic model:
-        // For noisy (MC) model we use common random numbers (same noise stream) for A(i), B(i) and AB_j(i)
-        // within the same i.
+        /*
+         * FULLY INDEPENDENT SEED STREAMS (A / B / AB_j):
+         *   - A(i)   uses stream 0
+         *   - B(i)   uses stream 1
+         *   - AB_j(i) uses stream (100 + j)
+         *
+         * This removes CRN between A/B/AB and is closest to the classical Sobol sampling assumptions.
+         * Expect more estimator noise at small N/mc, but fewer systematic artifacts (ST<S, sumS>1, etc.).
+         */
         for (int i = 0; i < N; i++) {
-            final long sobolRowIdx = (long) i;
+            final long sobolRowIdxA = rowIdx(i, 0);
+            final long sobolRowIdxB = rowIdx(i, 1);
+
             ParameterSet thetaA = buildThetaFromUnitRow(A[i], cfg);
             ParameterSet thetaB = buildThetaFromUnitRow(B[i], cfg);
 
             yA.add(mcRunner.evaluateForTheta(
                     baseInput, thetaA, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    sobolRowIdx,
+                    sobolRowIdxA,
                     false
             ));
 
             yB.add(mcRunner.evaluateForTheta(
                     baseInput, thetaB, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    sobolRowIdx,
+                    sobolRowIdxB,
                     false
             ));
         }
 
         for (int j = 0; j < d; j++) {
             final double[] unitRow = new double[d];
+            final int streamIdAB = 100 + j;
+
             for (int i = 0; i < N; i++) {
-                final long sobolRowIdx = (long) i;
+                final long sobolRowIdxAB = rowIdx(i, streamIdAB);
+
                 System.arraycopy(A[i], 0, unitRow, 0, d);
                 unitRow[j] = B[i][j];
 
@@ -72,7 +93,7 @@ public final class SobolAnalyzer {
                 yAB.get(j).add(mcRunner.evaluateForTheta(
                         baseInput, thetaAB, cfg,
                         cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                        sobolRowIdx,
+                        sobolRowIdxAB,
                         false
                 ));
             }
@@ -91,14 +112,20 @@ public final class SobolAnalyzer {
         return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto, sLcoe, stLcoe);
     }
 
+    private static long rowIdx(int i, long streamId) {
+        if (i < 0) throw new IllegalArgumentException("row i must be >= 0");
+        if (streamId < 0) throw new IllegalArgumentException("streamId must be >= 0");
+        return (long) i + streamId * SOBOL_STREAM_STRIDE_ROWS;
+    }
+
     private enum Metric { ENS, FUEL, MOTO, LCOE }
 
     /**
-     * Jansen estimators (recommended for noisy/stochastic models):
-     *  ST_j = E[(A-AB_j)^2] / (2 Var(Y))
-     *   S_j = 1 - E[(B-AB_j)^2] / (2 Var(Y))
+     * Jansen estimators (stable for noisy/stochastic models):
+     *  ST_j = E[(A - AB_j)^2] / (2 Var(Y))
+     *   S_j = 1 - E[(B - AB_j)^2] / (2 Var(Y))
      *
-     * Var(Y) computed on concatenation of A and B (population variance).
+     * Var(Y) is computed on concatenation of A and B (population variance).
      */
     private static void computeSobolIndicesJansen(
             List<MonteCarloEstimate> yA,

@@ -7,21 +7,40 @@ import java.util.function.BiFunction;
 
 public final class SobolFactor {
 
+    /** Optional link back to TunableParamId. May be null for custom factors. */
+    private final TunableParamId id;
+
     private final String name;
     private final double min;
     private final double max;
 
     private final BiFunction<SystemParameters, Double, SystemParameters> applier;
 
+    /** Legacy ctor (no id). */
     public SobolFactor(String name,
                        double min,
                        double max,
                        BiFunction<SystemParameters, Double, SystemParameters> applier) {
+        this(null, name, min, max, applier);
+    }
+
+    public SobolFactor(TunableParamId id,
+                       String name,
+                       double min,
+                       double max,
+                       BiFunction<SystemParameters, Double, SystemParameters> applier) {
         if (max < min) throw new IllegalArgumentException("max < min for " + name);
+        this.id = id;
         this.name = Objects.requireNonNull(name);
         this.min = min;
         this.max = max;
         this.applier = Objects.requireNonNull(applier);
+    }
+
+    public TunableParamId getId() { return id; }
+
+    public boolean isReliabilityLike() {
+        return id != null && id.isReliabilityLike();
     }
 
     public String getName() { return name; }
