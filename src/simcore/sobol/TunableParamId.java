@@ -10,6 +10,10 @@ package simcore.sobol;
  */
 public enum TunableParamId {
 
+    // Доли категорий потребителей
+    FIRST_CAT,
+    SECOND_CAT,
+
     // Частоты отказов
     WT_FAILURE_RATE,
     DG_FAILURE_RATE,

@@ -14,8 +14,28 @@ public final class TunableParameterPool {
     static {
         Map<TunableParamId, TunableParameter> m = new EnumMap<>(TunableParamId.class);
 
-        // ----- Частоты отказов (интенсивности), 1/год -----
+        // ----- Доли потребителей I и II кат. -----
+        m.put(TunableParamId.FIRST_CAT,
+                new TunableParameter(
+                        TunableParamId.FIRST_CAT,
+                        "FIRST_CAT",
+                        0.0, 1.0,
+                        (b, v) -> b.setFirstCat(clamp01(v))
+                ));
 
+        m.put(TunableParamId.SECOND_CAT,
+                new TunableParameter(
+                        TunableParamId.SECOND_CAT,
+                        "SECOND_CAT",
+                        0.0, 1.0,
+                        (b, u2) -> {
+                            double k1 = clamp01(b.getFirstCat());
+                            double k2 = clamp01(u2) * (1.0 - k1);
+                            b.setSecondCat(k2);
+                        }
+                ));
+
+        // ----- Частоты отказов (интенсивности), 1/год -----
         m.put(TunableParamId.WT_FAILURE_RATE,
                 new TunableParameter(
                         TunableParamId.WT_FAILURE_RATE,
@@ -44,7 +64,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BUS_FAILURE_RATE,
                         "BUS_FAILURE_RATE",
-                        0.008, 0.032, // base=0.016
+                        0.008, 0.032, // base=0.02
                         (b, v) -> b.setBusFailureRatePerYear(v)
                 ));
 
@@ -110,7 +130,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_COUNT,
                         "WT_COUNT",
-                        2.0, 16,
+                        2, 6,
                         (b, v) -> b.setTotalWindTurbineCount((int) Math.round(v))
                 ));
 
@@ -135,7 +155,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DG_POWER,
                         "DG_POWER",
-                        250, 500,
+                        125, 500,
                         (b, v) -> b.setDieselGeneratorPowerKw(v)
                 ));
 
@@ -144,7 +164,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_CAPACITY_PER_BUS,
                         "BT_CAPACITY_PER_BUS",
-                        200, 450,
+                        125, 500,
                         (b, v) -> b.setBatteryCapacityKwhPerBus(v)
                 ));
         m.put(TunableParamId.BT_MAX_CHARGE_CURRENT,
@@ -165,12 +185,11 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
                         "BT_NON_RESERVE_DISCHARGE_LVL",
-                        0.6, 0.8,
+                        0.2, 0.8,
                         (b, v) -> b.setNonReserveDischargeLevel(v)
                 ));
 
         // ----- Economics / prices -----
-
         m.put(TunableParamId.DISCOUNT_RATE,
                 new TunableParameter(
                         TunableParamId.DISCOUNT_RATE,
@@ -183,7 +202,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_RU_RUB,
                         "COST_RU_RUB",
-                        2_000_000, 8_000_000,
+                        3_000_000, 9_000_000,
                         (b, v) -> b.setCostRuRub(v)
                 ));
 
@@ -191,7 +210,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_DG_RUB_PER_KW,
                         "COST_DG_RUB_PER_KW",
-                        20_000.0, 80_000.0,
+                        30_000.0, 50_000.0,
                         (b, v) -> b.setCostDgRubPerKw(v)
                 ));
 
@@ -199,7 +218,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_DG_RUB_PER_KW_PER_KMH,
                         "COST_DG_RUB_PER_KW_PER_KMH",
-                        800, 3200,
+                        750, 2250,
                         (b, v) -> b.setCostDgRubPerKwPerKmh(v)
                 ));
 
@@ -207,7 +226,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_FUEL_RUB_PER_KT,
                         "COST_FUEL_RUB_PER_KT",
-                        45_000_000.0, 180_000_000,
+                        81_000_000.0, 99_000_000,
                         (b, v) -> b.setCostFuelRubPerKt(v)
                 ));
 
@@ -215,7 +234,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_WT_RUB_PER_KW,
                         "COST_WT_RUB_PER_KW",
-                        75000, 300000,
+                        75_000, 225_000,
                         (b, v) -> b.setCostWtRubPerKw(v)
                 ));
 
@@ -223,7 +242,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_WT_RUB_PER_KW_PER_YEAR,
                         "COST_WT_RUB_PER_KW_PER_YEAR",
-                        1500, 6000,
+                        1500, 4500,
                         (b, v) -> b.setCostWtRubPerKwPerYear(v)
                 ));
 
@@ -231,7 +250,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_BT_RUB_PER_KWH,
                         "COST_BT_RUB_PER_KWH",
-                        44000, 176000,
+                        40_000, 120_000,
                         (b, v) -> b.setCostBtRubPerKwh(v)
                 ));
 
@@ -239,7 +258,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_BT_RUB_PER_KWH_PER_YEAR,
                         "COST_BT_RUB_PER_KWH_PER_YEAR",
-                        1100, 4400,
+                        800, 2400,
                         (b, v) -> b.setCostBtRubPerKwhPerYear(v)
                 ));
 
@@ -247,7 +266,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DAMAGE_RUB_PER_KWH_CAT1,
                         "DAMAGE_RUB_PER_KWH_CAT1",
-                        3500, 14000,
+                        3500, 10500,
                         (b, v) -> b.setDamageRubPerKwhCat1(v)
                 ));
 
@@ -255,7 +274,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DAMAGE_RUB_PER_KWH_CAT2,
                         "DAMAGE_RUB_PER_KWH_CAT2",
-                        1050, 4200,
+                        1050, 3150,
                         (b, v) -> b.setDamageRubPerKwhCat2(v)
                 ));
 
@@ -263,13 +282,19 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DAMAGE_RUB_PER_KWH_CAT3,
                         "DAMAGE_RUB_PER_KWH_CAT3",
-                        350, 1400,
+                        350, 1050,
                         (b, v) -> b.setDamageRubPerKwhCat3(v)
                 ));
         PARAMS = Collections.unmodifiableMap(m);
     }
 
     private TunableParameterPool() {}
+
+    private static double clamp01(double x) {
+        if (x < 0.0) return 0.0;
+        if (x > 1.0) return 1.0;
+        return x;
+    }
 
     public static TunableParameter get(TunableParamId id) {
         TunableParameter p = PARAMS.get(id);
