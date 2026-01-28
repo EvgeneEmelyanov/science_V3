@@ -35,6 +35,57 @@ public final class MonteCarloRunner {
         this.relativeError = relativeError;
     }
 
+    /**
+     * Lightweight per-theta evaluation for Sobol HARD: sequential MC, no ENS sample array, no CI/outlier processing.
+     * Returns only mean metrics needed for Sobol indices.
+     */
+    public Means evaluateMeansForThetaSequentialMc(SimInput baseInput,
+                                                   ParameterSet theta,
+                                                   SobolConfig sobolCfg,
+                                                   int mcIterations,
+                                                   long mcBaseSeed,
+                                                   long sobolRowIdx)
+            throws InterruptedException {
+
+        if (mcIterations <= 0) {
+            throw new IllegalArgumentException("mcIterations must be > 0");
+        }
+
+        // apply theta
+        SimInput input = baseInput;
+        if (theta != null && sobolCfg != null) {
+            SystemParameters baseParams = baseInput.getSystemParameters();
+            SystemParameters tuned = theta.applyTo(baseParams, sobolCfg);
+            input = baseInput.withSystemParameters(tuned);
+        }
+
+        double ensSum = 0.0;
+        double fuelSum = 0.0;
+        double motoSum = 0.0;
+        double lcoeSum = 0.0;
+
+        for (int mcIdx = 0; mcIdx < mcIterations; mcIdx++) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException();
+            }
+            long seed = seedFor(mcBaseSeed, sobolRowIdx, mcIdx);
+            SimulationMetrics m = simulator.simulate(input, seed, false);
+            ensSum += m.ensKwh;
+            fuelSum += m.fuelLiters;
+            motoSum += (double) m.totalMotoHours;
+            lcoeSum += m.lcoeRubPerKwh;
+        }
+
+        double inv = 1.0 / mcIterations;
+        return new Means(ensSum * inv, fuelSum * inv, motoSum * inv, lcoeSum * inv);
+    }
+
+    /** Minimal mean-only result for Sobol HARD. */
+    public record Means(double meanEnsKwh,
+                        double meanFuelLiters,
+                        double meanMotoHours,
+                        double meanLcoeRubPerKwh) {}
+
     public MonteCarloEstimate evaluateForTheta(SimInput baseInput,
                                                ParameterSet theta,
                                                SobolConfig sobolCfg,

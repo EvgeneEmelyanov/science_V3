@@ -94,6 +94,30 @@ public final class SobolMath {
         return s / x.length;
     }
 
+    /**
+     * Population variance over pooled samples (A ∪ B) without allocating a 2N array.
+     */
+    public static double variancePooledPopulation(double[] a, double[] b) {
+        int N = a.length;
+        if (b.length != N) throw new IllegalArgumentException("b.length != a.length");
+
+        double sum = 0.0;
+        for (int i = 0; i < N; i++) {
+            sum += a[i];
+            sum += b[i];
+        }
+        double mean = sum / (2.0 * N);
+
+        double s = 0.0;
+        for (int i = 0; i < N; i++) {
+            double da = a[i] - mean;
+            s += da * da;
+            double db = b[i] - mean;
+            s += db * db;
+        }
+        return s / (2.0 * N);
+    }
+
     public static double variancePopulation(double[] x, double mean) {
         double s = 0.0;
         for (double v : x) {

@@ -79,7 +79,10 @@ public class Main {
                     c.sobolSeedMode = SobolConfig.SeedMode.valueOf(a.substring("--sobolSeedMode=".length()).trim());
 
                 if (a.startsWith("--exportDrivers="))
-                    c.exportDriversPath = a.substring("--exportDrivers=".length()).trim();
+                {
+                    String p = a.substring("--exportDrivers=".length()).trim();
+                    c.exportDriversPath = p.isEmpty() ? null : p;
+                }
 
                 if (a.startsWith("--econDrivers=")) c.econDriversPath = a.substring("--econDrivers=".length()).trim();
                 if (a.startsWith("--econCase=")) c.econCaseId = a.substring("--econCase=".length()).trim();

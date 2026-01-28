@@ -1,6 +1,5 @@
 package simcore.sobol;
 
-import simcore.engine.MonteCarloEstimate;
 import simcore.engine.MonteCarloRunner;
 import simcore.engine.SimInput;
 
@@ -44,7 +43,7 @@ public final class SobolAnalyzer {
         double[][] A = ab[0];
         double[][] B = ab[1];
 
-        // store only metric means (avoid storing MonteCarloEstimate objects for every point)
+        // store only metric means
         double[] aEns = new double[N];
         double[] aFuel = new double[N];
         double[] aMoto = new double[N];
@@ -55,78 +54,76 @@ public final class SobolAnalyzer {
         double[] bMoto = new double[N];
         double[] bLcoe = new double[N];
 
-        double[][] abEns = new double[d][N];
-        double[][] abFuel = new double[d][N];
-        double[][] abMoto = new double[d][N];
-        double[][] abLcoe = new double[d][N];
+        // evaluate A and B first (stage-by-stage to avoid a huge Future list)
+        int iChunk = chunkSize(N, cfg.getThreads());
 
-        // evaluate all points
-        int chunkSize = chunkSize(N, cfg.getThreads());
         List<Future<?>> futures = (thetaExecutor != null) ? new ArrayList<>() : null;
 
         // A
-        for (int from = 0; from < N; from += chunkSize) {
+        for (int from = 0; from < N; from += iChunk) {
             final int f = from;
-            final int t = Math.min(N, from + chunkSize);
+            final int t = Math.min(N, from + iChunk);
             Runnable r = () -> evalAChunk(baseInput, cfg, A, f, t, aEns, aFuel, aMoto, aLcoe);
             submitOrRun(r, futures);
         }
-
+        awaitFutures(futures);
 
         // B
-        for (int from = 0; from < N; from += chunkSize) {
+        for (int from = 0; from < N; from += iChunk) {
             final int f = from;
-            final int t = Math.min(N, from + chunkSize);
+            final int t = Math.min(N, from + iChunk);
             Runnable r = () -> evalBChunk(baseInput, cfg, B, f, t, bEns, bFuel, bMoto, bLcoe);
             submitOrRun(r, futures);
         }
+        awaitFutures(futures);
 
-
-        // AB_j
-        List<SobolFactor> factors = cfg.getFactors();
-        for (int j = 0; j < d; j++) {
-            final int jj = j;
-            SobolFactor fct = factors.get(jj);
-
-            for (int from = 0; from < N; from += chunkSize) {
-                final int f = from;
-                final int t = Math.min(N, from + chunkSize);
-
-                Runnable r = () -> evalABChunk(baseInput, cfg, A, B, jj, fct, f, t,
-                        abEns[jj], abFuel[jj], abMoto[jj], abLcoe[jj]);
-                submitOrRun(r, futures);
-            }
-        }
-
-
-        if (futures != null) {
-            for (Future<?> f : futures) {
-                try {
-                    f.get();
-                } catch (ExecutionException ee) {
-                    Throwable c = ee.getCause();
-                    if (c instanceof RuntimeException re) throw re;
-                    throw ee;
-                }
-            }
-        }
+        // pooled variances Var(Y) over A ∪ B (population variance)
+        final double varEns = SobolMath.variancePooledPopulation(aEns, bEns);
+        final double varFuel = SobolMath.variancePooledPopulation(aFuel, bFuel);
+        final double varMoto = SobolMath.variancePooledPopulation(aMoto, bMoto);
+        final double varLcoe = SobolMath.variancePooledPopulation(aLcoe, bLcoe);
 
         // indices: First-order S via Saltelli-2002, Total-order ST via Jansen
         double[] sEns = new double[d];
         double[] stEns = new double[d];
-        SobolMath.computeIndicesSaltelli2002Jansen(aEns, bEns, abEns, sEns, stEns);
-
         double[] sFuel = new double[d];
         double[] stFuel = new double[d];
-        SobolMath.computeIndicesSaltelli2002Jansen(aFuel, bFuel, abFuel, sFuel, stFuel);
-
         double[] sMoto = new double[d];
         double[] stMoto = new double[d];
-        SobolMath.computeIndicesSaltelli2002Jansen(aMoto, bMoto, abMoto, sMoto, stMoto);
-
         double[] sLcoe = new double[d];
         double[] stLcoe = new double[d];
-        SobolMath.computeIndicesSaltelli2002Jansen(aLcoe, bLcoe, abLcoe, sLcoe, stLcoe);
+
+        List<SobolFactor> factors = cfg.getFactors();
+
+        if (!(varEns > 0.0) || Double.isNaN(varEns) || Double.isInfinite(varEns)
+                || !(varFuel > 0.0) || Double.isNaN(varFuel) || Double.isInfinite(varFuel)
+                || !(varMoto > 0.0) || Double.isNaN(varMoto) || Double.isInfinite(varMoto)
+                || !(varLcoe > 0.0) || Double.isNaN(varLcoe) || Double.isInfinite(varLcoe)) {
+            // if any metric variance collapses (rare but possible), keep behaviour explicit
+            for (int j = 0; j < d; j++) {
+                sEns[j] = stEns[j] = Double.NaN;
+                sFuel[j] = stFuel[j] = Double.NaN;
+                sMoto[j] = stMoto[j] = Double.NaN;
+                sLcoe[j] = stLcoe[j] = Double.NaN;
+            }
+        } else {
+            int jChunk = factorChunkSize(d, cfg.getThreads());
+            for (int jFrom = 0; jFrom < d; jFrom += jChunk) {
+                final int jf = jFrom;
+                final int jt = Math.min(d, jFrom + jChunk);
+                Runnable r = () -> evalABIndicesRange(
+                        baseInput, cfg, factors,
+                        A, B,
+                        jf, jt,
+                        aEns, bEns, varEns, sEns, stEns,
+                        aFuel, bFuel, varFuel, sFuel, stFuel,
+                        aMoto, bMoto, varMoto, sMoto, stMoto,
+                        aLcoe, bLcoe, varLcoe, sLcoe, stLcoe
+                );
+                submitOrRun(r, futures);
+            }
+            awaitFutures(futures);
+        }
 
         SobolResult res = new SobolResult(cfg,
                 sEns, stEns,
@@ -149,6 +146,21 @@ public final class SobolAnalyzer {
         }
     }
 
+    private void awaitFutures(List<Future<?>> futures) throws InterruptedException, ExecutionException {
+        if (futures == null || futures.isEmpty()) return;
+        try {
+            for (Future<?> f : futures) {
+                f.get();
+            }
+        } catch (ExecutionException ee) {
+            Throwable c = ee.getCause();
+            if (c instanceof RuntimeException re) throw re;
+            throw ee;
+        } finally {
+            futures.clear();
+        }
+    }
+
     private void evalAChunk(SimInput baseInput,
                             SobolConfig cfg,
                             double[][] A,
@@ -161,11 +173,11 @@ public final class SobolAnalyzer {
         for (int i = from; i < to; i++) {
             ParameterSet theta = buildThetaFromUnitRow(A[i], cfg);
             long row = sobolRowIdx(i, streamA(cfg));
-            MonteCarloEstimate e = evalTheta(baseInput, cfg, theta, row);
-            outEns[i] = e.ensStats.getMean();
-            outFuel[i] = e.meanFuelLiters;
-            outMoto[i] = e.meanMotoHours;
-            outLcoe[i] = e.meanLcoeRubPerKwh;
+            MonteCarloRunner.Means e = evalThetaMeans(baseInput, cfg, theta, row);
+            outEns[i] = e.meanEnsKwh();
+            outFuel[i] = e.meanFuelLiters();
+            outMoto[i] = e.meanMotoHours();
+            outLcoe[i] = e.meanLcoeRubPerKwh();
         }
     }
 
@@ -181,53 +193,90 @@ public final class SobolAnalyzer {
         for (int i = from; i < to; i++) {
             ParameterSet theta = buildThetaFromUnitRow(B[i], cfg);
             long row = sobolRowIdx(i, streamB(cfg));
-            MonteCarloEstimate e = evalTheta(baseInput, cfg, theta, row);
-            outEns[i] = e.ensStats.getMean();
-            outFuel[i] = e.meanFuelLiters;
-            outMoto[i] = e.meanMotoHours;
-            outLcoe[i] = e.meanLcoeRubPerKwh;
+            MonteCarloRunner.Means e = evalThetaMeans(baseInput, cfg, theta, row);
+            outEns[i] = e.meanEnsKwh();
+            outFuel[i] = e.meanFuelLiters();
+            outMoto[i] = e.meanMotoHours();
+            outLcoe[i] = e.meanLcoeRubPerKwh();
         }
     }
 
-    private void evalABChunk(SimInput baseInput,
-                             SobolConfig cfg,
-                             double[][] A,
-                             double[][] B,
-                             int j,
-                             SobolFactor f,
-                             int from,
-                             int to,
-                             double[] outEns,
-                             double[] outFuel,
-                             double[] outMoto,
-                             double[] outLcoe) {
-        for (int i = from; i < to; i++) {
-            ParameterSet theta = buildThetaFromABRow(A[i], B[i], j, cfg);
-            long row = sobolRowIdx(i, streamAB(cfg, j, f));
-            MonteCarloEstimate e = evalTheta(baseInput, cfg, theta, row);
-            outEns[i] = e.ensStats.getMean();
-            outFuel[i] = e.meanFuelLiters;
-            outMoto[i] = e.meanMotoHours;
-            outLcoe[i] = e.meanLcoeRubPerKwh;
+    private void evalABIndicesRange(SimInput baseInput,
+                                    SobolConfig cfg,
+                                    List<SobolFactor> factors,
+                                    double[][] A,
+                                    double[][] B,
+                                    int jFrom,
+                                    int jTo,
+                                    double[] aEns, double[] bEns, double varEns, double[] sEns, double[] stEns,
+                                    double[] aFuel, double[] bFuel, double varFuel, double[] sFuel, double[] stFuel,
+                                    double[] aMoto, double[] bMoto, double varMoto, double[] sMoto, double[] stMoto,
+                                    double[] aLcoe, double[] bLcoe, double varLcoe, double[] sLcoe, double[] stLcoe) {
+
+        int N = aEns.length;
+        for (int j = jFrom; j < jTo; j++) {
+            SobolFactor fct = factors.get(j);
+
+            double sumSEns = 0.0, sumSTEns = 0.0;
+            double sumSFuel = 0.0, sumSTFuel = 0.0;
+            double sumSMoto = 0.0, sumSTMoto = 0.0;
+            double sumSLcoe = 0.0, sumSTLcoe = 0.0;
+
+            for (int i = 0; i < N; i++) {
+                ParameterSet theta = buildThetaFromABRow(A[i], B[i], j, cfg);
+                long row = sobolRowIdx(i, streamAB(cfg, j, fct));
+                MonteCarloRunner.Means m = evalThetaMeans(baseInput, cfg, theta, row);
+
+                double yEns = m.meanEnsKwh();
+                double yFuel = m.meanFuelLiters();
+                double yMoto = m.meanMotoHours();
+                double yLcoe = m.meanLcoeRubPerKwh();
+
+                // First-order (Saltelli 2002): E[f(B) * (f(AB_j) - f(A))] / Var(Y)
+                sumSEns += bEns[i] * (yEns - aEns[i]);
+                sumSFuel += bFuel[i] * (yFuel - aFuel[i]);
+                sumSMoto += bMoto[i] * (yMoto - aMoto[i]);
+                sumSLcoe += bLcoe[i] * (yLcoe - aLcoe[i]);
+
+                // Total-order (Jansen): E[(f(A) - f(AB_j))^2] / (2 Var(Y))
+                double dEns = aEns[i] - yEns;
+                sumSTEns += dEns * dEns;
+                double dFuel = aFuel[i] - yFuel;
+                sumSTFuel += dFuel * dFuel;
+                double dMoto = aMoto[i] - yMoto;
+                sumSTMoto += dMoto * dMoto;
+                double dLcoe = aLcoe[i] - yLcoe;
+                sumSTLcoe += dLcoe * dLcoe;
+            }
+
+            double invN = 1.0 / N;
+            sEns[j] = (sumSEns * invN) / varEns;
+            stEns[j] = (sumSTEns * (invN / 2.0)) / varEns;
+
+            sFuel[j] = (sumSFuel * invN) / varFuel;
+            stFuel[j] = (sumSTFuel * (invN / 2.0)) / varFuel;
+
+            sMoto[j] = (sumSMoto * invN) / varMoto;
+            stMoto[j] = (sumSTMoto * (invN / 2.0)) / varMoto;
+
+            sLcoe[j] = (sumSLcoe * invN) / varLcoe;
+            stLcoe[j] = (sumSTLcoe * (invN / 2.0)) / varLcoe;
         }
     }
 
-    private MonteCarloEstimate evalTheta(SimInput baseInput, SobolConfig cfg, ParameterSet theta, long sobolRowIdx) {
+    private MonteCarloRunner.Means evalThetaMeans(SimInput baseInput, SobolConfig cfg, ParameterSet theta, long sobolRowIdx) {
         try {
-            return mcRunner.evaluateForThetaSequentialMc(
+            return mcRunner.evaluateMeansForThetaSequentialMc(
                     baseInput,
                     theta,
                     cfg,
                     cfg.getMcIterations(),
                     cfg.getMcBaseSeed(),
-                    sobolRowIdx,
-                    false
+                    sobolRowIdx
             );
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(ie);
-        } catch (ExecutionException ee) {
-            throw new RuntimeException(ee.getCause() != null ? ee.getCause() : ee);
         }
     }
 
@@ -235,6 +284,12 @@ public final class SobolAnalyzer {
         int t = Math.max(1, threads);
         int targetTasksPerGroup = t * 8; // coarse outer chunks
         return Math.max(1, (int) Math.ceil(N / (double) targetTasksPerGroup));
+    }
+
+    private static int factorChunkSize(int d, int threads) {
+        int t = Math.max(1, threads);
+        int targetTasks = t * 2;
+        return Math.max(1, (int) Math.ceil(d / (double) targetTasks));
     }
 
     // ---------------- theta builders ----------------
