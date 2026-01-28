@@ -15,23 +15,23 @@ import java.util.concurrent.Executors;
 public class Main {
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
-
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
-
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
-    // Used by some dispatch formulas
     public static double MAX_LOAD;
 
     private static final class Cli {
 
         Task task = Task.SOBOL_HARD;
-        RunMode runMode = RunMode.SWEEP_1;
+        RunMode runMode = RunMode.SWEEP_2;
+        int mcIterations = 30;
+
+        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
         LoadType loadType = LoadType.GOK; // тип нагрузки
-        int mcIterations = 50;
-        int sobolN = 128;
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
         Integer maxLoadOverride = 1000;
+
+        SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
+        int sobolN = 64;
 
         // Export drivers from RUN
 //        String exportDriversPath = "D:/econ_drivers.csv";
@@ -75,6 +75,9 @@ public class Main {
 
                 if (a.startsWith("--sobolN=")) c.sobolN = Integer.parseInt(a.substring("--sobolN=".length()).trim());
 
+                if (a.startsWith("--sobolSeedMode="))
+                    c.sobolSeedMode = SobolConfig.SeedMode.valueOf(a.substring("--sobolSeedMode=".length()).trim());
+
                 if (a.startsWith("--exportDrivers="))
                     c.exportDriversPath = a.substring("--exportDrivers=".length()).trim();
 
@@ -114,7 +117,7 @@ public class Main {
         // ---- SystemParameters defaults (match SystemParameters constructor types/order) ----
 
         // Categories share (k1, k2); k3 implied = 1 - k1 - k2
-        static final double DEFAULT_FIRST_CAT = 0.5;
+        static final double DEFAULT_FIRST_CAT = 0.65;
         static final double DEFAULT_SECOND_CAT = 0;
 
         // WT
@@ -123,13 +126,13 @@ public class Main {
 
         // DG
         static final int DEFAULT_DG_COUNT_TOTAL = 6;
-        static final double DEFAULT_DG_POWER_KW = 250;
+        static final double DEFAULT_DG_POWER_KW = 250.0;
 
         // Battery
-        static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 250;
+        static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 300;
         static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.8;
         static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
-        static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.4;
+        static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.8;
 
         // Reliability (rates are double, repair times are int)
         static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;
@@ -144,7 +147,7 @@ public class Main {
         static final double DEFAULT_BUS_FAILURE_RATE_PER_YEAR = 0.02;
         static final int DEFAULT_BUS_REPAIR_TIME_HOURS = 12;
 
-        static final double DEFAULT_BRK_FAILURE_RATE_PER_YEAR = 0.05;
+        static final double DEFAULT_BRK_FAILURE_RATE_PER_YEAR = 0.1;
         static final int DEFAULT_BRK_REPAIR_TIME_HOURS = 10;
 
         static final double DEFAULT_SWITCHGEAR_ROOM_FAILURE_RATE_PER_YEAR = 0.0;
@@ -154,14 +157,14 @@ public class Main {
 
         // ---- Economics defaults ----
         static final double DEFAULT_DISCOUNT_RATE = 0.08;
-        static final double DEFAULT_COST_RU_RUB = 6_000_000;
+        static final double DEFAULT_COST_RU_RUB = 4_000_000;
         static final double DEFAULT_COST_DG_RUB_PER_KW = 40_000;
-        static final double DEFAULT_COST_DG_RUB_PER_KW_PER_KMH = 1500.0;
+        static final double DEFAULT_COST_DG_RUB_PER_KW_PER_KMH = 1600.0;
         static final double DEFAULT_COST_FUEL_RUB_PER_KT = 90_000_000.0;
         static final double DEFAULT_COST_WT_RUB_PER_KW = 150_000;
         static final double DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR = 3_000;
-        static final double DEFAULT_COST_BT_RUB_PER_KWH = 80_000;
-        static final double DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR = 1_600.0;
+        static final double DEFAULT_COST_BT_RUB_PER_KWH = 88_000.0;
+        static final double DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR = 2_200.0;
         static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT1 = 7_000.0;
         static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT2 = 2_100.0;
         static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 = 700.0;
@@ -196,8 +199,7 @@ public class Main {
         if (mode == RunMode.SWEEP_1) {
             for (double p1 : param1) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-//                        .setBatteryCapacityKwhPerBus(p1)
-                        .setFirstCat(p1)
+                        .setBatteryCapacityKwhPerBus(p1)
                         .build();
                 paramSets.add(p);
             }
@@ -245,8 +247,7 @@ public class Main {
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
         // ===== Axes (edit here) =====
-        double[] param1 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-//        double[] param1 = new double[]{0.0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500};
+        double[] param1 = new double[]{0.0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500};
 //        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
         double[] param2 = new double[]{1, 2, 3, 4, 5};
@@ -302,6 +303,7 @@ public class Main {
     private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
         List<TunableParamId> ids = List.of(
                 TunableParamId.FIRST_CAT,
+                TunableParamId.SECOND_CAT,
 
                 TunableParamId.DG_POWER,
                 TunableParamId.DG_COUNT,
@@ -313,26 +315,27 @@ public class Main {
                 TunableParamId.DG_FAILURE_RATE,
                 TunableParamId.BT_FAILURE_RATE,
                 TunableParamId.BUS_FAILURE_RATE,
-                TunableParamId.BRK_FAILURE_RATE,
+                TunableParamId.BRK_FAILURE_RATE
 
-                TunableParamId.WT_FAILURE_RATE,
-                TunableParamId.DG_REPAIR_TIME,
-                TunableParamId.BT_REPAIR_TIME,
-                TunableParamId.BUS_REPAIR_TIME,
-                TunableParamId.BRK_REPAIR_TIME
-
+//                TunableParamId.WT_FAILURE_RATE,
+//                TunableParamId.DG_REPAIR_TIME,
+//                TunableParamId.BT_REPAIR_TIME,
+//                TunableParamId.BUS_REPAIR_TIME,
+//                TunableParamId.BRK_REPAIR_TIME
 
 //                TunableParamId.BT_CAPACITY_PER_BUS,
 //                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
 //                TunableParamId.BT_MAX_CHARGE_CURRENT,
 //                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
         );
+
         SobolConfig sobolCfg = SobolConfig.fromIds(
                 cli.sobolN,
                 cli.mcIterations,
                 cli.mcBaseSeed,
                 cli.threads,
-                ids
+                ids,
+                cli.sobolSeedMode
         );
 
         SimulationConfig cfg = ScenarioFactory.defaultConfig(li.windMs(), sobolCfg.getMcIterations(), sobolCfg.getThreads());
@@ -347,11 +350,15 @@ public class Main {
             SobolResult res = analyzer.run(baseInput, sobolCfg);
 
             System.out.println("Sobol done. dim=" + sobolCfg.dim());
-            SobolResultPrinter.printTable(sobolCfg.getFactors(), res);
+            // Tables are printed by SobolAnalyzer (RAW + LOG1P) to avoid duplication.
         } finally {
             ex.shutdown();
         }
     }
+
+    // ======================================================================
+    // Task: SOBOL_ECON (fast Sobol for LCOE vs UnitCosts using saved drivers)
+    // ======================================================================
 
     private static void runTaskSobolEcon(SystemParameters baseParams, Cli cli) throws Exception {
         if (cli.econDriversPath == null) {
@@ -437,6 +444,10 @@ public class Main {
         }
     }
 
+    // ======================================================================
+    // Main entry
+    // ======================================================================
+
     public static void main(String[] args) {
         Cli cli = Cli.parse(args);
 
@@ -459,6 +470,10 @@ public class Main {
             e.printStackTrace();
         }
     }
+
+    // ======================================================================
+    // Inlined ScenarioFactory
+    // ======================================================================
 
     private static final class ScenarioFactory {
         private ScenarioFactory() {

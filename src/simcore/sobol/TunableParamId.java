@@ -2,9 +2,15 @@ package simcore.sobol;
 
 /**
  * Перечень всех параметров, которые в принципе можно менять в Соболе.
+ * Сюда можешь добавлять всё, что захочешь:
+ *  - частоты отказов;
+ *  - времена ремонта;
+ *  - мощности/количества оборудования;
+ *  - параметры ветровой кривой и т.п.
  */
 public enum TunableParamId {
 
+    // Доли потребителей I и II
     FIRST_CAT,
     SECOND_CAT,
 
@@ -37,7 +43,6 @@ public enum TunableParamId {
     BT_MAX_DISCHARGE_CURRENT,
     BT_NON_RESERVE_DISCHARGE_LVL,
 
-    // Economics
     DISCOUNT_RATE,
     COST_RU_RUB,
     COST_DG_RUB_PER_KW,
@@ -50,12 +55,13 @@ public enum TunableParamId {
     DAMAGE_RUB_PER_KWH_CAT1,
     DAMAGE_RUB_PER_KWH_CAT2,
     DAMAGE_RUB_PER_KWH_CAT3
+
     ;
 
     /**
-     * Параметры, которые влияют на модель через стохастическую логику событий
-     * (наступление отказов / длительность ремонтов). Для них CRN между A и AB
-     * может \"убить\" Jansen ST (свести к ~0), поэтому для AB_j им нужен отдельный seed-поток.
+     * Parameters that affect the stochastic event logic (failures/repairs).
+     * For them, full CRN between A and AB may collapse Jansen ST towards ~0,
+     * so HYBRID seed mode uses a separate seed stream for AB_j.
      */
     public boolean isReliabilityLike() {
         return switch (this) {

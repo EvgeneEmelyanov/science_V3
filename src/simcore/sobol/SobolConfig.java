@@ -8,6 +8,16 @@ import java.util.function.UnaryOperator;
 
 public final class SobolConfig {
 
+    /** How to generate seed streams for A / B / AB in Sobol. */
+    public enum SeedMode {
+        /** A, B, AB share identical seeds (full CRN). */
+        ALL_SAME,
+        /** A, B, AB_j all use independent streams. */
+        ALL_INDEPENDENT,
+        /** A and AB share seeds for non-reliability factors; reliability-like AB_j use separate streams. */
+        HYBRID_BY_TYPE
+    }
+
     private final int sobolN;
     private final int mcIterations;
     private final long mcBaseSeed;
@@ -16,12 +26,15 @@ public final class SobolConfig {
     private final List<SobolFactor> factors;
     private final UnaryOperator<SystemParameters> parametersCopier;
 
+    private final SeedMode seedMode;
+
     private SobolConfig(int sobolN,
                         int mcIterations,
                         long mcBaseSeed,
                         int threads,
                         List<SobolFactor> factors,
-                        UnaryOperator<SystemParameters> parametersCopier) {
+                        UnaryOperator<SystemParameters> parametersCopier,
+                        SeedMode seedMode) {
         if (sobolN <= 0) throw new IllegalArgumentException("sobolN must be > 0");
         if (mcIterations <= 0) throw new IllegalArgumentException("mcIterations must be > 0");
         if (threads <= 0) throw new IllegalArgumentException("threads must be > 0");
@@ -35,6 +48,7 @@ public final class SobolConfig {
         this.threads = threads;
         this.factors = new ArrayList<>(factors);
         this.parametersCopier = parametersCopier;
+        this.seedMode = (seedMode != null) ? seedMode : SeedMode.ALL_SAME;
     }
 
     /** Основной фабричный метод: выбираете только ids, диапазоны берём из пула. */
@@ -43,6 +57,16 @@ public final class SobolConfig {
                                       long mcBaseSeed,
                                       int threads,
                                       List<TunableParamId> ids) {
+        return fromIds(sobolN, mcIterations, mcBaseSeed, threads, ids, SeedMode.ALL_SAME);
+    }
+
+    /** Основной фабричный метод + выбор режима сидов. */
+    public static SobolConfig fromIds(int sobolN,
+                                      int mcIterations,
+                                      long mcBaseSeed,
+                                      int threads,
+                                      List<TunableParamId> ids,
+                                      SeedMode seedMode) {
 
         Objects.requireNonNull(ids, "ids");
         if (ids.isEmpty()) throw new IllegalArgumentException("ids must not be empty");
@@ -58,7 +82,8 @@ public final class SobolConfig {
                 mcBaseSeed,
                 threads,
                 factors,
-                copier
+                copier,
+                seedMode
         );
     }
 
@@ -69,6 +94,18 @@ public final class SobolConfig {
                                       int threads,
                                       List<TunableParamId> ids,
                                       UnaryOperator<SystemParameters> parametersCopier) {
+
+        return fromIds(sobolN, mcIterations, mcBaseSeed, threads, ids, parametersCopier, SeedMode.ALL_SAME);
+    }
+
+    /** Если вам нужен кастомный copier + выбор режима сидов. */
+    public static SobolConfig fromIds(int sobolN,
+                                      int mcIterations,
+                                      long mcBaseSeed,
+                                      int threads,
+                                      List<TunableParamId> ids,
+                                      UnaryOperator<SystemParameters> parametersCopier,
+                                      SeedMode seedMode) {
 
         Objects.requireNonNull(ids, "ids");
         Objects.requireNonNull(parametersCopier, "parametersCopier");
@@ -82,7 +119,8 @@ public final class SobolConfig {
                 mcBaseSeed,
                 threads,
                 factors,
-                parametersCopier
+                parametersCopier,
+                seedMode
         );
     }
 
@@ -90,6 +128,8 @@ public final class SobolConfig {
     public int getMcIterations() { return mcIterations; }
     public long getMcBaseSeed() { return mcBaseSeed; }
     public int getThreads() { return threads; }
+
+    public SeedMode getSeedMode() { return seedMode; }
 
     public List<SobolFactor> getFactors() { return Collections.unmodifiableList(factors); }
     public int dim() { return factors.size(); }

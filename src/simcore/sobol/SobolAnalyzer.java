@@ -6,16 +6,13 @@ import simcore.engine.SimInput;
 
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.function.DoubleUnaryOperator;
 
 public final class SobolAnalyzer {
 
     /**
      * We encode (row i, streamId) -> sobolRowIdx.
-     * MonteCarloRunner then expands sobolRowIdx into a seed block:
-     * seed = mcBaseSeed + sobolRowIdx * SOBOL_ROW_SEED_STRIDE + mcIdx * MC_SEED_STRIDE
-     *
-     * Pick a large stride in "row units" so different streams don't overlap even for large N.
-     * N is typically <= 8192..16384; streamId <= 100 + d.
+     * MonteCarloRunner expands sobolRowIdx into a seed block, therefore we must keep streams disjoint.
      */
     private static final long SOBOL_STREAM_STRIDE_ROWS = 1_000_000L;
 
@@ -47,18 +44,12 @@ public final class SobolAnalyzer {
         List<List<MonteCarloEstimate>> yAB = new ArrayList<>(d);
         for (int j = 0; j < d; j++) yAB.add(new ArrayList<>(N));
 
-        /*
-         * FULLY INDEPENDENT SEED STREAMS (A / B / AB_j):
-         *   - A(i)   uses stream 0
-         *   - B(i)   uses stream 1
-         *   - AB_j(i) uses stream (100 + j)
-         *
-         * This removes CRN between A/B/AB and is closest to the classical Sobol sampling assumptions.
-         * Expect more estimator noise at small N/mc, but fewer systematic artifacts (ST<S, sumS>1, etc.).
-         */
+        final SobolConfig.SeedMode seedMode = cfg.getSeedMode();
+
+        // --------- A and B ---------
         for (int i = 0; i < N; i++) {
-            final long sobolRowIdxA = rowIdx(i, 0);
-            final long sobolRowIdxB = rowIdx(i, 1);
+            final long rowA = rowIdx(i, streamA());
+            final long rowB = rowIdx(i, streamB(seedMode));
 
             ParameterSet thetaA = buildThetaFromUnitRow(A[i], cfg);
             ParameterSet thetaB = buildThetaFromUnitRow(B[i], cfg);
@@ -66,24 +57,26 @@ public final class SobolAnalyzer {
             yA.add(mcRunner.evaluateForTheta(
                     baseInput, thetaA, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    sobolRowIdxA,
+                    rowA,
                     false
             ));
 
             yB.add(mcRunner.evaluateForTheta(
                     baseInput, thetaB, cfg,
                     cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                    sobolRowIdxB,
+                    rowB,
                     false
             ));
         }
 
+        // --------- AB_j ---------
         for (int j = 0; j < d; j++) {
             final double[] unitRow = new double[d];
-            final int streamIdAB = 100 + j;
+            SobolFactor f = cfg.getFactors().get(j);
+            final long streamAB = streamAB(seedMode, j, f);
 
             for (int i = 0; i < N; i++) {
-                final long sobolRowIdxAB = rowIdx(i, streamIdAB);
+                final long rowAB = rowIdx(i, streamAB);
 
                 System.arraycopy(A[i], 0, unitRow, 0, d);
                 unitRow[j] = B[i][j];
@@ -93,22 +86,43 @@ public final class SobolAnalyzer {
                 yAB.get(j).add(mcRunner.evaluateForTheta(
                         baseInput, thetaAB, cfg,
                         cfg.getMcIterations(), cfg.getMcBaseSeed(),
-                        sobolRowIdxAB,
+                        rowAB,
                         false
                 ));
             }
         }
 
+        // ===== RAW indices =====
         double[] sEns = new double[d], stEns = new double[d];
         double[] sFuel = new double[d], stFuel = new double[d];
         double[] sMoto = new double[d], stMoto = new double[d];
         double[] sLcoe = new double[d], stLcoe = new double[d];
 
-        computeSobolIndicesJansen(yA, yB, yAB, d, Metric.ENS,  sEns,  stEns, true);
-        computeSobolIndicesJansen(yA, yB, yAB, d, Metric.FUEL, sFuel, stFuel, true);
-        computeSobolIndicesJansen(yA, yB, yAB, d, Metric.MOTO, sMoto, stMoto, true);
-        computeSobolIndicesJansen(yA, yB, yAB, d, Metric.LCOE, sLcoe, stLcoe, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.ENS,  v -> v, sEns,  stEns, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.FUEL, v -> v, sFuel, stFuel, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.MOTO, v -> v, sMoto, stMoto, true);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.LCOE, v -> v, sLcoe, stLcoe, true);
 
+        System.out.println("=== Sobol table (RAW) seedMode=" + seedMode + " ===");
+        printCombinedTable(cfg.getFactors(), sLcoe, stLcoe, sEns, stEns, sFuel, stFuel, sMoto, stMoto);
+
+        // ===== LOG1P indices =====
+        DoubleUnaryOperator log1p = v -> Math.log1p(Math.max(0.0, v));
+
+        double[] sEnsLog = new double[d], stEnsLog = new double[d];
+        double[] sFuelLog = new double[d], stFuelLog = new double[d];
+        double[] sMotoLog = new double[d], stMotoLog = new double[d];
+        double[] sLcoeLog = new double[d], stLcoeLog = new double[d];
+
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.ENS,  log1p, sEnsLog,  stEnsLog, false);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.FUEL, log1p, sFuelLog, stFuelLog, false);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.MOTO, log1p, sMotoLog, stMotoLog, false);
+        computeSobolIndicesSaltelli2002Jansen(yA, yB, yAB, d, Metric.LCOE, log1p, sLcoeLog, stLcoeLog, false);
+
+        System.out.println("=== Sobol table (LOG1P: log(metric+1)) seedMode=" + seedMode + " ===");
+        printCombinedTable(cfg.getFactors(), sLcoeLog, stLcoeLog, sEnsLog, stEnsLog, sFuelLog, stFuelLog, sMotoLog, stMotoLog);
+
+        // Return RAW result to keep existing pipeline unchanged.
         return new SobolResult(cfg, yA, yB, yAB, sEns, stEns, sFuel, stFuel, sMoto, stMoto, sLcoe, stLcoe);
     }
 
@@ -118,21 +132,35 @@ public final class SobolAnalyzer {
         return (long) i + streamId * SOBOL_STREAM_STRIDE_ROWS;
     }
 
+    private static long streamA() {
+        return 0L;
+    }
+
+    private static long streamB(SobolConfig.SeedMode mode) {
+        return (mode == SobolConfig.SeedMode.ALL_SAME) ? 0L : 1L;
+    }
+
+    private static long streamAB(SobolConfig.SeedMode mode, int j, SobolFactor f) {
+        return switch (mode) {
+            case ALL_SAME -> 0L;
+            case ALL_INDEPENDENT -> 100L + j;
+            case HYBRID_BY_TYPE -> f.isReliabilityLike() ? (100L + j) : 0L;
+        };
+    }
+
     private enum Metric { ENS, FUEL, MOTO, LCOE }
 
     /**
-     * Jansen estimators (stable for noisy/stochastic models):
-     *  ST_j = E[(A - AB_j)^2] / (2 Var(Y))
-     *   S_j = 1 - E[(B - AB_j)^2] / (2 Var(Y))
-     *
-     * Var(Y) is computed on concatenation of A and B (population variance).
+     * First-order: Saltelli 2002 (noise-robust)
+     * Total-order: Jansen
      */
-    private static void computeSobolIndicesJansen(
+    private static void computeSobolIndicesSaltelli2002Jansen(
             List<MonteCarloEstimate> yA,
             List<MonteCarloEstimate> yB,
             List<List<MonteCarloEstimate>> yAB,
             int d,
             Metric metric,
+            DoubleUnaryOperator transform,
             double[] S,
             double[] ST,
             boolean printDiagnostics) {
@@ -142,8 +170,8 @@ public final class SobolAnalyzer {
         double[] b = new double[N];
 
         for (int i = 0; i < N; i++) {
-            a[i] = extractMetric(yA.get(i), metric);
-            b[i] = extractMetric(yB.get(i), metric);
+            a[i] = transform.applyAsDouble(extractMetric(yA.get(i), metric));
+            b[i] = transform.applyAsDouble(extractMetric(yB.get(i), metric));
         }
 
         double[] yAll = concat(a, b);
@@ -168,21 +196,22 @@ public final class SobolAnalyzer {
         double sumST = 0.0;
 
         for (int j = 0; j < d; j++) {
-            double sumSq_B_minus_AB = 0.0;
-            double sumSq_A_minus_AB = 0.0;
+            double sumS_first = 0.0;
+            double sumSt = 0.0;
 
             for (int i = 0; i < N; i++) {
-                double ab = extractMetric(yAB.get(j).get(i), metric);
+                double ab = transform.applyAsDouble(extractMetric(yAB.get(j).get(i), metric));
 
-                double diffBA = b[i] - ab; // for S
-                sumSq_B_minus_AB += diffBA * diffBA;
+                // First-order: Saltelli 2002
+                sumS_first += b[i] * (ab - a[i]);
 
-                double diffAA = a[i] - ab; // for ST
-                sumSq_A_minus_AB += diffAA * diffAA;
+                // Total-order: Jansen
+                double diff = a[i] - ab;
+                sumSt += diff * diff;
             }
 
-            double sj  = 1.0 - (sumSq_B_minus_AB / (2.0 * N)) / varY;
-            double stj =        (sumSq_A_minus_AB / (2.0 * N)) / varY;
+            double sj  = (sumS_first / N) / varY;
+            double stj = (sumSt / (2.0 * N)) / varY;
 
             S[j] = sj;
             ST[j] = stj;
@@ -216,6 +245,25 @@ public final class SobolAnalyzer {
             map.put(f.getName(), value);
         }
         return new ParameterSet(map);
+    }
+
+    private static void printCombinedTable(List<SobolFactor> factors,
+                                           double[] sLcoe, double[] stLcoe,
+                                           double[] sEns,  double[] stEns,
+                                           double[] sFuel, double[] stFuel,
+                                           double[] sMoto, double[] stMoto) {
+
+        System.out.println("param\tS_LCOE\tST_LCOE\tS_ENS\tST_ENS\tS_Fuel\tST_Fuel\tS_Moto\tST_Moto");
+        for (int j = 0; j < factors.size(); j++) {
+            System.out.printf(Locale.US,
+                    "%s\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f%n",
+                    factors.get(j).getName(),
+                    sLcoe[j], stLcoe[j],
+                    sEns[j],  stEns[j],
+                    sFuel[j], stFuel[j],
+                    sMoto[j], stMoto[j]
+            );
+        }
     }
 
     private static double[] concat(double[] a, double[] b) {
