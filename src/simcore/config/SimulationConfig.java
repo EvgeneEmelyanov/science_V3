@@ -32,6 +32,15 @@ public class SimulationConfig {
     /** Работа ДЭС во вращающемся резерве */
     private final boolean considerRotationReserve;
 
+    /**
+     * Считать ли экономические драйверы по годам (served/fuel/moto/btRepl/ENS by cat)
+     * и возвращать их в {@code SimulationMetrics.economyDrivers}.
+     *
+     * Если {@code false} — драйверы по годам не накапливаются (экономия памяти), но LCOE всё равно
+     * считается в ходе симуляции потоковым способом (без массивов по годам).
+     */
+    private final boolean computeEconomyDrivers;
+
     public SimulationConfig(double[] windMs,
                             int iterations,
                             int threads,
@@ -40,7 +49,8 @@ public class SimulationConfig {
                             boolean reserveThirdCategory,
                             boolean considerHotReserve,
                             boolean considerBatteryDegradation,
-                            boolean considerRotationReserve) {
+                            boolean considerRotationReserve,
+                            boolean computeEconomyDrivers) {
         this.windMs = windMs;
         this.iterations = iterations;
         this.threads = threads;
@@ -50,6 +60,7 @@ public class SimulationConfig {
         this.considerHotReserve = considerHotReserve;
         this.considerBatteryDegradation = considerBatteryDegradation;
         this.considerRotationReserve = considerRotationReserve;
+        this.computeEconomyDrivers = computeEconomyDrivers;
     }
 
     public double[] getWindMs() {
@@ -82,5 +93,9 @@ public class SimulationConfig {
 
     public boolean isConsiderRotationReserve() {
         return considerRotationReserve;
+    }
+
+    public boolean isComputeEconomyDrivers() {
+        return computeEconomyDrivers;
     }
 }

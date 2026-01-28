@@ -24,14 +24,14 @@ public class Main {
 
         Task task = Task.SOBOL_HARD;
         RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 30;
+        int mcIterations = 5;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
         LoadType loadType = LoadType.GOK; // тип нагрузки
         Integer maxLoadOverride = 1000;
 
-        SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 64;
+        SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.ALL_INDEPENDENT;
+        int sobolN = 4;
 
         // Export drivers from RUN
 //        String exportDriversPath = "D:/econ_drivers.csv";
@@ -147,7 +147,7 @@ public class Main {
         static final double DEFAULT_BUS_FAILURE_RATE_PER_YEAR = 0.02;
         static final int DEFAULT_BUS_REPAIR_TIME_HOURS = 12;
 
-        static final double DEFAULT_BRK_FAILURE_RATE_PER_YEAR = 0.1;
+        static final double DEFAULT_BRK_FAILURE_RATE_PER_YEAR = 0.05;
         static final int DEFAULT_BRK_REPAIR_TIME_HOURS = 10;
 
         static final double DEFAULT_SWITCHGEAR_ROOM_FAILURE_RATE_PER_YEAR = 0.0;
@@ -243,7 +243,12 @@ public class Main {
     // ======================================================================
 
     private static void runTaskRun(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
-        SimulationConfig cfg = ScenarioFactory.defaultConfig(li.windMs(), cli.mcIterations, cli.threads);
+        SimulationConfig cfg = ScenarioFactory.defaultConfig(
+                li.windMs(),
+                cli.mcIterations,
+                cli.threads,
+                cli.exportDriversPath != null
+        );
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
         // ===== Axes (edit here) =====
@@ -313,9 +318,9 @@ public class Main {
 
                 TunableParamId.WT_FAILURE_RATE,
                 TunableParamId.DG_FAILURE_RATE,
-                TunableParamId.BT_FAILURE_RATE,
-                TunableParamId.BUS_FAILURE_RATE,
-                TunableParamId.BRK_FAILURE_RATE
+                TunableParamId.BT_FAILURE_RATE
+//                TunableParamId.BUS_FAILURE_RATE,
+//                TunableParamId.BRK_FAILURE_RATE
 
 //                TunableParamId.WT_FAILURE_RATE,
 //                TunableParamId.DG_REPAIR_TIME,
@@ -338,14 +343,21 @@ public class Main {
                 cli.sobolSeedMode
         );
 
-        SimulationConfig cfg = ScenarioFactory.defaultConfig(li.windMs(), sobolCfg.getMcIterations(), sobolCfg.getThreads());
+        // Для SOBOL_* драйверы по годам не нужны по умолчанию.
+        // Если вдруг нужен экспорт драйверов при Sobol, можно передать --exportDrivers=...
+        SimulationConfig cfg = ScenarioFactory.defaultConfig(
+                li.windMs(),
+                sobolCfg.getMcIterations(),
+                sobolCfg.getThreads(),
+                cli.exportDriversPath != null
+        );
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
         ExecutorService ex = Executors.newFixedThreadPool(sobolCfg.getThreads());
         try {
             SingleRunSimulator sim = new SingleRunSimulator();
             MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.10);
-            SobolAnalyzer analyzer = new SobolAnalyzer(mc);
+            SobolAnalyzer analyzer = new SobolAnalyzer(mc, ex);
 
             SobolResult res = analyzer.run(baseInput, sobolCfg);
 
@@ -550,7 +562,7 @@ public class Main {
             );
         }
 
-        static SimulationConfig defaultConfig(double[] windMs, int mcIterations, int threads) {
+        static SimulationConfig defaultConfig(double[] windMs, int mcIterations, int threads, boolean computeEconomyDrivers) {
             return new SimulationConfig(
                     windMs,
                     mcIterations,
@@ -560,7 +572,8 @@ public class Main {
                     Defaults.CFG_RESERVE_THIRD_CATEGORY,
                     Defaults.CFG_CONSIDER_HOT_RESERVE,
                     Defaults.CFG_CONSIDER_BATTERY_DEGRADATION,
-                    Defaults.CFG_CONSIDER_ROTATION_RESERVE
+                    Defaults.CFG_CONSIDER_ROTATION_RESERVE,
+                    computeEconomyDrivers
             );
         }
 

@@ -1,64 +1,54 @@
 package simcore.sobol;
 
-import simcore.engine.MonteCarloEstimate;
-
-import java.util.List;
-
+/**
+ * Minimal Sobol output used by SobolResultPrinter.
+ *
+ * We keep the historical getter names (snake_case) for compatibility.
+ */
 public final class SobolResult {
 
-    public final SobolConfig config;
+    private final SobolConfig cfg;
 
-    public final List<MonteCarloEstimate> yA;
-    public final List<MonteCarloEstimate> yB;
-    public final List<List<MonteCarloEstimate>> yAB;
+    private final double[] s_ens;
+    private final double[] st_ens;
 
-    public final double[] S_ens;
-    public final double[] ST_ens;
+    private final double[] s_fuel;
+    private final double[] st_fuel;
 
-    public final double[] S_fuel;
-    public final double[] ST_fuel;
+    private final double[] s_moto;
+    private final double[] st_moto;
 
-    public final double[] S_moto;
-    public final double[] ST_moto;
+    private final double[] s_lcoe;
+    private final double[] st_lcoe;
 
-    public final double[] S_lcoe;
-    public final double[] ST_lcoe;
-
-    public SobolResult(SobolConfig config,
-                       List<MonteCarloEstimate> yA,
-                       List<MonteCarloEstimate> yB,
-                       List<List<MonteCarloEstimate>> yAB,
-                       double[] sEns, double[] stEns,
-                       double[] sFuel, double[] stFuel,
-                       double[] sMoto, double[] stMoto,
-                       double[] sLcoe, double[] stLcoe) {
-        this.config = config;
-        this.yA = yA;
-        this.yB = yB;
-        this.yAB = yAB;
-
-        this.S_ens = sEns;
-        this.ST_ens = stEns;
-
-        this.S_fuel = sFuel;
-        this.ST_fuel = stFuel;
-
-        this.S_moto = sMoto;
-        this.ST_moto = stMoto;
-
-        this.S_lcoe = sLcoe;
-        this.ST_lcoe = stLcoe;
+    public SobolResult(
+            SobolConfig cfg,
+            double[] sEns, double[] stEns,
+            double[] sFuel, double[] stFuel,
+            double[] sMoto, double[] stMoto,
+            double[] sLcoe, double[] stLcoe) {
+        this.cfg = cfg;
+        this.s_ens = sEns;
+        this.st_ens = stEns;
+        this.s_fuel = sFuel;
+        this.st_fuel = stFuel;
+        this.s_moto = sMoto;
+        this.st_moto = stMoto;
+        this.s_lcoe = sLcoe;
+        this.st_lcoe = stLcoe;
     }
 
-    public double[] getS_ens() { return S_ens; }
-    public double[] getSt_ens() { return ST_ens; }
+    public SobolConfig getCfg() { return cfg; }
 
-    public double[] getS_fuel() { return S_fuel; }
-    public double[] getSt_fuel() { return ST_fuel; }
+    public double[] getS_ens() { return s_ens; }
+    public double[] getSt_ens() { return st_ens; }
 
-    public double[] getS_moto() { return S_moto; }
-    public double[] getSt_moto() { return ST_moto; }
+    public double[] getS_fuel() { return s_fuel; }
+    public double[] getSt_fuel() { return st_fuel; }
 
-    public double[] getS_lcoe() { return S_lcoe; }
-    public double[] getSt_lcoe() { return ST_lcoe; }
+    public double[] getS_moto() { return s_moto; }
+    public double[] getSt_moto() { return st_moto; }
+
+    public double[] getS_lcoe() { return s_lcoe; }
+    public double[] getSt_lcoe() { return st_lcoe; }
 }

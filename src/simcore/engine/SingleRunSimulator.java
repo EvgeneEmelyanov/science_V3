@@ -36,6 +36,10 @@ public final class SingleRunSimulator {
 //        final boolean considerRotationReserve = config.isConsiderRotationReserve();
         considerRotationReserve = config.isConsiderRotationReserve();
 
+        // If false: do NOT build per-year drivers arrays (save memory) and do NOT do per-hour moto/repl sums.
+        // LCOE is still computed, but in a streaming per-year way (without arrays).
+        final boolean computeEconomyDrivers = config.isComputeEconomyDrivers();
+
         final double cat1 = sp.getFirstCat();
         final double cat2 = sp.getSecondCat();
 
@@ -52,13 +56,75 @@ public final class SingleRunSimulator {
 
         final int HOURS_PER_YEAR = 8760;
         final int YEARS = (hours + HOURS_PER_YEAR - 1) / HOURS_PER_YEAR; // ceil
-        double[] servedKwhByYear = new double[YEARS];
-        double[] fuelLitersByYear = new double[YEARS];
-        double[] motoHoursByYear = new double[YEARS];
-        long[] btReplByYear = new long[YEARS];
-        double[] ensCat1KwhByYear = new double[YEARS];
-        double[] ensCat2KwhByYear = new double[YEARS];
-        double[] ensCat3KwhByYear = new double[YEARS];
+        double[] servedKwhByYear = null;
+        double[] fuelLitersByYear = null;
+        double[] motoHoursByYear = null;
+        long[] btReplByYear = null;
+        double[] ensCat1KwhByYear = null;
+        double[] ensCat2KwhByYear = null;
+        double[] ensCat3KwhByYear = null;
+
+        // Streaming LCOE accumulators (used when computeEconomyDrivers==false)
+        double pvCostRub = 0.0;
+        double pvServedKwh = 0.0;
+        double servedKwhThisYear = 0.0;
+        double fuelLitersAtYearStart = 0.0;
+        double ensKwhAtYearStart = 0.0;
+        double ensCat1AtYearStart = 0.0;
+        double ensCat2AtYearStart = 0.0;
+        long motoAtYearStart = 0L;
+        long replAtYearStart = 0L;
+
+        // Installed amounts (needed for LCOE in both modes)
+        double dgTotalKw = 0.0;
+        double wtTotalKw = 0.0;
+        double btTotalKwh = 0.0;
+        for (PowerBus bus : buses) {
+            dgTotalKw += (double) bus.getDieselGenerators().size() * sp.getDieselGeneratorPowerKw();
+            wtTotalKw += (double) bus.getWindTurbines().size() * sp.getWindTurbinePowerKw();
+            Battery bt = bus.getBattery();
+            if (bt != null) btTotalKwh += bt.getMaxCapacityKwh();
+        }
+
+        final UnitCosts unitCostsForLcoe = new UnitCosts(
+                effectiveRuCost(sp.getBusSystemType(), sp.getCostRuRub()),
+                sp.getCostDgRubPerKw(),
+                sp.getCostWtRubPerKw(),
+                sp.getCostBtRubPerKwh(),
+                sp.getCostFuelRubPerKt(),
+                sp.getCostDgRubPerKwPerKmh(),
+                sp.getCostWtRubPerKwPerYear(),
+                sp.getCostBtRubPerKwhPerYear(),
+                sp.getDamageRubPerKwhCat1(),
+                sp.getDamageRubPerKwhCat2(),
+                sp.getDamageRubPerKwhCat3()
+        );
+
+        if (computeEconomyDrivers) {
+            servedKwhByYear = new double[YEARS];
+            fuelLitersByYear = new double[YEARS];
+            motoHoursByYear = new double[YEARS];
+            btReplByYear = new long[YEARS];
+            ensCat1KwhByYear = new double[YEARS];
+            ensCat2KwhByYear = new double[YEARS];
+            ensCat3KwhByYear = new double[YEARS];
+        } else {
+            // CAPEX at t=0
+            pvCostRub =
+                    unitCostsForLcoe.costRuRub
+                            + unitCostsForLcoe.costDgRubPerKw * dgTotalKw
+                            + unitCostsForLcoe.costWtRubPerKw * wtTotalKw
+                            + unitCostsForLcoe.costBtRubPerKwh * btTotalKwh;
+            pvServedKwh = 0.0;
+
+            fuelLitersAtYearStart = 0.0;
+            ensKwhAtYearStart = 0.0;
+            ensCat1AtYearStart = 0.0;
+            ensCat2AtYearStart = 0.0;
+            motoAtYearStart = 0L;
+            replAtYearStart = 0L;
+            servedKwhThisYear = 0.0;
+        }
         final TraceSession trace = traceEnabled ? new ArrayTraceSession() : new NoTraceSession();
 
         // Reusable per-hour buffers (avoid allocations inside the main hourly loop).
@@ -157,11 +223,12 @@ public final class SingleRunSimulator {
             // ENS event statistics: track per-hour ENS and "start ENS" (DG start delay ENS)
             final double ensBeforeHour = totals.ensKwh;
             final double startEnsBeforeHour = totals.startEnsKwh;
-            final double ensCat1BeforeHour = totals.ensCat1Kwh;
-            final double ensCat2BeforeHour = totals.ensCat2Kwh;
-            final double fuelBeforeHour = totals.fuelLiters;
-            final long motoBeforeHour = sumMotoHours(buses);
-            final long replBeforeHour = sumBatteryReplacements(buses);
+            // The following snapshots are only needed when we build per-year drivers arrays.
+            final double ensCat1BeforeHour = computeEconomyDrivers ? totals.ensCat1Kwh : 0.0;
+            final double ensCat2BeforeHour = computeEconomyDrivers ? totals.ensCat2Kwh : 0.0;
+            final double fuelBeforeHour = computeEconomyDrivers ? totals.fuelLiters : 0.0;
+            final long motoBeforeHour = computeEconomyDrivers ? sumMotoHours(buses) : 0L;
+            final long replBeforeHour = computeEconomyDrivers ? sumBatteryReplacements(buses) : 0L;
             // ===== Bus system logic (SINGLE_SECTIONAL_BUS / DOUBLE_BUS) =====
             final BusSystemType busType = sp.getBusSystemType();
 
@@ -283,22 +350,79 @@ public final class SingleRunSimulator {
                 double startEnsThisHour = totals.startEnsKwh - startEnsBeforeHour;
                 totals.ensEventStats.updateHour(ensThisHour, startEnsThisHour);
 
-                int y = t / HOURS_PER_YEAR;
-                if (y >= YEARS) y = YEARS - 1;
-                double ensCat1ThisHour = totals.ensCat1Kwh - ensCat1BeforeHour;
-                double ensCat2ThisHour = totals.ensCat2Kwh - ensCat2BeforeHour;
-                double ensCat3ThisHour = Math.max(0.0, ensThisHour - ensCat1ThisHour - ensCat2ThisHour);
-                ensCat1KwhByYear[y] += ensCat1ThisHour;
-                ensCat2KwhByYear[y] += ensCat2ThisHour;
-                ensCat3KwhByYear[y] += ensCat3ThisHour;
                 double loadKwhThisHour = totalLoadAtTime; // kW over 1h
                 final double consumerLoadKwhThisHour = Math.max(0.0, loadKwhThisHour - ownUseTotalKwThisHour);
                 final double servedTotalKwhThisHour = Math.max(0.0, loadKwhThisHour - ensThisHour); // сколько реально отдали всем нагрузкам
                 final double servedToConsumers = Math.min(consumerLoadKwhThisHour, servedTotalKwhThisHour);
-                servedKwhByYear[y] += servedToConsumers;
-                fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
-                motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
-                btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
+
+                if (computeEconomyDrivers) {
+                    int y = t / HOURS_PER_YEAR;
+                    if (y >= YEARS) y = YEARS - 1;
+                    double ensCat1ThisHour = totals.ensCat1Kwh - ensCat1BeforeHour;
+                    double ensCat2ThisHour = totals.ensCat2Kwh - ensCat2BeforeHour;
+                    double ensCat3ThisHour = Math.max(0.0, ensThisHour - ensCat1ThisHour - ensCat2ThisHour);
+                    ensCat1KwhByYear[y] += ensCat1ThisHour;
+                    ensCat2KwhByYear[y] += ensCat2ThisHour;
+                    ensCat3KwhByYear[y] += ensCat3ThisHour;
+                    servedKwhByYear[y] += servedToConsumers;
+                    fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
+                    motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
+                    btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
+                } else {
+                    servedKwhThisYear += servedToConsumers;
+                }
+
+                if (!computeEconomyDrivers) {
+                    final boolean yearEndsNow = ((t + 1) % HOURS_PER_YEAR == 0) || (t == hours - 1);
+                    if (yearEndsNow) {
+                        final int y = t / HOURS_PER_YEAR;
+                        final double df = 1.0 / Math.pow(1.0 + sp.getDiscountRatePerYear(), (y + 1));
+
+                        pvServedKwh += servedKwhThisYear * df;
+
+                        final double fuelLitersYear = totals.fuelLiters - fuelLitersAtYearStart;
+                        final double ensKwhYear = totals.ensKwh - ensKwhAtYearStart;
+                        final double ensCat1Year = totals.ensCat1Kwh - ensCat1AtYearStart;
+                        final double ensCat2Year = totals.ensCat2Kwh - ensCat2AtYearStart;
+                        final double ensCat3Year = Math.max(0.0, ensKwhYear - ensCat1Year - ensCat2Year);
+
+                        final long motoNow = sumMotoHours(buses);
+                        final long replNow = sumBatteryReplacements(buses);
+                        final double motoHoursYear = (double) (motoNow - motoAtYearStart);
+                        final long replYear = replNow - replAtYearStart;
+
+                        // fuel: rub/kt, conversion consistent with DiscountedLcoeCalculator: kt = liters / 1e6
+                        final double fuelKt = fuelLitersYear / 1_000_000.0;
+                        final double fuelRub = fuelKt * unitCostsForLcoe.costFuelRubPerKt;
+
+                        // moto: rub per (kW * 1000 moto-hours)
+                        final double motoRub = (motoHoursYear / 1000.0) * dgTotalKw * unitCostsForLcoe.costDgRubPerKwPerKmh;
+
+                        // annual opex
+                        final double wtOpexRub = wtTotalKw * unitCostsForLcoe.costWtRubPerKwPerYear;
+                        final double btOpexRub = btTotalKwh * unitCostsForLcoe.costBtRubPerKwhPerYear;
+
+                        // battery replacements: replacementCount * (full pack cost)
+                        final double btReplRub = (double) replYear * (unitCostsForLcoe.costBtRubPerKwh * btTotalKwh);
+
+                        final double damageRub =
+                                ensCat1Year * unitCostsForLcoe.damageRubPerKwhCat1
+                                        + ensCat2Year * unitCostsForLcoe.damageRubPerKwhCat2
+                                        + ensCat3Year * unitCostsForLcoe.damageRubPerKwhCat3;
+
+                        final double yearCostRub = fuelRub + motoRub + wtOpexRub + btOpexRub + btReplRub + damageRub;
+                        pvCostRub += yearCostRub * df;
+
+                        // reset year accumulators
+                        servedKwhThisYear = 0.0;
+                        fuelLitersAtYearStart = totals.fuelLiters;
+                        ensKwhAtYearStart = totals.ensKwh;
+                        ensCat1AtYearStart = totals.ensCat1Kwh;
+                        ensCat2AtYearStart = totals.ensCat2Kwh;
+                        motoAtYearStart = motoNow;
+                        replAtYearStart = replNow;
+                    }
+                }
                 continue;
             }
 
@@ -359,15 +483,6 @@ public final class SingleRunSimulator {
             double startEnsThisHour = totals.startEnsKwh - startEnsBeforeHour;
             totals.ensEventStats.updateHour(ensThisHour, startEnsThisHour);
 
-            int y = t / HOURS_PER_YEAR;
-            if (y >= YEARS) y = YEARS - 1;
-            double ensCat1ThisHour = totals.ensCat1Kwh - ensCat1BeforeHour;
-            double ensCat2ThisHour = totals.ensCat2Kwh - ensCat2BeforeHour;
-            double ensCat3ThisHour = Math.max(0.0, ensThisHour - ensCat1ThisHour - ensCat2ThisHour);
-            ensCat1KwhByYear[y] += ensCat1ThisHour;
-            ensCat2KwhByYear[y] += ensCat2ThisHour;
-            ensCat3KwhByYear[y] += ensCat3ThisHour;
-
             double loadKwhThisHour = 0.0;
             if (effectiveLoadKw != null) {
                 for (int b = 0; b < busCount; b++) loadKwhThisHour += effectiveLoadKw[b];
@@ -379,11 +494,64 @@ public final class SingleRunSimulator {
             final double servedTotalKwhThisHour = Math.max(0.0, loadKwhThisHour - ensThisHour); // сколько реально отдали всем нагрузкам
             final double servedToConsumers = Math.min(consumerLoadKwhThisHour, servedTotalKwhThisHour);
 
-            servedKwhByYear[y] += servedToConsumers;
-            fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
-            motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
-            btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
-            ;
+            if (computeEconomyDrivers) {
+                int y = t / HOURS_PER_YEAR;
+                if (y >= YEARS) y = YEARS - 1;
+                double ensCat1ThisHour = totals.ensCat1Kwh - ensCat1BeforeHour;
+                double ensCat2ThisHour = totals.ensCat2Kwh - ensCat2BeforeHour;
+                double ensCat3ThisHour = Math.max(0.0, ensThisHour - ensCat1ThisHour - ensCat2ThisHour);
+                ensCat1KwhByYear[y] += ensCat1ThisHour;
+                ensCat2KwhByYear[y] += ensCat2ThisHour;
+                ensCat3KwhByYear[y] += ensCat3ThisHour;
+
+                servedKwhByYear[y] += servedToConsumers;
+                fuelLitersByYear[y] += (totals.fuelLiters - fuelBeforeHour);
+                motoHoursByYear[y] += (sumMotoHours(buses) - motoBeforeHour);
+                btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
+            } else {
+                servedKwhThisYear += servedToConsumers;
+
+                final boolean yearEndsNow = ((t + 1) % HOURS_PER_YEAR == 0) || (t == hours - 1);
+                if (yearEndsNow) {
+                    final int y = t / HOURS_PER_YEAR;
+                    final double df = 1.0 / Math.pow(1.0 + sp.getDiscountRatePerYear(), (y + 1));
+
+                    pvServedKwh += servedKwhThisYear * df;
+
+                    final double fuelLitersYear = totals.fuelLiters - fuelLitersAtYearStart;
+                    final double ensKwhYear = totals.ensKwh - ensKwhAtYearStart;
+                    final double ensCat1Year = totals.ensCat1Kwh - ensCat1AtYearStart;
+                    final double ensCat2Year = totals.ensCat2Kwh - ensCat2AtYearStart;
+                    final double ensCat3Year = Math.max(0.0, ensKwhYear - ensCat1Year - ensCat2Year);
+
+                    final long motoNow = sumMotoHours(buses);
+                    final long replNow = sumBatteryReplacements(buses);
+                    final double motoHoursYear = (double) (motoNow - motoAtYearStart);
+                    final long replYear = replNow - replAtYearStart;
+
+                    final double fuelKt = fuelLitersYear / 1_000_000.0;
+                    final double fuelRub = fuelKt * unitCostsForLcoe.costFuelRubPerKt;
+                    final double motoRub = (motoHoursYear / 1000.0) * dgTotalKw * unitCostsForLcoe.costDgRubPerKwPerKmh;
+                    final double wtOpexRub = wtTotalKw * unitCostsForLcoe.costWtRubPerKwPerYear;
+                    final double btOpexRub = btTotalKwh * unitCostsForLcoe.costBtRubPerKwhPerYear;
+                    final double btReplRub = (double) replYear * (unitCostsForLcoe.costBtRubPerKwh * btTotalKwh);
+                    final double damageRub =
+                            ensCat1Year * unitCostsForLcoe.damageRubPerKwhCat1
+                                    + ensCat2Year * unitCostsForLcoe.damageRubPerKwhCat2
+                                    + ensCat3Year * unitCostsForLcoe.damageRubPerKwhCat3;
+
+                    final double yearCostRub = fuelRub + motoRub + wtOpexRub + btOpexRub + btReplRub + damageRub;
+                    pvCostRub += yearCostRub * df;
+
+                    servedKwhThisYear = 0.0;
+                    fuelLitersAtYearStart = totals.fuelLiters;
+                    ensKwhAtYearStart = totals.ensKwh;
+                    ensCat1AtYearStart = totals.ensCat1Kwh;
+                    ensCat2AtYearStart = totals.ensCat2Kwh;
+                    motoAtYearStart = motoNow;
+                    replAtYearStart = replNow;
+                }
+            }
 
         }
 
@@ -427,23 +595,26 @@ public final class SingleRunSimulator {
         long ensEventsMaxHours = totals.ensEventStats.getMaxRunHours();
 
         // ===== LCOE (discounted), based on delivered energy (served = load - ENS) =====
-        // ===== LCOE (discounted), based on delivered energy (served = load - ENS) =====
-        EconomyDrivers econDrivers = buildEconomyDrivers(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear,
-                ensCat1KwhByYear, ensCat2KwhByYear, ensCat3KwhByYear);
-        UnitCosts unitCosts = new UnitCosts(
-                effectiveRuCost(sp.getBusSystemType(), sp.getCostRuRub()),
-                sp.getCostDgRubPerKw(),
-                sp.getCostWtRubPerKw(),
-                sp.getCostBtRubPerKwh(),
-                sp.getCostFuelRubPerKt(),
-                sp.getCostDgRubPerKwPerKmh(),
-                sp.getCostWtRubPerKwPerYear(),
-                sp.getCostBtRubPerKwhPerYear(),
-                sp.getDamageRubPerKwhCat1(),
-                sp.getDamageRubPerKwhCat2(),
-                sp.getDamageRubPerKwhCat3()
-        );
-        double lcoeRubPerKwh = DiscountedLcoeCalculator.computeRubPerKwh(econDrivers, unitCosts);
+        EconomyDrivers econDrivers = null;
+        double lcoeRubPerKwh;
+
+        if (computeEconomyDrivers) {
+            econDrivers = buildEconomyDrivers(
+                    sp,
+                    buses,
+                    servedKwhByYear,
+                    fuelLitersByYear,
+                    motoHoursByYear,
+                    btReplByYear,
+                    ensCat1KwhByYear,
+                    ensCat2KwhByYear,
+                    ensCat3KwhByYear
+            );
+            lcoeRubPerKwh = DiscountedLcoeCalculator.computeRubPerKwh(econDrivers, unitCostsForLcoe);
+        } else {
+            final double eps = 1e-12;
+            lcoeRubPerKwh = (pvServedKwh <= eps) ? 0.0 : (pvCostRub / pvServedKwh);
+        }
         return new SimulationMetrics(
                 totals.loadKwh,
                 totals.ensKwh,
@@ -1004,7 +1175,5 @@ public final class SingleRunSimulator {
                 sp.getDiscountRatePerYear()
         );
     }
-
-
 
 }

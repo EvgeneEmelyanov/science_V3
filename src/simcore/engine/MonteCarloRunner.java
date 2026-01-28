@@ -307,6 +307,109 @@ public final class MonteCarloRunner {
         );
 
     }
+    public MonteCarloEstimate evaluateForThetaSequentialMc(SimInput baseInput,
+                                                           ParameterSet theta,
+                                                           SobolConfig sobolCfg,
+                                                           int mcIterations,
+                                                           long mcBaseSeed,
+                                                           long sobolRowIdx,
+                                                           boolean traceIfSingle)
+            throws InterruptedException, ExecutionException {
+
+        // Для iterations==1 можно просто переиспользовать уже корректную ветку evaluateForTheta:
+        // там нет параллельного чанкинга и всё собирается правильно.
+        if (mcIterations == 1) {
+            return evaluateForTheta(baseInput, theta, sobolCfg, 1, mcBaseSeed, sobolRowIdx, traceIfSingle);
+        }
+
+        // apply theta
+        SimInput input = baseInput;
+        if (theta != null && sobolCfg != null) {
+            SystemParameters baseParams = baseInput.getSystemParameters();
+            SystemParameters tuned = theta.applyTo(baseParams, sobolCfg);
+            input = baseInput.withSystemParameters(tuned);
+        }
+
+        if (mcIterations <= 0) {
+            throw new IllegalArgumentException("mcIterations must be > 0");
+        }
+
+        // Важное отличие: один последовательный chunk на весь диапазон MC
+        ChunkAgg a = runChunk(input, mcBaseSeed, sobolRowIdx, 0, mcIterations);
+
+        double[] ens = new double[mcIterations];
+        System.arraycopy(a.ens, 0, ens, a.ensOffset, a.ens.length);
+
+        MonteCarloStats.Stats ensStats = MonteCarloStats.compute(ens, removeOutliers, tScore, relativeError);
+        double inv = 1.0 / mcIterations;
+
+        // EconomyDrivers: строго в том же формате, что и в evaluateForTheta(...)
+        EconomyDrivers meanEconomyDrivers = null;
+        if (a.firstDrivers != null && a.servedSumByYear != null) {
+            int years = a.firstDrivers.years();
+
+            double[] servedMean = new double[years];
+            double[] fuelMean = new double[years];
+            double[] motoMean = new double[years];
+            long[] replMean = new long[years];
+            double[] ensCat1Mean = new double[years];
+            double[] ensCat2Mean = new double[years];
+            double[] ensCat3Mean = new double[years];
+
+            for (int yy = 0; yy < years; yy++) {
+                servedMean[yy] = a.servedSumByYear[yy] * inv;
+                fuelMean[yy] = a.fuelSumByYear[yy] * inv;
+                motoMean[yy] = a.motoSumByYear[yy] * inv;
+                replMean[yy] = Math.round(a.btReplSumByYear[yy] * inv); // как в evaluateForTheta
+                ensCat1Mean[yy] = a.ensCat1SumByYear[yy] * inv;
+                ensCat2Mean[yy] = a.ensCat2SumByYear[yy] * inv;
+                ensCat3Mean[yy] = a.ensCat3SumByYear[yy] * inv;
+            }
+
+            meanEconomyDrivers = new EconomyDrivers(
+                    servedMean, fuelMean, motoMean, replMean,
+                    ensCat1Mean, ensCat2Mean, ensCat3Mean,
+                    a.firstDrivers.dgTotalKw, a.firstDrivers.wtTotalKw, a.firstDrivers.btTotalKwh,
+                    a.firstDrivers.discountRatePerYear
+            );
+        }
+
+        return new MonteCarloEstimate(
+                theta,
+                meanEconomyDrivers,
+                ensStats,
+                a.ens1Sum * inv,
+                a.ens2Sum * inv,
+                a.fuelSum * inv,
+                a.motoSum * inv,
+                a.wrePctSum * inv,
+                a.lcoeSum * inv,
+                a.wtPctSum * inv,
+                a.dgPctSum * inv,
+                a.btPctSum * inv,
+                null, // singleRun
+                a.failRoomSum * inv,
+                a.failBusSum * inv,
+                a.failDgSum * inv,
+                a.failWtSum * inv,
+                a.failBtSum * inv,
+                a.failBrkSum * inv,
+                a.repBtSum * inv,
+                a.ensEvtTotalSum * inv,
+                a.ensEvtStartOnlySum * inv,
+                a.ensEvt1HSum * inv,
+                a.ensEvt2HSum * inv,
+                a.ensEvt3HSum * inv,
+                a.ensEvt4HSum * inv,
+                a.ensEvt5to8HSum * inv,
+                a.ensEvt9to12HSum * inv,
+                a.ensEvt13to24HSum * inv,
+                a.ensEvtGt24HSum * inv,
+                a.ensEvtMaxHoursSum * inv
+        );
+    }
+
+
 
     private ChunkAgg runChunk(SimInput input,
                               long mcBaseSeed,
