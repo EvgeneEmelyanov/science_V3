@@ -1,6 +1,9 @@
 package simcore.io;
 
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFColorScaleFormatting;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import simcore.config.BusSystemType;
 import simcore.config.SimulationConfig;
@@ -31,6 +34,9 @@ public final class SweepResultsExcelWriter {
         }
 
         try (Workbook wb = new XSSFWorkbook()) {
+
+            // чтобы Excel пересчитал формулы (и условное форматирование на их основе)
+            wb.setForceFormulaRecalculation(true);
 
             // ===== Styles =====
             DataFormat df = wb.createDataFormat();
@@ -480,7 +486,7 @@ public final class SweepResultsExcelWriter {
                             ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                 }
 
-                autosizeFrom(grid, Math.max(2, param2.length + 1), 0);
+                autosizeFrom(grid, Math.max(2, (param2 != null ? param2.length : 0) + 1), 0);
             }
 
             try (FileOutputStream out = new FileOutputStream(path)) {
@@ -607,6 +613,15 @@ public final class SweepResultsExcelWriter {
             }
         }
 
+        // values matrix is: rows [topRow .. topRow+param1.length-1], cols [1 .. param2.length]
+        if (param1.length > 0 && param2.length > 0) {
+            applyGreenYellowRedScale(
+                    sh,
+                    topRow, topRow + param1.length - 1,
+                    1, param2.length
+            );
+        }
+
         return topRow + param1.length;
     }
 
@@ -666,7 +681,54 @@ public final class SweepResultsExcelWriter {
             }
         }
 
+        if (param1.length > 0 && param2.length > 0) {
+            applyGreenYellowRedScale(
+                    sh,
+                    topRow, topRow + param1.length - 1,
+                    1, param2.length
+            );
+        }
+
         return topRow + param1.length;
+    }
+
+    /**
+     * ОДНО правило: Color Scale (градиент).
+     * MIN -> green, 50 percentile -> yellow, MAX -> red.
+     */
+    private static void applyGreenYellowRedScale(Sheet sheet,
+                                                 int firstRow0, int lastRow0,
+                                                 int firstCol0, int lastCol0) {
+
+        SheetConditionalFormatting scf = sheet.getSheetConditionalFormatting();
+
+        ConditionalFormattingRule rule = scf.createConditionalFormattingColorScaleRule();
+        ColorScaleFormatting base = rule.getColorScaleFormatting();
+        base.setNumControlPoints(3);
+
+        base.getThresholds()[0].setRangeType(ConditionalFormattingThreshold.RangeType.MIN);
+
+        base.getThresholds()[1].setRangeType(ConditionalFormattingThreshold.RangeType.PERCENTILE);
+        base.getThresholds()[1].setValue(50d);
+
+        base.getThresholds()[2].setRangeType(ConditionalFormattingThreshold.RangeType.MAX);
+
+        // XSSF: задаём цвета корректно через setColors + XSSFColorScaleFormatting.createColor()
+        XSSFColorScaleFormatting csf = (XSSFColorScaleFormatting) base;
+
+        Color cMin = csf.createColor(); // green
+        ((XSSFColor) cMin).setARGBHex("FF63BE7B");
+
+        Color cMid = csf.createColor(); // yellow
+        ((XSSFColor) cMid).setARGBHex("FFFFEB84");
+
+        Color cMax = csf.createColor(); // red
+        ((XSSFColor) cMax).setARGBHex("FFF8696B");
+
+        csf.setColors(new Color[]{cMin, cMid, cMax});
+
+        CellRangeAddress region = new CellRangeAddress(firstRow0, lastRow0, firstCol0, lastCol0);
+        scf.addConditionalFormatting(new CellRangeAddress[]{region}, new ConditionalFormattingRule[]{rule});
     }
 
     private static String colLetter(int col1Based) {
