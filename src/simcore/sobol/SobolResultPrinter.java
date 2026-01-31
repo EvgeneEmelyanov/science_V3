@@ -5,20 +5,21 @@ import java.util.Locale;
 
 public final class SobolResultPrinter {
 
+    private static final Locale LOCALE_RU = Locale.forLanguageTag("ru-RU");
+
     private SobolResultPrinter() {}
 
     public static void printTable(
             List<SobolFactor> factors,
             SobolResult r
     ) {
-        Locale.setDefault(Locale.US);
+        Locale.setDefault(LOCALE_RU);
 
         // Pooled statistics over Sobol sample means (A ∪ B)
         System.out.printf(
-                Locale.US,
-                "metrics(A∪B)  LCOE: var=%.6g std=%.6g range=[%.6g..%.6g]  " +
-                        "ENS: var=%.6g std=%.6g range=[%.6g..%.6g]  " +
-                        "Fuel: var=%.6g std=%.6g range=[%.6g..%.6g]  " +
+                "LCOE: var=%.6g std=%.6g range=[%.6g..%.6g]%n" +
+                        "ENS: var=%.6g std=%.6g range=[%.6g..%.6g]%n" +
+                        "Fuel: var=%.6g std=%.6g range=[%.6g..%.6g]%n" +
                         "Moto: var=%.6g std=%.6g range=[%.6g..%.6g]%n",
                 r.getVar_lcoe(), Math.sqrt(r.getVar_lcoe()), r.getMin_lcoe(), r.getMax_lcoe(),
                 r.getVar_ens(), Math.sqrt(r.getVar_ens()), r.getMin_ens(), r.getMax_ens(),
@@ -32,7 +33,7 @@ public final class SobolResultPrinter {
 
         for (int i = 0; i < factors.size(); i++) {
             System.out.printf(
-                    "%s\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f%n",
+                    "%s\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f%n",
                     factors.get(i).getName(),
                     r.getS_lcoe()[i],
                     r.getSt_lcoe()[i],

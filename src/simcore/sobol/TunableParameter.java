@@ -29,6 +29,13 @@ public final class TunableParameter {
     public double getMax() { return max; }
     public SobolApplier getApplier() { return applier; }
 
+    /** Масштабирование u in [0..1] в значение параметра в диапазоне [min..max]. */
+    public double scaleFromUnit(double u01) {
+        if (u01 <= 0.0) return min;
+        if (u01 >= 1.0) return max;
+        return min + u01 * (max - min);
+    }
+
     public SobolFactor toSobolFactor() {
         return new SobolFactor(
                 id,

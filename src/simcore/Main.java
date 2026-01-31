@@ -1,6 +1,7 @@
 package simcore;
 
 import simcore.config.*;
+import simcore.config.ModelDefaults;
 import simcore.economy.*;
 import simcore.engine.*;
 import simcore.io.InputData;
@@ -15,11 +16,8 @@ import java.util.concurrent.Executors;
 public class Main {
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
-
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
-
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
-
     public static double MAX_LOAD;
 
     private static final class Cli {
@@ -33,7 +31,7 @@ public class Main {
         Integer maxLoadOverride = 2500;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 32;
+        int sobolN = 64;
 
         // Export drivers from RUN
 //         String exportDriversPath = "D:/econ_drivers.csv";
@@ -93,98 +91,6 @@ public class Main {
         }
     }
 
-    // ======================================================================
-    // Defaults: paths + ALL SystemParameters defaults as named constants
-    // ======================================================================
-
-    private static final class Defaults {
-        private Defaults() {
-        }
-
-        // Paths
-        static final String WIND_PATH = "D:/08_ModelingData/02_Wind.txt";
-        static final String RESULTS_XLSX = "D:/results.xlsx";
-        static final String TRACE_CSV = "D:/trace.csv";
-
-        // Load paths (can be overridden by --load=)
-        static final String LOAD_GOK = "D:/08_ModelingData/01_Load_g.txt";
-        static final String LOAD_KOMUNAL = "D:/08_ModelingData/02_Load_k.txt";
-        static final String LOAD_SELHOZ = "D:/08_ModelingData/01_Load_s.txt";
-        static final String LOAD_DEF = "D:/08_ModelingData/01_Load.txt";
-
-        // Max load by profile
-        static final int MAX_LOAD_GOK = 7740;
-        static final int MAX_LOAD_KOMUNAL = 40;
-        static final int MAX_LOAD_SELHOZ = 44;
-        static final int MAX_LOAD_DEF = 1346;
-
-        // Categories share (k1, k2); k3 implied = 1 - k1 - k2
-        static final double DEFAULT_FIRST_CAT = 0.5;
-        static final double DEFAULT_SECOND_CAT = 0.0;
-
-        // WT
-        static final int DEFAULT_WT_COUNT_TOTAL = 4;
-        static final double DEFAULT_WT_POWER_KW = 1250;
-
-        // DG
-        static final int DEFAULT_DG_COUNT_TOTAL = 6;
-        static final double DEFAULT_DG_POWER_KW = 625;
-
-        // Battery
-        static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 0;
-        static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.6;
-        static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
-        static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.4;
-
-        // Reliability (rates are double, repair times are int)
-        static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;
-        static final int DEFAULT_WT_REPAIR_TIME_HOURS = 46;
-
-        static final double DEFAULT_DG_FAILURE_RATE_PER_YEAR = 4.75;
-        static final int DEFAULT_DG_REPAIR_TIME_HOURS = 50;
-
-        static final double DEFAULT_BT_FAILURE_RATE_PER_YEAR = 0.575;
-        static final int DEFAULT_BT_REPAIR_TIME_HOURS = 44;
-
-        static final double DEFAULT_BUS_FAILURE_RATE_PER_YEAR = 0.02;
-        static final int DEFAULT_BUS_REPAIR_TIME_HOURS = 12;
-
-        static final double DEFAULT_BRK_FAILURE_RATE_PER_YEAR = 0.05;
-        static final int DEFAULT_BRK_REPAIR_TIME_HOURS = 10;
-
-        static final double DEFAULT_SWITCHGEAR_ROOM_FAILURE_RATE_PER_YEAR = 0.0;
-        static final int DEFAULT_SWITCHGEAR_ROOM_REPAIR_TIME_HOURS = 24;
-        static final double DEFAULT_BUS_CCF_BETA_SECTIONAL = 0.0;
-        static final double DEFAULT_BUS_CCF_BETA_DOUBLE = 0.0;
-
-        // ---- Economics defaults ----
-        static final double DEFAULT_DISCOUNT_RATE = 0.08;
-        static final double DEFAULT_COST_RU_RUB = 4_000_000;
-        static final double DEFAULT_COST_DG_RUB_PER_KW = 40_000;
-        static final double DEFAULT_COST_DG_RUB_PER_KW_PER_KMH = 1600.0;
-        static final double DEFAULT_COST_FUEL_RUB_PER_KT = 90_000_000.0;
-        static final double DEFAULT_COST_WT_RUB_PER_KW = 150_000;
-        static final double DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR = 3_000;
-        static final double DEFAULT_COST_BT_RUB_PER_KWH = 88_000.0;
-        static final double DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR = 2_200.0;
-        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 = 700.0;
-        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT2 = DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 * 5;
-        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT1 = DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 * 7;
-
-        // ---- SimulationConfig defaults (match SimulationConfig constructor) ----
-        static final boolean CFG_CONSIDER_FAILURES = true;
-        static final boolean CFG_CONSIDER_MAINTENANCE = true;
-        static final boolean CFG_CONSIDER_HOT_RESERVE = true;
-        static final boolean CFG_CONSIDER_BATTERY_DEGRADATION = true;
-
-        static final boolean CFG_RESERVE_THIRD_CATEGORY = false;
-        static final boolean CFG_CONSIDER_ROTATION_RESERVE = true;
-    }
-
-    // ======================================================================
-    // Sweep builders
-    // ======================================================================
-
     private static List<SystemParameters> buildParamSets(RunMode mode,
                                                          SystemParameters baseParams,
                                                          double[] param1,
@@ -242,10 +148,6 @@ public class Main {
 
         return paramSets;
     }
-
-    // ======================================================================
-    // Task: RUN (SINGLE / SWEEP) + Excel + optional drivers export
-    // ======================================================================
 
     private static void runTaskRun(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
         SimulationConfig cfg = ScenarioFactory.defaultConfig(
@@ -378,6 +280,88 @@ public class Main {
         }
     }
 
+    private static final class Defaults {
+        private Defaults() {
+        }
+
+        // Paths
+        static final String WIND_PATH = "D:/08_ModelingData/02_Wind.txt";
+        static final String RESULTS_XLSX = "D:/results.xlsx";
+        static final String TRACE_CSV = "D:/trace.csv";
+
+        // Load paths (can be overridden by --load=)
+        static final String LOAD_GOK = "D:/08_ModelingData/01_Load_g.txt";
+        static final String LOAD_KOMUNAL = "D:/08_ModelingData/02_Load_k.txt";
+        static final String LOAD_SELHOZ = "D:/08_ModelingData/01_Load_s.txt";
+        static final String LOAD_DEF = "D:/08_ModelingData/01_Load.txt";
+
+        // Max load by profile
+        static final int MAX_LOAD_GOK = 7740;
+        static final int MAX_LOAD_KOMUNAL = 40;
+        static final int MAX_LOAD_SELHOZ = 44;
+        static final int MAX_LOAD_DEF = 1346;
+
+        // Categories share (k1, k2); k3 implied = 1 - k1 - k2
+        static final double DEFAULT_FIRST_CAT = ModelDefaults.DEFAULT_FIRST_CAT;
+        static final double DEFAULT_SECOND_CAT = ModelDefaults.DEFAULT_SECOND_CAT;
+
+        // WT
+        static final int DEFAULT_WT_COUNT_TOTAL = ModelDefaults.DEFAULT_WT_COUNT_TOTAL;
+        static final double DEFAULT_WT_POWER_KW = ModelDefaults.DEFAULT_WT_POWER_KW;
+
+        // DG
+        static final int DEFAULT_DG_COUNT_TOTAL = ModelDefaults.DEFAULT_DG_COUNT_TOTAL;
+        static final double DEFAULT_DG_POWER_KW = ModelDefaults.DEFAULT_DG_POWER_KW;
+
+        // Battery
+        static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS;
+        static final double DEFAULT_BT_MAX_CHARGE_CURRENT = ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT;
+        static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = ModelDefaults.DEFAULT_BT_MAX_DISCHARGE_CURRENT;
+        static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
+
+        // Reliability (rates are double, repair times are int)
+        static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = ModelDefaults.DEFAULT_WT_FAILURE_RATE_PER_YEAR;
+        static final int DEFAULT_WT_REPAIR_TIME_HOURS = ModelDefaults.DEFAULT_WT_REPAIR_TIME_HOURS;
+
+        static final double DEFAULT_DG_FAILURE_RATE_PER_YEAR = ModelDefaults.DEFAULT_DG_FAILURE_RATE_PER_YEAR;
+        static final int DEFAULT_DG_REPAIR_TIME_HOURS = ModelDefaults.DEFAULT_DG_REPAIR_TIME_HOURS;
+
+        static final double DEFAULT_BT_FAILURE_RATE_PER_YEAR = ModelDefaults.DEFAULT_BT_FAILURE_RATE_PER_YEAR;
+        static final int DEFAULT_BT_REPAIR_TIME_HOURS = ModelDefaults.DEFAULT_BT_REPAIR_TIME_HOURS;
+
+        static final double DEFAULT_BUS_FAILURE_RATE_PER_YEAR = ModelDefaults.DEFAULT_BUS_FAILURE_RATE_PER_YEAR;
+        static final int DEFAULT_BUS_REPAIR_TIME_HOURS = ModelDefaults.DEFAULT_BUS_REPAIR_TIME_HOURS;
+
+        static final double DEFAULT_BRK_FAILURE_RATE_PER_YEAR = ModelDefaults.DEFAULT_BRK_FAILURE_RATE_PER_YEAR;
+        static final int DEFAULT_BRK_REPAIR_TIME_HOURS = ModelDefaults.DEFAULT_BRK_REPAIR_TIME_HOURS;
+
+        static final double DEFAULT_SWITCHGEAR_ROOM_FAILURE_RATE_PER_YEAR = ModelDefaults.DEFAULT_SWITCHGEAR_ROOM_FAILURE_RATE_PER_YEAR;
+        static final int DEFAULT_SWITCHGEAR_ROOM_REPAIR_TIME_HOURS = ModelDefaults.DEFAULT_SWITCHGEAR_ROOM_REPAIR_TIME_HOURS;
+        static final double DEFAULT_BUS_CCF_BETA_SECTIONAL = ModelDefaults.DEFAULT_BUS_CCF_BETA_SECTIONAL;
+        static final double DEFAULT_BUS_CCF_BETA_DOUBLE = ModelDefaults.DEFAULT_BUS_CCF_BETA_DOUBLE;
+
+        // ---- Economics defaults ----
+        static final double DEFAULT_DISCOUNT_RATE = ModelDefaults.DEFAULT_DISCOUNT_RATE;
+        static final double DEFAULT_COST_RU_RUB = ModelDefaults.DEFAULT_COST_RU_RUB;
+        static final double DEFAULT_COST_DG_RUB_PER_KW = ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW;
+        static final double DEFAULT_COST_DG_RUB_PER_KW_PER_KMH = ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH;
+        static final double DEFAULT_COST_FUEL_RUB_PER_KT = ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT;
+        static final double DEFAULT_COST_WT_RUB_PER_KW = ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW;
+        static final double DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR = ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR;
+        static final double DEFAULT_COST_BT_RUB_PER_KWH = ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH;
+        static final double DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR = ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR;
+        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 = ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3;
+        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT2 = ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT2;
+        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT1 = ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT1;
+
+        // ---- SimulationConfig defaults (match SimulationConfig constructor) ----
+        static final boolean CFG_CONSIDER_FAILURES = ModelDefaults.CFG_CONSIDER_FAILURES;
+        static final boolean CFG_CONSIDER_MAINTENANCE = ModelDefaults.CFG_CONSIDER_MAINTENANCE;
+        static final boolean CFG_CONSIDER_HOT_RESERVE = ModelDefaults.CFG_CONSIDER_HOT_RESERVE;
+        static final boolean CFG_CONSIDER_BATTERY_DEGRADATION = ModelDefaults.CFG_CONSIDER_BATTERY_DEGRADATION;
+        static final boolean CFG_RESERVE_THIRD_CATEGORY = ModelDefaults.CFG_RESERVE_THIRD_CATEGORY;
+        static final boolean CFG_CONSIDER_ROTATION_RESERVE = ModelDefaults.CFG_CONSIDER_ROTATION_RESERVE;
+    }
 
     private static void runTaskSobolEcon(SystemParameters baseParams, Cli cli) throws Exception {
         if (cli.econDriversPath == null) {
@@ -397,33 +381,19 @@ public class Main {
             return;
         }
 
-        UnitCosts base = new UnitCosts(
-                simcore.economy.RuCostAdjuster.effectiveRuCost(baseParams.getBusSystemType(), baseParams.getCostRuRub()),
-                baseParams.getCostDgRubPerKw(),
-                baseParams.getCostWtRubPerKw(),
-                baseParams.getCostBtRubPerKwh(),
-                baseParams.getCostFuelRubPerKt(),
-                baseParams.getCostDgRubPerKwPerKmh(),
-                baseParams.getCostWtRubPerKwPerYear(),
-                baseParams.getCostBtRubPerKwhPerYear(),
-                baseParams.getDamageRubPerKwhCat1(),
-                baseParams.getDamageRubPerKwhCat2(),
-                baseParams.getDamageRubPerKwhCat3()
+        List<TunableParamId> econIds = List.of(
+                TunableParamId.COST_RU_RUB,
+                TunableParamId.COST_DG_RUB_PER_KW,
+                TunableParamId.COST_WT_RUB_PER_KW,
+                TunableParamId.COST_BT_RUB_PER_KWH,
+                TunableParamId.COST_FUEL_RUB_PER_KT,
+                TunableParamId.COST_DG_RUB_PER_KW_PER_KMH,
+                TunableParamId.COST_WT_RUB_PER_KW_PER_YEAR,
+                TunableParamId.COST_BT_RUB_PER_KWH_PER_YEAR,
+                TunableParamId.DAMAGE_RUB_PER_KWH_CAT3
         );
 
-        List<CostFactor> factors = List.of(
-                new CostFactor("COST_RU_RUB", base.costRuRub),
-                new CostFactor("COST_DG_RUB_PER_KW", base.costDgRubPerKw),
-                new CostFactor("COST_WT_RUB_PER_KW", base.costWtRubPerKw),
-                new CostFactor("COST_BT_RUB_PER_KWH", base.costBtRubPerKwh),
-                new CostFactor("COST_FUEL_RUB_PER_KT", base.costFuelRubPerKt),
-                new CostFactor("COST_DG_RUB_PER_KW_PER_KMH", base.costDgRubPerKwPerKmh),
-                new CostFactor("COST_WT_RUB_PER_KW_PER_YEAR", base.costWtRubPerKwPerYear),
-                new CostFactor("COST_BT_RUB_PER_KWH_PER_YEAR", base.costBtRubPerKwhPerYear),
-                new CostFactor("DAMAGE_RUB_PER_KWH_CAT3", base.damageRubPerKwhCat3)
-        );
-
-        int d = factors.size();
+        int d = econIds.size();
         int N = (cli.econN != null) ? cli.econN : 8192;
 
         double[][][] ab = simcore.sobol.SobolMath.generateABBySobolSequence(N, d, 1024);
@@ -435,8 +405,8 @@ public class Main {
         double[][] yAB = new double[d][N];
 
         for (int i = 0; i < N; i++) {
-            UnitCosts cA = costsFromUnitRow(A[i], factors);
-            UnitCosts cB = costsFromUnitRow(B[i], factors);
+            UnitCosts cA = econCostsFromUnitRow(A[i], econIds, baseParams.getBusSystemType());
+            UnitCosts cB = econCostsFromUnitRow(B[i], econIds, baseParams.getBusSystemType());
             yA[i] = DiscountedLcoeCalculator.computeRubPerKwh(drivers, cA);
             yB[i] = DiscountedLcoeCalculator.computeRubPerKwh(drivers, cB);
         }
@@ -445,7 +415,7 @@ public class Main {
             for (int i = 0; i < N; i++) {
                 double[] row = Arrays.copyOf(A[i], d);
                 row[j] = B[i][j];
-                UnitCosts c = costsFromUnitRow(row, factors);
+                UnitCosts c = econCostsFromUnitRow(row, econIds, baseParams.getBusSystemType());
                 yAB[j][i] = DiscountedLcoeCalculator.computeRubPerKwh(drivers, c);
             }
         }
@@ -463,7 +433,7 @@ public class Main {
         System.out.printf(Locale.US, "metric(A∪B)  LCOE: var=%.6g std=%.6g range=[%.6g..%.6g]%n",
                 varY, Math.sqrt(varY), minY, maxY);
         for (int j = 0; j < d; j++) {
-            System.out.printf(Locale.US, "%-28s  S=%.6f  ST=%.6f%n", factors.get(j).name, S[j], ST[j]);
+            System.out.printf(Locale.US, "%-28s  S=%.6f  ST=%.6f%n", TunableParameterPool.get(econIds.get(j)).getName(), S[j], ST[j]);
         }
     }
 
@@ -602,39 +572,36 @@ public class Main {
         };
     }
 
-    private static final class CostFactor {
-        final String name;
-        final double base;
-        final double min;
-        final double max;
-
-        CostFactor(String name, double base) {
-            this.name = name;
-            this.base = base;
-            this.min = base * 0.5;
-            this.max = base * 1.5;
-        }
-
-        double scaleFromUnit(double u01) {
-            return min + u01 * (max - min);
-        }
+    private static double scaleByPool(TunableParamId id, double u01) {
+        return TunableParameterPool.get(id).scaleFromUnit(u01);
     }
 
-    private static UnitCosts costsFromUnitRow(double[] u01, List<CostFactor> factors) {
-        double ru = factors.get(0).scaleFromUnit(u01[0]);
-        double dg = factors.get(1).scaleFromUnit(u01[1]);
-        double wt = factors.get(2).scaleFromUnit(u01[2]);
-        double bt = factors.get(3).scaleFromUnit(u01[3]);
-        double fuel = factors.get(4).scaleFromUnit(u01[4]);
-        double moto = factors.get(5).scaleFromUnit(u01[5]);
-        double wtOpx = factors.get(6).scaleFromUnit(u01[6]);
-        double btOpx = factors.get(7).scaleFromUnit(u01[7]);
+    private static UnitCosts econCostsFromUnitRow(double[] u01, List<TunableParamId> ids, BusSystemType busType) {
+        // Порядок ids должен совпадать с заполнением строки u01
+        double ruRaw = 0, dg = 0, wt = 0, bt = 0, fuel = 0, moto = 0, wtOpex = 0, btOpex = 0, dmg3 = 0;
 
-        double dmg3 = factors.get(8).scaleFromUnit(u01[8]);
+        for (int k = 0; k < ids.size(); k++) {
+            TunableParamId id = ids.get(k);
+            double v = scaleByPool(id, u01[k]);
+            switch (id) {
+                case COST_RU_RUB -> ruRaw = v;
+                case COST_DG_RUB_PER_KW -> dg = v;
+                case COST_WT_RUB_PER_KW -> wt = v;
+                case COST_BT_RUB_PER_KWH -> bt = v;
+                case COST_FUEL_RUB_PER_KT -> fuel = v;
+                case COST_DG_RUB_PER_KW_PER_KMH -> moto = v;
+                case COST_WT_RUB_PER_KW_PER_YEAR -> wtOpex = v;
+                case COST_BT_RUB_PER_KWH_PER_YEAR -> btOpex = v;
+                case DAMAGE_RUB_PER_KWH_CAT3 -> dmg3 = v;
+                default -> throw new IllegalArgumentException("Unsupported econ factor in SOBOL_ECON: " + id);
+            }
+        }
+
+        double ruEff = RuCostAdjuster.effectiveRuCost(busType, ruRaw);
         double dmg2 = 5.0 * dmg3;
         double dmg1 = 7.0 * dmg3;
 
-        return new UnitCosts(ru, dg, wt, bt, fuel, moto, wtOpx, btOpx, dmg1, dmg2, dmg3);
+        return new UnitCosts(ruEff, dg, wt, bt, fuel, moto, wtOpex, btOpex, dmg1, dmg2, dmg3);
     }
 
     private static double[] buildGrid01(double step) {
