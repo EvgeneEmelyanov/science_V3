@@ -15,7 +15,9 @@ import java.util.concurrent.Executors;
 public class Main {
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
+
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
+
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
     public static double MAX_LOAD;
@@ -24,17 +26,17 @@ public class Main {
 
         Task task = Task.SOBOL_HARD;
         RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 5;
+        int mcIterations = 50;
 
-        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
         LoadType loadType = LoadType.GOK; // тип нагрузки
-        Integer maxLoadOverride = 1000;
+        Integer maxLoadOverride = 2500;
 
-        SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.ALL_INDEPENDENT;
-        int sobolN = 4;
+        SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
+        int sobolN = 128;
 
         // Export drivers from RUN
-//        String exportDriversPath = "D:/econ_drivers.csv";
+//         String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
         // Econ sobol
         String econDriversPath = "D:/econ_drivers.csv";
@@ -78,8 +80,7 @@ public class Main {
                 if (a.startsWith("--sobolSeedMode="))
                     c.sobolSeedMode = SobolConfig.SeedMode.valueOf(a.substring("--sobolSeedMode=".length()).trim());
 
-                if (a.startsWith("--exportDrivers="))
-                {
+                if (a.startsWith("--exportDrivers=")) {
                     String p = a.substring("--exportDrivers=".length()).trim();
                     c.exportDriversPath = p.isEmpty() ? null : p;
                 }
@@ -117,25 +118,23 @@ public class Main {
         static final int MAX_LOAD_SELHOZ = 44;
         static final int MAX_LOAD_DEF = 1346;
 
-        // ---- SystemParameters defaults (match SystemParameters constructor types/order) ----
-
         // Categories share (k1, k2); k3 implied = 1 - k1 - k2
-        static final double DEFAULT_FIRST_CAT = 0.65;
-        static final double DEFAULT_SECOND_CAT = 0;
+        static final double DEFAULT_FIRST_CAT = 0.5;
+        static final double DEFAULT_SECOND_CAT = 0.0;
 
         // WT
         static final int DEFAULT_WT_COUNT_TOTAL = 4;
-        static final double DEFAULT_WT_POWER_KW = 500;
+        static final double DEFAULT_WT_POWER_KW = 1250;
 
         // DG
         static final int DEFAULT_DG_COUNT_TOTAL = 6;
-        static final double DEFAULT_DG_POWER_KW = 250.0;
+        static final double DEFAULT_DG_POWER_KW = 625;
 
         // Battery
-        static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 300;
-        static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.8;
+        static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 0;
+        static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.6;
         static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
-        static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.8;
+        static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.4;
 
         // Reliability (rates are double, repair times are int)
         static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;
@@ -168,16 +167,17 @@ public class Main {
         static final double DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR = 3_000;
         static final double DEFAULT_COST_BT_RUB_PER_KWH = 88_000.0;
         static final double DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR = 2_200.0;
-        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT1 = 7_000.0;
-        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT2 = 2_100.0;
         static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 = 700.0;
+        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT2 = DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 * 5;
+        static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT1 = DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 * 7;
 
         // ---- SimulationConfig defaults (match SimulationConfig constructor) ----
         static final boolean CFG_CONSIDER_FAILURES = true;
         static final boolean CFG_CONSIDER_MAINTENANCE = true;
-        static final boolean CFG_RESERVE_THIRD_CATEGORY = true;
         static final boolean CFG_CONSIDER_HOT_RESERVE = true;
         static final boolean CFG_CONSIDER_BATTERY_DEGRADATION = true;
+
+        static final boolean CFG_RESERVE_THIRD_CATEGORY = false;
         static final boolean CFG_CONSIDER_ROTATION_RESERVE = true;
     }
 
@@ -227,10 +227,12 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
-                                .setBatteryCapacityKwhPerBus(p1)
-//                        .setNonReserveDischargeLevel(p2)
-//                        .setFirstCat(p2)
-                                .setMaxDischargeCurrent(p2)
+                                .setFirstCat(p1)
+                                .setBatteryCapacityKwhPerBus(p2)
+//                        .setNonReserveDischargeLevel(p1)
+//                                .setMaxDischargeCurrent(p2)
+//                                .setDieselGeneratorFailureRatePerYear(p2)
+//                                .setDieselGeneratorRepairTimeHours(p2)
                                 .build();
                         paramSets.add(p);
                     }
@@ -255,10 +257,14 @@ public class Main {
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
         // ===== Axes (edit here) =====
-        double[] param1 = new double[]{0.0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500};
-//        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
+        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        double[] param2 = new double[]{0.0, 125, 250, 375, 500, 625, 750, 875, 900, 1125, 1250};
+//        double[] param1 = new double[]{0.0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500};
+//        double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
+//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-        double[] param2 = new double[]{1, 2, 3, 4, 5};
+
+//        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};
 
         final boolean sweepCatsTriangle = false;
         final double catStep = 0.1;
@@ -311,17 +317,21 @@ public class Main {
     private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
         List<TunableParamId> ids = List.of(
                 TunableParamId.FIRST_CAT,
-                TunableParamId.SECOND_CAT,
+//                TunableParamId.SECOND_CAT,
 
                 TunableParamId.DG_POWER,
                 TunableParamId.DG_COUNT,
                 TunableParamId.WT_POWER,
-                TunableParamId.WT_COUNT,
-                TunableParamId.BT_CAPACITY_PER_BUS,
+                TunableParamId.WT_COUNT
 
-                TunableParamId.WT_FAILURE_RATE,
-                TunableParamId.DG_FAILURE_RATE,
-                TunableParamId.BT_FAILURE_RATE
+//                TunableParamId.BT_CAPACITY_PER_BUS,
+//                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+//                TunableParamId.BT_MAX_CHARGE_CURRENT,
+//                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+//
+//                TunableParamId.WT_FAILURE_RATE,
+//                TunableParamId.DG_FAILURE_RATE,
+//                TunableParamId.BT_FAILURE_RATE
 //                TunableParamId.BUS_FAILURE_RATE,
 //                TunableParamId.BRK_FAILURE_RATE
 
@@ -331,10 +341,7 @@ public class Main {
 //                TunableParamId.BUS_REPAIR_TIME,
 //                TunableParamId.BRK_REPAIR_TIME
 
-//                TunableParamId.BT_CAPACITY_PER_BUS,
-//                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-//                TunableParamId.BT_MAX_CHARGE_CURRENT,
-//                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+
         );
 
         SobolConfig sobolCfg = SobolConfig.fromIds(
@@ -371,9 +378,6 @@ public class Main {
         }
     }
 
-    // ======================================================================
-    // Task: SOBOL_ECON (fast Sobol for LCOE vs UnitCosts using saved drivers)
-    // ======================================================================
 
     private static void runTaskSobolEcon(SystemParameters baseParams, Cli cli) throws Exception {
         if (cli.econDriversPath == null) {
@@ -459,10 +463,6 @@ public class Main {
         }
     }
 
-    // ======================================================================
-    // Main entry
-    // ======================================================================
-
     public static void main(String[] args) {
         Cli cli = Cli.parse(args);
 
@@ -485,10 +485,6 @@ public class Main {
             e.printStackTrace();
         }
     }
-
-    // ======================================================================
-    // Inlined ScenarioFactory
-    // ======================================================================
 
     private static final class ScenarioFactory {
         private ScenarioFactory() {

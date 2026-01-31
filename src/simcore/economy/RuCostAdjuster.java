@@ -13,8 +13,8 @@ public final class RuCostAdjuster {
         if (type == null) return 1.0;
         return switch (type) {
             case SINGLE_NOT_SECTIONAL_BUS -> 1.0;
-            case SINGLE_SECTIONAL_BUS -> 1.15;
-            case DOUBLE_BUS -> 1.5;
+            case SINGLE_SECTIONAL_BUS -> 1.2;
+            case DOUBLE_BUS -> 2;
         };
     }
 
