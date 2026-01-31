@@ -168,8 +168,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_POWER,
                         "WT_POWER",
-                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 1, 1250),
-                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 3, 3750),
+                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.5, 1250),
+                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 1.5, 3750),
                         SystemParametersBuilder::setWindTurbinePowerKw
                 ));
 
@@ -187,7 +187,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DG_POWER,
                         "DG_POWER",
-                        minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.672, 420),
+                        minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.5, 420),
                         maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.6, 1000),
                         SystemParametersBuilder::setDieselGeneratorPowerKw
                 ));
@@ -197,7 +197,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_CAPACITY_PER_BUS,
                         "BT_CAPACITY_PER_BUS",
-                        minFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 0.5, 450),
+                        minFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 0.5, 0),
                         maxFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 1.5, 1250),
                         SystemParametersBuilder::setBatteryCapacityKwhPerBus
                 ));
@@ -205,8 +205,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_MAX_CHARGE_CURRENT,
                         "BT_MAX_CHARGE_CURRENT",
-                        minFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 1, 0.6),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 1.66666666667, 1.0),
+                        minFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 0.5, 0.4),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 1.5, 1.0),
                         SystemParametersBuilder::setMaxChargeCurrent
                 ));
         m.put(TunableParamId.BT_MAX_DISCHARGE_CURRENT,
@@ -221,8 +221,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
                         "BT_NON_RESERVE_DISCHARGE_LVL",
-                        clamp(minFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 0, 0.0), 0.0, 0.8),
-                        clamp(maxFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 2, 0.8), 0.0, 0.8),
+                        minFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 0, 0.0),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 2, 0.8),
                         SystemParametersBuilder::setNonReserveDischargeLevel
                 ));
 

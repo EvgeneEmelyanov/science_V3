@@ -24,14 +24,14 @@ public class Main {
 
         Task task = Task.SOBOL_HARD;
         RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 5;
+        int mcIterations = 50;
 
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
         LoadType loadType = LoadType.GOK; // тип нагрузки
         Integer maxLoadOverride = 2500;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 64;
+        int sobolN = 256;
 
         // Export drivers from RUN
 //         String exportDriversPath = "D:/econ_drivers.csv";
@@ -224,12 +224,11 @@ public class Main {
                 TunableParamId.DG_POWER,
                 TunableParamId.DG_COUNT,
                 TunableParamId.WT_POWER,
-                TunableParamId.WT_COUNT
-
-//                TunableParamId.BT_CAPACITY_PER_BUS,
-//                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-//                TunableParamId.BT_MAX_CHARGE_CURRENT,
-//                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+                TunableParamId.WT_COUNT,
+                TunableParamId.BT_CAPACITY_PER_BUS,
+                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                TunableParamId.BT_MAX_CHARGE_CURRENT,
+                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
 //
 //                TunableParamId.WT_FAILURE_RATE,
 //                TunableParamId.DG_FAILURE_RATE,
@@ -242,7 +241,6 @@ public class Main {
 //                TunableParamId.BT_REPAIR_TIME,
 //                TunableParamId.BUS_REPAIR_TIME,
 //                TunableParamId.BRK_REPAIR_TIME
-
 
         );
 
