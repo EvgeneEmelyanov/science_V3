@@ -126,4 +126,36 @@ public final class SobolMath {
         }
         return s / x.length;
     }
+
+    /**
+     * Min over pooled samples (A ∪ B) without allocating a 2N array.
+     */
+    public static double minPooled(double[] a, double[] b) {
+        int N = a.length;
+        if (b.length != N) throw new IllegalArgumentException("b.length != a.length");
+        double m = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < N; i++) {
+            double va = a[i];
+            if (va < m) m = va;
+            double vb = b[i];
+            if (vb < m) m = vb;
+        }
+        return m;
+    }
+
+    /**
+     * Max over pooled samples (A ∪ B) without allocating a 2N array.
+     */
+    public static double maxPooled(double[] a, double[] b) {
+        int N = a.length;
+        if (b.length != N) throw new IllegalArgumentException("b.length != a.length");
+        double m = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < N; i++) {
+            double va = a[i];
+            if (va > m) m = va;
+            double vb = b[i];
+            if (vb > m) m = vb;
+        }
+        return m;
+    }
 }

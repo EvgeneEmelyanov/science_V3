@@ -83,6 +83,15 @@ public final class SobolAnalyzer {
         final double varMoto = SobolMath.variancePooledPopulation(aMoto, bMoto);
         final double varLcoe = SobolMath.variancePooledPopulation(aLcoe, bLcoe);
 
+        final double minEns = SobolMath.minPooled(aEns, bEns);
+        final double maxEns = SobolMath.maxPooled(aEns, bEns);
+        final double minFuel = SobolMath.minPooled(aFuel, bFuel);
+        final double maxFuel = SobolMath.maxPooled(aFuel, bFuel);
+        final double minMoto = SobolMath.minPooled(aMoto, bMoto);
+        final double maxMoto = SobolMath.maxPooled(aMoto, bMoto);
+        final double minLcoe = SobolMath.minPooled(aLcoe, bLcoe);
+        final double maxLcoe = SobolMath.maxPooled(aLcoe, bLcoe);
+
         // indices: First-order S via Saltelli-2002, Total-order ST via Jansen
         double[] sEns = new double[d];
         double[] stEns = new double[d];
@@ -129,7 +138,12 @@ public final class SobolAnalyzer {
                 sEns, stEns,
                 sFuel, stFuel,
                 sMoto, stMoto,
-                sLcoe, stLcoe);
+                sLcoe, stLcoe,
+                varEns, varFuel, varMoto, varLcoe,
+                minEns, maxEns,
+                minFuel, maxFuel,
+                minMoto, maxMoto,
+                minLcoe, maxLcoe);
 
         SobolResultPrinter.printTable(cfg.getFactors(), res);
         return res;

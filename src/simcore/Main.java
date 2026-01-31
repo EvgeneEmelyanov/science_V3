@@ -26,14 +26,14 @@ public class Main {
 
         Task task = Task.SOBOL_HARD;
         RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 50;
+        int mcIterations = 5;
 
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
         LoadType loadType = LoadType.GOK; // тип нагрузки
         Integer maxLoadOverride = 2500;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 128;
+        int sobolN = 32;
 
         // Export drivers from RUN
 //         String exportDriversPath = "D:/econ_drivers.csv";
@@ -420,8 +420,6 @@ public class Main {
                 new CostFactor("COST_DG_RUB_PER_KW_PER_KMH", base.costDgRubPerKwPerKmh),
                 new CostFactor("COST_WT_RUB_PER_KW_PER_YEAR", base.costWtRubPerKwPerYear),
                 new CostFactor("COST_BT_RUB_PER_KWH_PER_YEAR", base.costBtRubPerKwhPerYear),
-                new CostFactor("DAMAGE_RUB_PER_KWH_CAT1", base.damageRubPerKwhCat1),
-                new CostFactor("DAMAGE_RUB_PER_KWH_CAT2", base.damageRubPerKwhCat2),
                 new CostFactor("DAMAGE_RUB_PER_KWH_CAT3", base.damageRubPerKwhCat3)
         );
 
@@ -456,8 +454,14 @@ public class Main {
         double[] ST = new double[d];
         simcore.sobol.SobolMath.computeIndicesSaltelli2002Jansen(yA, yB, yAB, S, ST);
 
+        double varY = simcore.sobol.SobolMath.variancePooledPopulation(yA, yB);
+        double minY = simcore.sobol.SobolMath.minPooled(yA, yB);
+        double maxY = simcore.sobol.SobolMath.maxPooled(yA, yB);
+
         System.out.println("=== ECON Sobol (LCOE vs unit costs) ===");
         System.out.println("drivers=" + cli.econDriversPath + " case=" + useCase + " N=" + N + " years=" + drivers.years());
+        System.out.printf(Locale.US, "metric(A∪B)  LCOE: var=%.6g std=%.6g range=[%.6g..%.6g]%n",
+                varY, Math.sqrt(varY), minY, maxY);
         for (int j = 0; j < d; j++) {
             System.out.printf(Locale.US, "%-28s  S=%.6f  ST=%.6f%n", factors.get(j).name, S[j], ST[j]);
         }
@@ -623,12 +627,14 @@ public class Main {
         double bt = factors.get(3).scaleFromUnit(u01[3]);
         double fuel = factors.get(4).scaleFromUnit(u01[4]);
         double moto = factors.get(5).scaleFromUnit(u01[5]);
-        double wtOpex = factors.get(6).scaleFromUnit(u01[6]);
-        double btOpex = factors.get(7).scaleFromUnit(u01[7]);
-        double dmg1 = factors.get(8).scaleFromUnit(u01[8]);
-        double dmg2 = factors.get(9).scaleFromUnit(u01[9]);
-        double dmg3 = factors.get(10).scaleFromUnit(u01[10]);
-        return new UnitCosts(ru, dg, wt, bt, fuel, moto, wtOpex, btOpex, dmg1, dmg2, dmg3);
+        double wtOpx = factors.get(6).scaleFromUnit(u01[6]);
+        double btOpx = factors.get(7).scaleFromUnit(u01[7]);
+
+        double dmg3 = factors.get(8).scaleFromUnit(u01[8]);
+        double dmg2 = 5.0 * dmg3;
+        double dmg1 = 7.0 * dmg3;
+
+        return new UnitCosts(ru, dg, wt, bt, fuel, moto, wtOpx, btOpx, dmg1, dmg2, dmg3);
     }
 
     private static double[] buildGrid01(double step) {
