@@ -16,7 +16,7 @@ public final class ModelDefaults {
     public static final double DEFAULT_DG_POWER_KW = 336.5;
 
     // Battery
-    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 336.5;
+    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 673; //336.5
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.6;
     public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
     public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.4;

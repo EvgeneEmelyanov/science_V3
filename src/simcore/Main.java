@@ -26,7 +26,7 @@ public class Main {
         RunMode runMode = RunMode.SWEEP_2;
         int mcIterations = 50;
 
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        BusSystemType busType = BusSystemType.SINGLE_NOT_SECTIONAL_BUS;
         LoadType loadType = LoadType.DEF; // тип нагрузки
         Integer maxLoadOverride = null;
 
@@ -212,72 +212,6 @@ public class Main {
         }
     }
 
-    private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
-        List<TunableParamId> ids = List.of(
-                TunableParamId.FIRST_CAT,
-//                TunableParamId.SECOND_CAT,
-
-                TunableParamId.DG_POWER,
-                TunableParamId.DG_COUNT,
-                TunableParamId.WT_POWER,
-                TunableParamId.WT_COUNT,
-                TunableParamId.BT_CAPACITY_PER_BUS,
-                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-                TunableParamId.BT_MAX_CHARGE_CURRENT,
-                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
-//
-//                TunableParamId.WT_FAILURE_RATE,
-//                TunableParamId.DG_FAILURE_RATE,
-//                TunableParamId.BT_FAILURE_RATE
-//                TunableParamId.BUS_FAILURE_RATE,
-//                TunableParamId.BRK_FAILURE_RATE
-
-//                TunableParamId.WT_FAILURE_RATE,
-//                TunableParamId.DG_REPAIR_TIME,
-//                TunableParamId.BT_REPAIR_TIME,
-//                TunableParamId.BUS_REPAIR_TIME,
-//                TunableParamId.BRK_REPAIR_TIME
-
-        );
-
-        SobolConfig sobolCfg = SobolConfig.fromIds(
-                cli.sobolN,
-                cli.mcIterations,
-                cli.mcBaseSeed,
-                cli.threads,
-                ids,
-                cli.sobolSeedMode
-        );
-
-        // Coupled constraint for DG: do not allow total installed DG power to drop below max load.
-        // (Can be overridden by --maxLoad=...)
-        TunableParameterPool.setMinTotalDgPowerKw(MAX_LOAD);
-
-        // Для SOBOL_* драйверы по годам не нужны по умолчанию.
-        // Если вдруг нужен экспорт драйверов при Sobol, можно передать --exportDrivers=...
-        SimulationConfig cfg = ScenarioFactory.defaultConfig(
-                li.windMs(),
-                sobolCfg.getMcIterations(),
-                sobolCfg.getThreads(),
-                cli.exportDriversPath != null
-        );
-        SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
-
-        ExecutorService ex = Executors.newFixedThreadPool(sobolCfg.getThreads());
-        try {
-            SingleRunSimulator sim = new SingleRunSimulator();
-            MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.10);
-            SobolAnalyzer analyzer = new SobolAnalyzer(mc, ex);
-
-            SobolResult res = analyzer.run(baseInput, sobolCfg);
-
-            System.out.println("Sobol done. dim=" + sobolCfg.dim());
-            // Tables are printed by SobolAnalyzer (RAW + LOG1P) to avoid duplication.
-        } finally {
-            ex.shutdown();
-        }
-    }
-
     private static final class Defaults {
         private Defaults() {
         }
@@ -361,6 +295,72 @@ public class Main {
         static final boolean CFG_CONSIDER_ROTATION_RESERVE = ModelDefaults.CFG_CONSIDER_ROTATION_RESERVE;
     }
 
+    private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
+        List<TunableParamId> ids = List.of(
+                TunableParamId.FIRST_CAT,
+//                TunableParamId.SECOND_CAT,
+
+                TunableParamId.DG_POWER,
+                TunableParamId.DG_COUNT,
+                TunableParamId.WT_POWER,
+                TunableParamId.WT_COUNT,
+                TunableParamId.BT_CAPACITY_PER_BUS,
+                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                TunableParamId.BT_MAX_CHARGE_CURRENT,
+                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+//
+//                TunableParamId.WT_FAILURE_RATE,
+//                TunableParamId.DG_FAILURE_RATE,
+//                TunableParamId.BT_FAILURE_RATE
+//                TunableParamId.BUS_FAILURE_RATE,
+//                TunableParamId.BRK_FAILURE_RATE
+
+//                TunableParamId.WT_FAILURE_RATE,
+//                TunableParamId.DG_REPAIR_TIME,
+//                TunableParamId.BT_REPAIR_TIME,
+//                TunableParamId.BUS_REPAIR_TIME,
+//                TunableParamId.BRK_REPAIR_TIME
+
+        );
+
+        SobolConfig sobolCfg = SobolConfig.fromIds(
+                cli.sobolN,
+                cli.mcIterations,
+                cli.mcBaseSeed,
+                cli.threads,
+                ids,
+                cli.sobolSeedMode
+        );
+
+        // Coupled constraint for DG: do not allow total installed DG power to drop below max load.
+        // (Can be overridden by --maxLoad=...)
+        TunableParameterPool.setMinTotalDgPowerKw(MAX_LOAD);
+
+        // Для SOBOL_* драйверы по годам не нужны по умолчанию.
+        // Если вдруг нужен экспорт драйверов при Sobol, можно передать --exportDrivers=...
+        SimulationConfig cfg = ScenarioFactory.defaultConfig(
+                li.windMs(),
+                sobolCfg.getMcIterations(),
+                sobolCfg.getThreads(),
+                cli.exportDriversPath != null
+        );
+        SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
+
+        ExecutorService ex = Executors.newFixedThreadPool(sobolCfg.getThreads());
+        try {
+            SingleRunSimulator sim = new SingleRunSimulator();
+            MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.10);
+            SobolAnalyzer analyzer = new SobolAnalyzer(mc, ex);
+
+            SobolResult res = analyzer.run(baseInput, sobolCfg);
+
+            System.out.println("Sobol done. dim=" + sobolCfg.dim());
+            // Tables are printed by SobolAnalyzer (RAW + LOG1P) to avoid duplication.
+        } finally {
+            ex.shutdown();
+        }
+    }
+
     private static void runTaskSobolEcon(SystemParameters baseParams, Cli cli) throws Exception {
         if (cli.econDriversPath == null) {
             throw new IllegalArgumentException("For --task=SOBOL_ECON you must set --econDrivers=PATH");
@@ -380,6 +380,7 @@ public class Main {
         }
 
         List<TunableParamId> econIds = List.of(
+                TunableParamId.DISCOUNT_RATE,
                 TunableParamId.COST_RU_RUB,
                 TunableParamId.COST_DG_RUB_PER_KW,
                 TunableParamId.COST_WT_RUB_PER_KW,
@@ -403,18 +404,18 @@ public class Main {
         double[][] yAB = new double[d][N];
 
         for (int i = 0; i < N; i++) {
-            UnitCosts cA = econCostsFromUnitRow(A[i], econIds, baseParams.getBusSystemType());
-            UnitCosts cB = econCostsFromUnitRow(B[i], econIds, baseParams.getBusSystemType());
-            yA[i] = DiscountedLcoeCalculator.computeRubPerKwh(drivers, cA);
-            yB[i] = DiscountedLcoeCalculator.computeRubPerKwh(drivers, cB);
+            EconInputs inA = econInputsFromUnitRow(A[i], econIds, baseParams.getBusSystemType());
+            EconInputs inB = econInputsFromUnitRow(B[i], econIds, baseParams.getBusSystemType());
+            yA[i] = DiscountedLcoeCalculator.computeRubPerKwh(withDiscountRate(drivers, inA.discountRatePerYear), inA.costs);
+            yB[i] = DiscountedLcoeCalculator.computeRubPerKwh(withDiscountRate(drivers, inB.discountRatePerYear), inB.costs);
         }
 
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < N; i++) {
                 double[] row = Arrays.copyOf(A[i], d);
                 row[j] = B[i][j];
-                UnitCosts c = econCostsFromUnitRow(row, econIds, baseParams.getBusSystemType());
-                yAB[j][i] = DiscountedLcoeCalculator.computeRubPerKwh(drivers, c);
+                EconInputs in = econInputsFromUnitRow(row, econIds, baseParams.getBusSystemType());
+                yAB[j][i] = DiscountedLcoeCalculator.computeRubPerKwh(withDiscountRate(drivers, in.discountRatePerYear), in.costs);
             }
         }
 
@@ -574,14 +575,36 @@ public class Main {
         return TunableParameterPool.get(id).scaleFromUnit(u01);
     }
 
-    private static UnitCosts econCostsFromUnitRow(double[] u01, List<TunableParamId> ids, BusSystemType busType) {
+    private static EconomyDrivers withDiscountRate(EconomyDrivers d, double discountRatePerYear) {
+        // EconomyDrivers arrays are not mutated by DiscountedLcoeCalculator,
+        // so it's safe to reuse references and only override the rate.
+        return new EconomyDrivers(
+                d.servedKwhByYear,
+                d.fuelLitersByYear,
+                d.motoHoursByYear,
+                d.btReplByYear,
+                d.ensCat1KwhByYear,
+                d.ensCat2KwhByYear,
+                d.ensCat3KwhByYear,
+                d.dgTotalKw,
+                d.wtTotalKw,
+                d.btTotalKwh,
+                discountRatePerYear
+        );
+    }
+
+    private record EconInputs(UnitCosts costs, double discountRatePerYear) {}
+
+    private static EconInputs econInputsFromUnitRow(double[] u01, List<TunableParamId> ids, BusSystemType busType) {
         // Порядок ids должен совпадать с заполнением строки u01
+        double discountRate = Double.NaN;
         double ruRaw = 0, dg = 0, wt = 0, bt = 0, fuel = 0, moto = 0, wtOpex = 0, btOpex = 0, dmg3 = 0;
 
         for (int k = 0; k < ids.size(); k++) {
             TunableParamId id = ids.get(k);
             double v = scaleByPool(id, u01[k]);
             switch (id) {
+                case DISCOUNT_RATE -> discountRate = v;
                 case COST_RU_RUB -> ruRaw = v;
                 case COST_DG_RUB_PER_KW -> dg = v;
                 case COST_WT_RUB_PER_KW -> wt = v;
@@ -595,11 +618,14 @@ public class Main {
             }
         }
 
+        if (Double.isNaN(discountRate)) discountRate = ModelDefaults.DEFAULT_DISCOUNT_RATE;
+
         double ruEff = RuCostAdjuster.effectiveRuCost(busType, ruRaw);
         double dmg2 = 5.0 * dmg3;
         double dmg1 = 7.0 * dmg3;
 
-        return new UnitCosts(ruEff, dg, wt, bt, fuel, moto, wtOpex, btOpex, dmg1, dmg2, dmg3);
+        UnitCosts costs = new UnitCosts(ruEff, dg, wt, bt, fuel, moto, wtOpex, btOpex, dmg1, dmg2, dmg3);
+        return new EconInputs(costs, discountRate);
     }
 
     private static double[] buildGrid01(double step) {
