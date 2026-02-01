@@ -14,6 +14,20 @@ public final class TunableParameterPool {
 
     private static final Map<TunableParamId, TunableParameter> PARAMS;
 
+    /**
+     * Optional coupled constraint between DG_COUNT and DG_POWER:
+     * total installed DG power must be >= this threshold.
+     *
+     * If 0 -> disabled.
+     */
+    private static volatile double MIN_TOTAL_DG_POWER_KW = 1346;
+
+    // Precomputed bounds (also used by coupled constraints)
+    private static final double DG_COUNT_MIN = minFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 0.666666666667, 4);
+    private static final double DG_COUNT_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 1.33333333333, 8);
+    private static final double DG_POWER_MIN = minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.5, 168.25);
+    private static final double DG_POWER_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.5, 505);
+
     static {
         Map<TunableParamId, TunableParameter> m = new EnumMap<>(TunableParamId.class);
 
@@ -168,8 +182,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_POWER,
                         "WT_POWER",
-                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.5, 1250),
-                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 1.5, 3750),
+                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.5, 336.5),
+                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 1.5, 1009.5),
                         SystemParametersBuilder::setWindTurbinePowerKw
                 ));
 
@@ -178,18 +192,26 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DG_COUNT,
                         "DG_COUNT",
-                        minFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 0.666666666667, 4),
-                        maxFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 1.33333333333, 8),
-                        (b, v) -> b.setTotalDieselGeneratorCount((int) Math.round(v))
+                        DG_COUNT_MIN,
+                        DG_COUNT_MAX,
+                        (b, v) -> {
+                            int n = (int) Math.round(clamp(v, DG_COUNT_MIN, DG_COUNT_MAX));
+                            b.setTotalDieselGeneratorCount(n);
+                            enforceMinTotalDgPower(b, true);
+                        }
                 ));
 
         m.put(TunableParamId.DG_POWER,
                 new TunableParameter(
                         TunableParamId.DG_POWER,
                         "DG_POWER",
-                        minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.5, 420),
-                        maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.6, 1000),
-                        SystemParametersBuilder::setDieselGeneratorPowerKw
+                        DG_POWER_MIN,
+                        DG_POWER_MAX,
+                        (b, v) -> {
+                            double p = clamp(v, DG_POWER_MIN, DG_POWER_MAX);
+                            b.setDieselGeneratorPowerKw(p);
+                            enforceMinTotalDgPower(b, false);
+                        }
                 ));
 
         // ----- АКБ -----
@@ -198,15 +220,15 @@ public final class TunableParameterPool {
                         TunableParamId.BT_CAPACITY_PER_BUS,
                         "BT_CAPACITY_PER_BUS",
                         minFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 0.5, 0),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 1.5, 1250),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 2, 673),
                         SystemParametersBuilder::setBatteryCapacityKwhPerBus
                 ));
         m.put(TunableParamId.BT_MAX_CHARGE_CURRENT,
                 new TunableParameter(
                         TunableParamId.BT_MAX_CHARGE_CURRENT,
                         "BT_MAX_CHARGE_CURRENT",
-                        minFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 0.5, 0.4),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 1.5, 1.0),
+                        minFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 0.5, 0.3),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 1.7, 1.0),
                         SystemParametersBuilder::setMaxChargeCurrent
                 ));
         m.put(TunableParamId.BT_MAX_DISCHARGE_CURRENT,
@@ -232,8 +254,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DISCOUNT_RATE,
                         "DISCOUNT_RATE",
-                        minFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 0.5, 0.04),
-                        maxFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 2, 0.16),
+                        minFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 0.7, 0.07),
+                        maxFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 1.5, 0.15),
                         SystemParametersBuilder::setDiscountRatePerYear
                 ));
 
@@ -336,6 +358,73 @@ public final class TunableParameterPool {
                         SystemParametersBuilder::setDamageRubPerKwhCat3
                 ));
         PARAMS = Collections.unmodifiableMap(m);
+    }
+
+    /**
+     * Enable/disable coupled DG constraint: DG_COUNT * DG_POWER >= minTotalDgPowerKw.
+     * Pass 0 to disable.
+     */
+    public static void setMinTotalDgPowerKw(double minTotalDgPowerKw) {
+        MIN_TOTAL_DG_POWER_KW = Math.max(0.0, minTotalDgPowerKw);
+    }
+
+    private static void enforceMinTotalDgPower(SystemParametersBuilder b, boolean changedCount) {
+        double minTotal = MIN_TOTAL_DG_POWER_KW;
+        if (minTotal <= 0.0) return;
+
+        int n0 = b.getTotalDieselGeneratorCount();
+        double p0 = b.getDieselGeneratorPowerKw();
+
+        int n = Math.max(1, n0);
+        double p = p0;
+        if (p <= 0.0) p = DG_POWER_MIN;
+
+        if (n * p >= minTotal) {
+            if (n != n0) b.setTotalDieselGeneratorCount(n);
+            if (p != p0) b.setDieselGeneratorPowerKw(p);
+            return;
+        }
+
+        if (changedCount) {
+            // Prefer keeping sampled count; raise power first.
+            double needP = minTotal / n;
+            if (needP <= DG_POWER_MAX) {
+                b.setDieselGeneratorPowerKw(Math.max(p, needP));
+                return;
+            }
+            // Power maxed out -> increase count.
+            b.setDieselGeneratorPowerKw(DG_POWER_MAX);
+            int needN = (int) Math.ceil(minTotal / DG_POWER_MAX);
+            int newN = (int) Math.round(clamp(needN, DG_COUNT_MIN, DG_COUNT_MAX));
+            b.setTotalDieselGeneratorCount(newN);
+            if (newN * DG_POWER_MAX < minTotal) {
+                throw new IllegalStateException(
+                        "Infeasible minTotalDgPowerKw=" + minTotal +
+                                " with DG_COUNT<= " + (int) Math.round(DG_COUNT_MAX) +
+                                " and DG_POWER<= " + DG_POWER_MAX
+                );
+            }
+        } else {
+            // Prefer keeping sampled power; raise count first.
+            int needN = (int) Math.ceil(minTotal / p);
+            if (needN <= (int) Math.round(DG_COUNT_MAX)) {
+                int newN = (int) Math.round(clamp(needN, DG_COUNT_MIN, DG_COUNT_MAX));
+                b.setTotalDieselGeneratorCount(Math.max(n, newN));
+                return;
+            }
+            // Count maxed out -> raise power.
+            int maxN = (int) Math.round(DG_COUNT_MAX);
+            b.setTotalDieselGeneratorCount(maxN);
+            double needP = minTotal / maxN;
+            if (needP > DG_POWER_MAX) {
+                throw new IllegalStateException(
+                        "Infeasible minTotalDgPowerKw=" + minTotal +
+                                " with DG_COUNT<= " + maxN +
+                                " and DG_POWER<= " + DG_POWER_MAX
+                );
+            }
+            b.setDieselGeneratorPowerKw(Math.max(p, needP));
+        }
     }
 
     private TunableParameterPool() {}

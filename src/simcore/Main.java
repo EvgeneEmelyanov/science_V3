@@ -26,12 +26,12 @@ public class Main {
         RunMode runMode = RunMode.SWEEP_2;
         int mcIterations = 50;
 
-        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
-        LoadType loadType = LoadType.GOK; // тип нагрузки
-        Integer maxLoadOverride = 2500;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        LoadType loadType = LoadType.DEF; // тип нагрузки
+        Integer maxLoadOverride = null;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 256;
+        int sobolN = 128;
 
         // Export drivers from RUN
 //         String exportDriversPath = "D:/econ_drivers.csv";
@@ -212,10 +212,6 @@ public class Main {
         }
     }
 
-    // ======================================================================
-    // Task: SOBOL_HARD (tech Sobol via simulator+MC)
-    // ======================================================================
-
     private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
         List<TunableParamId> ids = List.of(
                 TunableParamId.FIRST_CAT,
@@ -252,6 +248,10 @@ public class Main {
                 ids,
                 cli.sobolSeedMode
         );
+
+        // Coupled constraint for DG: do not allow total installed DG power to drop below max load.
+        // (Can be overridden by --maxLoad=...)
+        TunableParameterPool.setMinTotalDgPowerKw(MAX_LOAD);
 
         // Для SOBOL_* драйверы по годам не нужны по умолчанию.
         // Если вдруг нужен экспорт драйверов при Sobol, можно передать --exportDrivers=...

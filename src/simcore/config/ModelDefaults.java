@@ -9,14 +9,14 @@ public final class ModelDefaults {
 
     // WT
     public static final int DEFAULT_WT_COUNT_TOTAL = 4;
-    public static final double DEFAULT_WT_POWER_KW = 1250;
+    public static final double DEFAULT_WT_POWER_KW = 673;
 
     // DG
     public static final int DEFAULT_DG_COUNT_TOTAL = 6;
-    public static final double DEFAULT_DG_POWER_KW = 625;
+    public static final double DEFAULT_DG_POWER_KW = 336.5;
 
     // Battery
-    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 625;
+    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 336.5;
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.6;
     public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
     public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.4;
@@ -43,7 +43,7 @@ public final class ModelDefaults {
     public static final double DEFAULT_BUS_CCF_BETA_DOUBLE = 0.0;
 
     // ---- Economics defaults ----
-    public static final double DEFAULT_DISCOUNT_RATE = 0.08;
+    public static final double DEFAULT_DISCOUNT_RATE = 0.1;
     public static final double DEFAULT_COST_RU_RUB = 4_000_000;
     public static final double DEFAULT_COST_DG_RUB_PER_KW = 40_000;
     public static final double DEFAULT_COST_DG_RUB_PER_KW_PER_KMH = 1600.0;
