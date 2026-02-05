@@ -22,9 +22,9 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.RUN;
+        Task task = Task.SOBOL_HARD;
         RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 1;
+        int mcIterations = 50;
 
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
         LoadType loadType = LoadType.DEF; // тип нагрузки

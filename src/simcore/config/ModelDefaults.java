@@ -8,12 +8,12 @@ public final class ModelDefaults {
     public static final double DEFAULT_SECOND_CAT = 0.0;
 
     // WT
-    public static final int DEFAULT_WT_COUNT_TOTAL = 6;
-    public static final double DEFAULT_WT_POWER_KW = 224.3;
+    public static final int DEFAULT_WT_COUNT_TOTAL = 4;
+    public static final double DEFAULT_WT_POWER_KW = 673;
 
     // DG
-    public static final int DEFAULT_DG_COUNT_TOTAL = 4;
-    public static final double DEFAULT_DG_POWER_KW = 538.4;
+    public static final int DEFAULT_DG_COUNT_TOTAL = 6;
+    public static final double DEFAULT_DG_POWER_KW = 336.5;
 
     // Battery
     public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 336.5; //336.5
