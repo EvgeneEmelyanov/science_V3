@@ -22,6 +22,10 @@ public class Battery extends Equipment {
     private boolean replaceOnRepair = false;
     private long replacementCount = 0; // количество замен АКБ после деградации ниже указанного уровна
 
+    // Guard against counting battery work time multiple times within the same simulated hour.
+    // PerBusDispatcher may adjust capacity in two phases (start + steady) during one hour.
+    private boolean workedCountedThisHour = false;
+
     public Battery(int id, double capacityKwh, double failureRatePerYear, int repairTimeHours) {
         super("BT", id, failureRatePerYear, repairTimeHours);
         this.nominalCapacityKwh = capacityKwh;
@@ -52,6 +56,10 @@ public class Battery extends Equipment {
     public void updateFailureOneHour(boolean considerFailures) {
         super.updateFailureOneHour(considerFailures);
 
+        // New hour begins (even if the battery is down/under repair):
+        // allow at most one +timeWorked increment within this hour.
+        workedCountedThisHour = false;
+
         if (repairDurationHours > 0 || !status) {
             return;
         }
@@ -70,7 +78,6 @@ public class Battery extends Equipment {
         double minAllowed = SimulationConstants.BATTERY_DEGRADATION_THRESHOLD * nominalCapacityKwh;
         if (maxCapacityKwh <= minAllowed) {
             status = false;
-//            failureCount++;
             replacementCount++;
             repairDurationHours = getRepairTimeHours();
             replaceOnRepair = true;   // отметить, что это именно замена
@@ -154,10 +161,14 @@ public class Battery extends Equipment {
             );
         }
 
-        // Наработка как у тебя
+        // Наработка как у тебя, но не более +1 за час
         if (!doubleTime && Math.abs(energyDelta) > 0.0005 * nominalCapacityKwh) {
-            battery.timeWorked++;
+            if (!workedCountedThisHour) {
+                battery.timeWorked++;
+                workedCountedThisHour = true;
+            }
         }
+
 
         // Деградация: throughput power-law + exp(C-rate)
         if (considerDegradation && energyDelta < 0.0) {
@@ -230,6 +241,4 @@ public class Battery extends Equipment {
             soc = 0.0;
         }
     }
-
-
 }

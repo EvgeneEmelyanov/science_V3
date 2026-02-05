@@ -1,7 +1,6 @@
 package simcore.engine.bus;
 
 import simcore.config.BusSystemType;
-import simcore.config.SimulationConstants;
 import simcore.config.SystemParameters;
 import simcore.model.PowerBus;
 
@@ -21,6 +20,7 @@ public final class BusLoadAllocator {
      * ThreadLocal is required because MC/Sobol can run in parallel.
      */
     private static final ThreadLocal<double[]> TL_OUT_2 = ThreadLocal.withInitial(() -> new double[2]);
+    private static final ThreadLocal<double[]> TL_POT_2 = ThreadLocal.withInitial(() -> new double[2]);
 
     /**
      * @return массив эффективных нагрузок по шинам или null, если перенос не применим
@@ -64,10 +64,10 @@ public final class BusLoadAllocator {
             return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, false, baseLoadsThisHourKw);
         }
 
-        // DOUBLE_BUS: перенос нагрузки только при отказе шины.
-        // При дефиците на одной из двух живых шин нагрузку НЕ переносим.
-        // Дефицит должен решаться переносом ДГУ (см. DgTransferController + SingleRunSimulator).
-        return computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, baseLoadsThisHourKw);
+        // DOUBLE_BUS: перенос нагрузки выполняется ТОЛЬКО при отказе шины.
+        // Если обе шины доступны, перенос нагрузки не выполняется (вместо этого возможен временный перенос ДГУ,
+        // см. SingleRunSimulator).
+        return computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw, baseLoadsThisHourKw);
     }
 
     private static double[] computeEffectiveLoadsForSectional(SystemParameters sp,
@@ -105,6 +105,7 @@ public final class BusLoadAllocator {
             // Для DOUBLE_BUS разрешаем перенос III категории со 2-го часа (т.е. переносима вся нагрузка)
             ratio = allowCat3AfterFirstHour ? 1.0 : (cat1 + cat2);
         }
+        // Ограничиваем долю переносимой нагрузки в [0..1]
         ratio = Math.min(1.0, Math.max(0.0, ratio));
         double transfer = out[dead] * ratio;
 
@@ -119,7 +120,10 @@ public final class BusLoadAllocator {
                                                               int t,
                                                               double cat1,
                                                               double cat2,
+                                                              double windV,
+                                                              double dgMaxKw,
                                                               double[] baseLoadsThisHourKw) {
+        // Базовая нагрузка по шинам
         final int n = buses.size();
         final double[] out = (n == 2) ? TL_OUT_2.get() : new double[n];
         for (int i = 0; i < n; i++) {
@@ -130,13 +134,18 @@ public final class BusLoadAllocator {
             return out;
         }
 
-        // Если одна шина недоступна — перенос нагрузки по категориям:
-        // 1-я категория сразу, со 2-го часа ремонта переносится вся нагрузка (cat3 тоже).
+        // Если одна шина недоступна — используем ту же логику переноса (1-я сразу, 2-я с задержкой)
         if (busAlive[0] != busAlive[1]) {
             return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, true, baseLoadsThisHourKw);
         }
 
-        // Две живые шины: нагрузку НЕ переносим
+        // Если обе недоступны или обе доступны — работаем далее только для случая "обе доступны"
+        if (!busAlive[0] && !busAlive[1]) {
+            return out;
+        }
+
+        // ВАЖНО: при одновременной доступности обеих шин перенос нагрузки не выполняется.
+        // Балансировка в таком случае делается переносом ДГУ (см. SingleRunSimulator).
         return out;
     }
 }

@@ -10,6 +10,7 @@ import simcore.engine.metrics.EnsAllocator;
 import simcore.engine.NetworkFailureStep;
 import simcore.engine.bus.BusLoadAllocator;
 import simcore.engine.bus.TieBreakerController;
+import simcore.engine.bus.BusPotential;
 import simcore.engine.trace.ArrayTraceSession;
 import simcore.engine.trace.NoTraceSession;
 import simcore.engine.trace.TraceSession;
@@ -19,7 +20,10 @@ import simcore.engine.bus.DgTransferController;
 
 import static simcore.economy.RuCostAdjuster.effectiveRuCost;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class SingleRunSimulator {
 
@@ -448,6 +452,93 @@ public final class SingleRunSimulator {
                 doubleBusTransferGen = !firstRepairHour;
             }
 
+            // DOUBLE_BUS: if both buses are alive and there is generation imbalance (surplus on one bus, deficit on the other),
+            // do NOT transfer load. Instead, try to temporarily move unused DGs from the surplus bus to the deficit bus for this hour.
+            // At the end of the hour DGs are considered returned automatically because we only affect dispatch selection for the hour.
+            List<DieselGenerator> dgExtraForBus0 = null;
+            List<DieselGenerator> dgExtraForBus1 = null;
+            Set<DieselGenerator> dgExcludeOnBus0 = null;
+            Set<DieselGenerator> dgExcludeOnBus1 = null;
+
+            if (busType == BusSystemType.DOUBLE_BUS
+                    && busCount == 2
+                    && busAlive[0] && busAlive[1]
+                    && !doubleBusTransferGen) {
+
+                // Potential-based conservative decision (no side effects): WT + max DG + max BT discharge
+                // If one bus has deficit and the other has surplus, transfer whole DG units (dgMaxKw each)
+                // but only if after removal the source bus still has no deficit.
+                final PowerBus bus0 = buses.get(0);
+                final PowerBus bus1 = buses.get(1);
+
+                final double load0 = (effectiveLoadKw != null) ? effectiveLoadKw[0] : rawLoadThisHourKw[0];
+                final double load1 = (effectiveLoadKw != null) ? effectiveLoadKw[1] : rawLoadThisHourKw[1];
+
+                final double pot0 =
+                        BusPotential.windPotentialNoSideEffects(bus0, windV)
+                                + BusPotential.batteryDischargePotential(bus0, sp)
+                                + BusPotential.dieselPotential(bus0, dgMaxKw);
+                final double pot1 =
+                        BusPotential.windPotentialNoSideEffects(bus1, windV)
+                                + BusPotential.batteryDischargePotential(bus1, sp)
+                                + BusPotential.dieselPotential(bus1, dgMaxKw);
+
+                final double deficit0 = Math.max(0.0, load0 - pot0);
+                final double deficit1 = Math.max(0.0, load1 - pot1);
+                final double surplus0 = Math.max(0.0, pot0 - load0);
+                final double surplus1 = Math.max(0.0, pot1 - load1);
+
+                int source = -1;
+                int sink = -1;
+                double deficit = 0.0;
+                double surplus = 0.0;
+                if (deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON) {
+                    sink = 0;
+                    source = 1;
+                    deficit = deficit0;
+                    surplus = surplus1;
+                } else if (deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON) {
+                    sink = 1;
+                    source = 0;
+                    deficit = deficit1;
+                    surplus = surplus0;
+                }
+
+                if (source != -1 && sink != -1) {
+                    int maxTransferBySurplus = (int) Math.floor(surplus / dgMaxKw);
+                    int needByDeficit = (int) Math.ceil(deficit / dgMaxKw);
+                    int transferCount = Math.max(0, Math.min(maxTransferBySurplus, needByDeficit));
+
+                    if (transferCount > 0) {
+                        PowerBus srcBus = buses.get(source);
+
+                        // Only transfer DGs that are available and were NOT working at hour start
+                        // (i.e., truly unused on the source bus in this hour context).
+                        ArrayList<DieselGenerator> transferable = new ArrayList<>();
+                        for (DieselGenerator dg : srcBus.getDieselGenerators()) {
+                            if (!dg.isAvailable()) continue;
+                            if (dg.wasWorkingAtHourStart()) continue;
+                            transferable.add(dg);
+                            if (transferable.size() >= transferCount) break;
+                        }
+
+                        if (!transferable.isEmpty()) {
+                            int actual = Math.min(transferCount, transferable.size());
+                            ArrayList<DieselGenerator> moved = new ArrayList<>(actual);
+                            for (int i = 0; i < actual; i++) moved.add(transferable.get(i));
+
+                            if (sink == 0) {
+                                dgExtraForBus0 = moved; // брекпоинт
+                                dgExcludeOnBus1 = new HashSet<>(moved);
+                            } else {
+                                dgExtraForBus1 = moved;
+                                dgExcludeOnBus0 = new HashSet<>(moved);
+                            }
+                        }
+                    }
+                }
+            }
+
             for (int b = 0; b < busCount; b++) {
                 final PowerBus bus = buses.get(b);
                 final double loadKw = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
@@ -472,8 +563,18 @@ public final class SingleRunSimulator {
                         PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, false, b, loadKw);
                     }
                 } else {
-                    PowerBus extra = (doubleBusTransferGen && b == doubleBusLive) ? buses.get(doubleBusDead) : null;
-                    PerBusDispatcher.dispatchOneBusOneHourWithExtraSources(ctx, bus, extra, true, b, loadKw);
+                    if (doubleBusTransferGen) {
+                        PowerBus extra = (b == doubleBusLive) ? buses.get(doubleBusDead) : null;
+                        PerBusDispatcher.dispatchOneBusOneHourWithExtraSources(ctx, bus, extra, true, b, loadKw);
+                    } else {
+                        List<DieselGenerator> extraDgs = (b == 0) ? dgExtraForBus0 : dgExtraForBus1;
+                        Set<DieselGenerator> excludeDgs = (b == 0) ? dgExcludeOnBus0 : dgExcludeOnBus1;
+                        if (extraDgs != null || excludeDgs != null) {
+                            PerBusDispatcher.dispatchOneBusOneHourWithDgTransfer(ctx, bus, true, b, loadKw, extraDgs, excludeDgs);
+                        } else {
+                            PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, true, b, loadKw);
+                        }
+                    }
                 }
             }
 
