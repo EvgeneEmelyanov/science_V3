@@ -14,6 +14,8 @@ import simcore.engine.trace.ArrayTraceSession;
 import simcore.engine.trace.NoTraceSession;
 import simcore.engine.trace.TraceSession;
 import simcore.economy.*;
+import simcore.engine.bus.DgTransferController;
+
 
 import static simcore.economy.RuCostAdjuster.effectiveRuCost;
 
@@ -427,6 +429,12 @@ public final class SingleRunSimulator {
             }
 
             // ===== Standard per-bus dispatch =====
+            // DOUBLE_BUS: when both buses are alive, do NOT transfer load under deficit.
+// Instead, transfer DGs between buses before dispatch (instant readiness).
+            if (busType == BusSystemType.DOUBLE_BUS && busCount == 2 && busAlive[0] && busAlive[1]) {
+                DgTransferController.transferDieselsIfNeeded(sp, buses, busAlive, rawLoadThisHourKw, windV, dgMaxKw);
+            }
+
             // DOUBLE_BUS: if one bus is down, from the 2nd repair hour transfer ALL DG and WT from the dead bus
             // onto the live bus (in addition to load transfer performed in BusLoadAllocator).
             int doubleBusDead = -1;

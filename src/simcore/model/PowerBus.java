@@ -16,12 +16,6 @@ public class PowerBus extends Equipment {
     private final List<DieselGenerator> dieselGenerators = new ArrayList<>();
     private Battery battery;
 
-    /**
-     * @param id                 id шины
-     * @param loadKw             массив нагрузки по часам, кВт
-     * @param failureRatePerYear частота отказов шины, 1/год
-     * @param repairTimeHours    длительность ремонта шины, ч
-     */
     public PowerBus(int id,
                     double[] loadKw,
                     double failureRatePerYear,
@@ -52,6 +46,12 @@ public class PowerBus extends Equipment {
 
     public void addDieselGenerator(DieselGenerator dg) {
         dieselGenerators.add(dg);
+        // connectivity marker (для дебага/трейса)
+        dg.setBusId(getId());
+    }
+
+    public boolean removeDieselGenerator(DieselGenerator dg) {
+        return dieselGenerators.remove(dg);
     }
 
     public void setBattery(Battery battery) {

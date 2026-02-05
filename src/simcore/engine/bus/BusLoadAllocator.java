@@ -21,7 +21,6 @@ public final class BusLoadAllocator {
      * ThreadLocal is required because MC/Sobol can run in parallel.
      */
     private static final ThreadLocal<double[]> TL_OUT_2 = ThreadLocal.withInitial(() -> new double[2]);
-    private static final ThreadLocal<double[]> TL_POT_2 = ThreadLocal.withInitial(() -> new double[2]);
 
     /**
      * @return массив эффективных нагрузок по шинам или null, если перенос не применим
@@ -65,8 +64,10 @@ public final class BusLoadAllocator {
             return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, false, baseLoadsThisHourKw);
         }
 
-        // DOUBLE_BUS: перенос 1/2 категории при отказе шины И при дефиците мощности на одной из шин
-        return computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw, baseLoadsThisHourKw);
+        // DOUBLE_BUS: перенос нагрузки только при отказе шины.
+        // При дефиците на одной из двух живых шин нагрузку НЕ переносим.
+        // Дефицит должен решаться переносом ДГУ (см. DgTransferController + SingleRunSimulator).
+        return computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, baseLoadsThisHourKw);
     }
 
     private static double[] computeEffectiveLoadsForSectional(SystemParameters sp,
@@ -104,7 +105,6 @@ public final class BusLoadAllocator {
             // Для DOUBLE_BUS разрешаем перенос III категории со 2-го часа (т.е. переносима вся нагрузка)
             ratio = allowCat3AfterFirstHour ? 1.0 : (cat1 + cat2);
         }
-        // Ограничиваем долю переносимой нагрузки в [0..1]
         ratio = Math.min(1.0, Math.max(0.0, ratio));
         double transfer = out[dead] * ratio;
 
@@ -119,10 +119,7 @@ public final class BusLoadAllocator {
                                                               int t,
                                                               double cat1,
                                                               double cat2,
-                                                              double windV,
-                                                              double dgMaxKw,
                                                               double[] baseLoadsThisHourKw) {
-        // Базовая нагрузка по шинам
         final int n = buses.size();
         final double[] out = (n == 2) ? TL_OUT_2.get() : new double[n];
         for (int i = 0; i < n; i++) {
@@ -133,50 +130,13 @@ public final class BusLoadAllocator {
             return out;
         }
 
-        // Если одна шина недоступна — используем ту же логику переноса (1-я сразу, 2-я с задержкой)
+        // Если одна шина недоступна — перенос нагрузки по категориям:
+        // 1-я категория сразу, со 2-го часа ремонта переносится вся нагрузка (cat3 тоже).
         if (busAlive[0] != busAlive[1]) {
             return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, true, baseLoadsThisHourKw);
         }
 
-        // Если обе недоступны или обе доступны — работаем далее только для случая "обе доступны"
-        if (!busAlive[0] && !busAlive[1]) {
-            return out;
-        }
-
-        // Перенос при дефиците: если на одной шине не хватает потенциальной генерации (WT + DGmax + АКБ),
-        // а на другой есть запас, переносим часть двухвводных потребителей (cat1+cat2) на другую шину.
-        double[] pot = TL_POT_2.get();
-        pot[0] = pot[1] = 0.0;
-        for (int b = 0; b < 2; b++) {
-            PowerBus bus = buses.get(b);
-            double windPot = BusPotential.windPotentialNoSideEffects(bus, windV);
-            double dgPot = BusPotential.dieselPotential(bus, dgMaxKw);
-            double btPot = BusPotential.batteryDischargePotential(bus, sp);
-            pot[b] = windPot + dgPot + btPot;
-        }
-
-        double deficit0 = Math.max(0.0, out[0] - pot[0]);
-        double deficit1 = Math.max(0.0, out[1] - pot[1]);
-        double surplus0 = Math.max(0.0, pot[0] - out[0]);
-        double surplus1 = Math.max(0.0, pot[1] - out[1]);
-
-        // Для DOUBLE_BUS при дефиците разрешаем переносить и III категорию (если требуется),
-        // т.е. теоретически переносима вся нагрузка. Перенос I/II при отказе шины остаётся
-        // в computeEffectiveLoadsForSectional(...).
-        double movableRatio = 1.0;
-
-        if (deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON) {
-            double maxMovable = out[0] * movableRatio;
-            double transfer = Math.min(deficit0, Math.min(surplus1, maxMovable));
-            out[0] = Math.max(0.0, out[0] - transfer);
-            out[1] += transfer;
-        } else if (deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON) {
-            double maxMovable = out[1] * movableRatio;
-            double transfer = Math.min(deficit1, Math.min(surplus0, maxMovable));
-            out[1] = Math.max(0.0, out[1] - transfer);
-            out[0] += transfer;
-        }
-
+        // Две живые шины: нагрузку НЕ переносим
         return out;
     }
 }

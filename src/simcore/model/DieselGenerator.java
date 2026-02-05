@@ -11,6 +11,9 @@ public class DieselGenerator extends Equipment {
 
     private final double ratedPowerKw;
     private double currentLoad;
+    /** Physical bus id this DG is currently connected to (for DOUBLE_BUS transfer modeling). */
+    private int busId = -1;
+
 
     private int totalTimeWorked = 0;
     private int idleTime = 0;
@@ -43,6 +46,19 @@ public class DieselGenerator extends Equipment {
         super("DG", id, failureRatePerYear, repairTimeHours);
         this.ratedPowerKw = ratedPowerKw;
     }
+
+    public int getBusId() {
+        return busId;
+    }
+
+    /**
+     * Update the bus id this DG is connected to.
+     * Note: this does NOT move the DG between buses; the caller must also update PowerBus lists.
+     */
+    public void setBusId(int busId) {
+        this.busId = busId;
+    }
+
 
     private boolean wasIdleThisHour = false;
 
