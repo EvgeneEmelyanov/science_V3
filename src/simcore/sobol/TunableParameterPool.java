@@ -38,7 +38,7 @@ public final class TunableParameterPool {
                         TunableParamId.FIRST_CAT,
                         "FIRST_CAT",
                         0,
-                        1,
+                        0.5,
                         (b, v) -> {
                             double k1 = clamp(v, 0.0, 1.0);
                             double k2 = clamp01(b.getSecondCat());
@@ -54,7 +54,7 @@ public final class TunableParameterPool {
                         TunableParamId.SECOND_CAT,
                         "SECOND_CAT",
                         0,
-                        1,
+                        0.5,
                         (b, v) -> {
                             double k1 = clamp01(b.getFirstCat());
                             double k2 = clamp(v, 0.0, 1.0);
@@ -263,8 +263,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_RU_RUB,
                         "COST_RU_RUB",
-                        minFromBase(ModelDefaults.DEFAULT_COST_RU_RUB, 0.5, 2000000),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_RU_RUB, 2, 8000000),
+                        minFromBase(ModelDefaults.DEFAULT_COST_RU_RUB, 0.5, 2_500_000),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_RU_RUB, 1.5, 7_500_000),
                         SystemParametersBuilder::setCostRuRub
                 ));
 
@@ -353,8 +353,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DAMAGE_RUB_PER_KWH_CAT3,
                         "DAMAGE_RUB_PER_KWH_CAT3",
-                        minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 0.5, 350),
-                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 1.5, 1050),
+                        minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 0.5, 250),
+                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 1.5, 750),
                         SystemParametersBuilder::setDamageRubPerKwhCat3
                 ));
         PARAMS = Collections.unmodifiableMap(m);
