@@ -76,4 +76,39 @@ public final class EnsAllocator {
         totals.ensCat1Kwh += ens1;
         totals.ensCat2Kwh += ens2;
     }
+
+    /**
+     * Same as {@link #addEnsByCategoryPriority321(Totals, double, double, double, double)} but for partial-hour events.
+     *
+     * @param shedPowerKw disconnected load (kW)
+     * @param durationHours duration within the current hour (0..1)
+     */
+    public static void addEnsByCategoryPriority321Duration(
+            Totals totals,
+            double loadKw,
+            double shedPowerKw,
+            double cat1,
+            double cat2,
+            double durationHours
+    ) {
+        if (durationHours <= SimulationConstants.EPSILON) return;
+        double ensKwh = shedPowerKw * durationHours;
+        if (ensKwh <= SimulationConstants.EPSILON) return;
+        // For category allocation we use the disconnected POWER portion at this hour, not energy.
+        // Allocation itself is linear, so multiplying by duration is equivalent.
+        double p1 = loadKw * cat1;
+        double p2 = loadKw * cat2;
+        double p3 = Math.max(0.0, loadKw - p1 - p2);
+
+        double shed3 = Math.min(shedPowerKw, p3);
+        double restAfter3 = Math.max(0.0, shedPowerKw - shed3);
+
+        double shed2 = Math.min(restAfter3, p2);
+        double restAfter2 = Math.max(0.0, restAfter3 - shed2);
+
+        double shed1 = Math.min(restAfter2, p1);
+
+        totals.ensCat1Kwh += shed1 * durationHours;
+        totals.ensCat2Kwh += shed2 * durationHours;
+    }
 }

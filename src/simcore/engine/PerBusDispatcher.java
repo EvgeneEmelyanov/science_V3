@@ -294,13 +294,12 @@ final class PerBusDispatcher {
                     btNetKw += btDisKw;
                 }
             } else {
-
-                final boolean canUseOptimal = (ctx.perDgOptimalKw * available >= deficitAfterWindKw);
-                final int needed = canUseOptimal
-                        ? (int) Math.ceil(deficitAfterWindKw / ctx.perDgOptimalKw)
-                        : (int) Math.ceil(deficitAfterWindKw / ctx.dgMaxKw);
-
-                final int dgCountPlanned = Math.min(needed, available);
+                // IMPORTANT:
+                // "Оптимальная" нагрузка ДГУ (perDgOptimalKw) — это цель по экономичности,
+                // но НЕ жёсткое ограничение по мощности. В противном случае модель начинает
+                // включать лишние ДГУ и получать искусственный дефицит/UFLS.
+                final int needed = (int) Math.ceil(deficitAfterWindKw / ctx.dgMaxKw);
+                final int dgCountPlanned = Math.min(Math.max(needed, 0), available);
                 int dgToUse = dgCountPlanned;
 
                 // выбрать минимальное i, где АКБ может покрыть старт/дефицит
@@ -323,9 +322,9 @@ final class PerBusDispatcher {
                         startDefKw = Math.max(0.0, deficitAfterWindKw - dgPowerReadyStartKw);
                         startEnergyKwh = startDefKw * tauEff;
 
-                        double perDgSteadyKw = canUseOptimal
-                                ? Math.min(deficitAfterWindKw / i, ctx.perDgOptimalKw)
-                                : Math.min(deficitAfterWindKw / i, ctx.dgMaxKw);
+                        // В steady-части можно поднимать нагрузку до dgMaxKw.
+                        // perDgOptimalKw здесь не ограничивает, это лишь target по экономичности.
+                        double perDgSteadyKw = Math.min(deficitAfterWindKw / i, ctx.dgMaxKw);
 
                         double totalSteadyKw = perDgSteadyKw * i;
                         steadyDefKw = Math.max(0.0, deficitAfterWindKw - totalSteadyKw);
@@ -463,14 +462,46 @@ final class PerBusDispatcher {
 
                 double perDgSteadyKw = 0.0;
                 if (dgToUse > 0) {
-                    perDgSteadyKw = canUseOptimal
-                            ? (deficitAfterWindKw / dgToUse)
-                            : Math.min(deficitAfterWindKw / dgToUse, ctx.dgMaxKw);
-
-                    if (canUseOptimal && perDgSteadyKw > ctx.perDgOptimalKw) perDgSteadyKw = ctx.perDgOptimalKw;
+                    perDgSteadyKw = Math.min(deficitAfterWindKw / dgToUse, ctx.dgMaxKw);
                 }
 
-                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
+                // ===== Partial-hour shedding during DG start delay (if battery cannot bridge start deficit) =====
+                // Scenario: previously DGs were off (or not ready), now we need them. If start delay exists
+                // and the battery cannot cover the deficit during the start window, we model partial blackout/UFLS
+                // over the start window only (tauEff fraction of the hour) with 10% steps.
+                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking && btAvail) {
+                    double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
+                    double shedKw = 0.0;
+                    if (startDefKw > SimulationConstants.EPSILON
+                            && !SingleRunSimulator.canBatteryBridge(battery, ctx.sp, startDefKw, tauEff, btDisCapKw)) {
+                        double stepKw = UFLS_STEP * loadKw;
+                        if (stepKw <= SimulationConstants.EPSILON) stepKw = loadKw;
+                        while (shedKw + SimulationConstants.EPSILON < loadKw) {
+                            shedKw += stepKw;
+                            double newStartDef = Math.max(0.0, startDefKw - shedKw);
+                            if (SingleRunSimulator.canBatteryBridge(battery, ctx.sp, newStartDef, tauEff, btDisCapKw)) {
+                                break;
+                            }
+                        }
+                        if (shedKw > loadKw) shedKw = loadKw;
+
+                        if (shedKw > SimulationConstants.EPSILON) {
+                            double ensStartKwh = shedKw * tauEff;
+                            ctx.totals.ensKwh += ensStartKwh;
+                            EnsAllocator.addEnsByCategoryPriority321Duration(ctx.totals, loadKw, shedKw, ctx.cat1, ctx.cat2, tauEff);
+
+                            int pct = (int) Math.round(100.0 * (shedKw / Math.max(loadKw, SimulationConstants.EPSILON)));
+                            ctx.status.set(HourContext.StatusCollector.PRI_BLACKOUT, "BLACKOUT_PARTIAL_DG_START_DELAY;UFLS_SHED_" + pct + "%");
+                        }
+                    }
+
+                    // If still not bridgeable even after full shed (edge cases), fall back to ENS estimate (conservative).
+                    double bridgeDefKw = Math.max(0.0, startDefKw - shedKw);
+                    if (bridgeDefKw > SimulationConstants.EPSILON
+                            && !SingleRunSimulator.canBatteryBridge(battery, ctx.sp, bridgeDefKw, tauEff, btDisCapKw)) {
+                        startDelayEnsEstimateKwh = bridgeDefKw * tauEff;
+                    }
+                } else if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
                     double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
                     startDelayEnsEstimateKwh = startDefKw * tauEff;
                 }
@@ -572,10 +603,7 @@ final class PerBusDispatcher {
                 }
                 dgProducedKw = Math.min(firstsumFinalDieselKw, sumFinalDieselKw);
 
-                if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
-                    double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
-                    startDelayEnsEstimateKwh = startDefKw * tauEff;
-                }
+                // NOTE: startDelayEnsEstimateKwh is computed earlier together with partial-hour UFLS/blackout logic.
 
                 boolean allowChargeNow = canCharge && anyBurnThisHour;
 
