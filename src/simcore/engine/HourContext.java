@@ -26,6 +26,36 @@ final class HourContext {
     final double[] hourWreRef;
     final TraceSession trace;
 
+    final StatusCollector status;
+
+    static final class StatusCollector {
+        // Higher value => higher priority.
+        static final int PRI_NORMAL = 0;
+        static final int PRI_FAILURE = 30;
+        static final int PRI_UFLS = 60;
+        static final int PRI_TRANSFER = 70;
+        static final int PRI_PARTIAL_BLACKOUT = 80;
+        static final int PRI_BLACKOUT = 90;
+
+        private int pri = PRI_NORMAL;
+        private String text = "NORMAL";
+
+        void set(int priority, String value) {
+            if (value == null || value.isEmpty()) return;
+            if (priority > pri) {
+                pri = priority;
+                text = value;
+            } else if (priority == pri && text != null && !text.isEmpty() && !text.equals(value)) {
+                // Keep short: append only if different and same priority.
+                text = text + "; " + value;
+            }
+        }
+
+        String get() {
+            return (text == null) ? "" : text;
+        }
+    }
+
     HourContext(
             SystemParameters sp,
             double windV,
@@ -58,5 +88,6 @@ final class HourContext {
         this.totals = totals;
         this.hourWreRef = hourWreRef;
         this.trace = trace;
+        this.status = new StatusCollector();
     }
 }

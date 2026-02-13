@@ -12,6 +12,30 @@ import simcore.model.*;
 final class PerBusDispatcher {
     private PerBusDispatcher() {}
 
+    // ===== New logic constants (engine-level, not parameters) =====
+    private static final double BESS_GRID_FORMING_SOC_MIN = 0.20;
+    private static final double UFLS_STEP = 0.10;
+
+    private static double uflsEnsRounded(double loadKw, double deficitKw) {
+        if (deficitKw <= SimulationConstants.EPSILON) return 0.0;
+        if (loadKw <= SimulationConstants.EPSILON) return deficitKw;
+        double stepKw = UFLS_STEP * loadKw;
+        if (stepKw <= SimulationConstants.EPSILON) return Math.min(loadKw, deficitKw);
+        long steps = (long) Math.ceil(deficitKw / stepKw);
+        double shed = steps * stepKw;
+        if (shed > loadKw) shed = loadKw;
+        return shed;
+    }
+
+    private static boolean batteryCanGridForming(HourContext ctx, Battery battery, double loadKw) {
+        if (battery == null || !battery.isAvailable()) return false;
+        if (battery.getStateOfCharge() < BESS_GRID_FORMING_SOC_MIN) return false;
+        // Must be able to support at least Cat I load (if categories used).
+        double loadCat1Kw = loadKw * ctx.cat1;
+        double disCapKw = battery.getDischargeCapacity(ctx.sp);
+        return disCapKw >= (loadCat1Kw - SimulationConstants.EPSILON);
+    }
+
     /**
      * Dispatch for a bus with optional DG transfer.
      *
@@ -113,14 +137,44 @@ final class PerBusDispatcher {
             return;
         }
 
+        // ===== A1: "bus energised" requires a grid-forming source =====
+        final Battery battery = bus.getBattery();
+        final boolean btGridForming = batteryCanGridForming(ctx, battery, loadKw);
+
+        final DieselGenerator[] dgsForGridForming = collectDgs(bus, extraSourceBus, extraDgs, excludeLocalDgs);
+        boolean dgGridForming = false;
+        for (DieselGenerator dg : dgsForGridForming) {
+            if (dg.isAvailable() && dg.isWorking()) {
+                dgGridForming = true;
+                break;
+            }
+        }
+
+        if (!dgGridForming && !btGridForming) {
+            // Blackout on this bus (even if the physical bus didn't fail).
+            DieselGenerator.stopAllDieselsOnBus(bus);
+            // WT are grid-following: without grid-forming they cannot operate.
+            double defKw = loadKw;
+            ctx.totals.ensKwh += defKw;
+            EnsAllocator.addEnsByCategoryPriority321(ctx.totals, loadKw, defKw, ctx.cat1, ctx.cat2);
+            ctx.status.set(HourContext.StatusCollector.PRI_BLACKOUT, "BUS_BLACKOUT_NO_GRID_FORMING");
+
+            if (ctx.trace.enabled()) {
+                ctx.trace.setBusDown(b, loadKw, defKw);
+                ctx.trace.fillDgState(b, bus);
+                ctx.trace.fillBatteryState(b, battery);
+            }
+            return;
+        }
+
         bus.addWorkTime(1);
 
+        // WT work only if there is grid-forming somewhere on the bus.
         double windPotentialKw = SingleRunSimulator.computeWindPotential(bus, ctx.windV);
         if (extraSourceBus != null) {
             windPotentialKw += SingleRunSimulator.computeWindPotential(extraSourceBus, ctx.windV);
         }
 
-        final Battery battery = bus.getBattery();
         final boolean btAvail = battery != null && battery.isAvailable();
 
         double windToLoadKw = 0.0;
@@ -134,37 +188,80 @@ final class PerBusDispatcher {
 
         if (windPotentialKw >= loadKw - SimulationConstants.EPSILON) {
             // ===== Wind surplus case =====
-            windToLoadKw = loadKw;
+            // A2: if WT >= Load and BESS can be grid-forming -> DG off, surplus to charge, then curtail.
+            // If BESS cannot be grid-forming -> keep DG as grid-forming at min loading, curtail WT if needed.
 
-            double surplusKw = Math.max(0.0, windPotentialKw - loadKw);
+            DieselGenerator[] dgsFinal = collectDgs(bus, extraSourceBus, extraDgs, excludeLocalDgs);
 
-            if (btAvail && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC) {
-                double chargeCapKw = battery.getChargeCapacity(ctx.sp);
-                double chargeKw = Math.min(surplusKw, chargeCapKw);
-                if (chargeKw > SimulationConstants.EPSILON) {
-                    battery.adjustCapacity(battery, chargeKw, chargeKw, false, ctx.considerDegradation);
-                    btNetKw -= chargeKw;
-                    surplusKw -= chargeKw;
+            if (btGridForming) {
+                // DGs off
+                DieselGenerator.stopAllDieselsOnBus(bus);
+                for (DieselGenerator dg : dgsFinal) {
+                    dg.stopWork();
+                    dg.setCurrentLoad(0.0);
+                }
+
+                windToLoadKw = loadKw;
+                double surplusKw = Math.max(0.0, windPotentialKw - windToLoadKw);
+
+                if (btAvail && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC) {
+                    double chargeCapKw = battery.getChargeCapacity(ctx.sp);
+                    double chargeKw = Math.min(surplusKw, chargeCapKw);
+                    if (chargeKw > SimulationConstants.EPSILON) {
+                        battery.adjustCapacity(battery, chargeKw, chargeKw, false, ctx.considerDegradation);
+                        btNetKw -= chargeKw;
+                        surplusKw -= chargeKw;
+                    }
+                }
+
+                wreLocal = Math.max(0.0, surplusKw);
+
+            } else {
+                // Keep at least one DG running as grid-forming at min load.
+                DieselGenerator chosen = null;
+                for (DieselGenerator dg : dgsFinal) {
+                    if (!dg.isAvailable()) continue;
+                    chosen = dg;
+                    break;
+                }
+
+                if (chosen != null) {
+                    chosen.startWork();
+                    chosen.setCurrentLoad(ctx.dgMinKw);
+                    dgProducedKw = ctx.dgMinKw;
+                    dgToLoadKwLocal = Math.min(loadKw, dgProducedKw);
+
+                    // Stop all other DGs (for this hour) to keep minimal load only.
+                    for (DieselGenerator dg : dgsFinal) {
+                        if (dg == chosen) continue;
+                        dg.stopWork();
+                        dg.setCurrentLoad(0.0);
+                    }
+
+                    double remainingLoadKw = Math.max(0.0, loadKw - dgToLoadKwLocal);
+                    windToLoadKw = remainingLoadKw;
+                    double surplusKw = Math.max(0.0, windPotentialKw - windToLoadKw);
+
+                    if (btAvail && battery.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC) {
+                        double chargeCapKw = battery.getChargeCapacity(ctx.sp);
+                        double chargeKw = Math.min(surplusKw, chargeCapKw);
+                        if (chargeKw > SimulationConstants.EPSILON) {
+                            battery.adjustCapacity(battery, chargeKw, chargeKw, false, ctx.considerDegradation);
+                            btNetKw -= chargeKw;
+                            surplusKw -= chargeKw;
+                        }
+                    }
+
+                    wreLocal = Math.max(0.0, surplusKw);
+                    ctx.status.set(HourContext.StatusCollector.PRI_NORMAL, "WT_GE_LOAD_DG_MIN_30%");
+                } else {
+                    // No available DG (should be rare here because A1 already ensured some grid-forming), fallback:
+                    windToLoadKw = loadKw;
+                    wreLocal = Math.max(0.0, windPotentialKw - windToLoadKw);
                 }
             }
 
-            wreLocal = Math.max(0.0, surplusKw);
-
-            SingleRunSimulator.applyIdleReserveInWindSurplus(
-                    bus,
-                    ctx.sp,
-                    loadKw,
-                    windToLoadKw,
-                    ctx.cat1,
-                    ctx.cat2,
-                    btAvail,
-                    battery,
-                    ctx.dgRatedKw,
-                    ctx.dgMinKw,
-                    ctx.dgStartDelayHours
-            );
-
-            DieselGenerator[] dgsFinal = collectDgs(bus, extraSourceBus, extraDgs, excludeLocalDgs);
+            // finalize diesel states + fuel burn
             SingleRunSimulator.finalizeIdleAndBurn(ctx, dgsFinal, ctx.dgMinKw);
             SingleRunSimulator.finalizeStoppedDgs(dgsFinal);
 
@@ -523,8 +620,16 @@ final class PerBusDispatcher {
         }
 
         if (defKw > SimulationConstants.EPSILON) {
-            ctx.totals.ensKwh += defKw;
-            EnsAllocator.addEnsByCategoryProportional(ctx.totals, loadKw, defKw, ctx.cat1, ctx.cat2);
+            // ===== A3: UFLS stepwise shedding (10% steps, round up) =====
+            double uflsEns = uflsEnsRounded(loadKw, defKw);
+            if (uflsEns > SimulationConstants.EPSILON) {
+                ctx.totals.ensKwh += uflsEns;
+                EnsAllocator.addEnsByCategoryPriority321(ctx.totals, loadKw, uflsEns, ctx.cat1, ctx.cat2);
+
+                int pct = (int) Math.round(100.0 * (uflsEns / Math.max(loadKw, SimulationConstants.EPSILON)));
+                ctx.status.set(HourContext.StatusCollector.PRI_UFLS, "UFLS_SHED_" + pct + "%");
+            }
+            defKw = uflsEns;
         }
 
         if (ctx.trace.enabled()) {

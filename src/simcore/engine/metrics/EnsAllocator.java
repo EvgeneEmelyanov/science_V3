@@ -52,4 +52,28 @@ public final class EnsAllocator {
         totals.ensCat1Kwh += ens1;
         totals.ensCat2Kwh += ens2;
     }
+
+    /**
+     * ENS allocation with priority of shedding: Cat III -> Cat II -> Cat I.
+     * (Used for UFLS-like mechanisms and blackout where categories are disconnected in priority order.)
+     */
+    public static void addEnsByCategoryPriority321(Totals totals, double loadKw, double ensKw, double cat1, double cat2) {
+        if (ensKw <= SimulationConstants.EPSILON) return;
+        if (loadKw <= SimulationConstants.EPSILON) return;
+
+        double p1 = loadKw * cat1;
+        double p2 = loadKw * cat2;
+        double p3 = Math.max(0.0, loadKw - p1 - p2);
+
+        double ens3 = Math.min(ensKw, p3);
+        double restAfter3 = Math.max(0.0, ensKw - ens3);
+
+        double ens2 = Math.min(restAfter3, p2);
+        double restAfter2 = Math.max(0.0, restAfter3 - ens2);
+
+        double ens1 = Math.min(restAfter2, p1);
+
+        totals.ensCat1Kwh += ens1;
+        totals.ensCat2Kwh += ens2;
+    }
 }

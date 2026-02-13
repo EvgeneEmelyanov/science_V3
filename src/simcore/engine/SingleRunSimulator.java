@@ -226,6 +226,45 @@ public final class SingleRunSimulator {
                     trace
             );
 
+            // ===== Trace status (failures / repairs) =====
+            boolean anyBusFailed = false;
+            for (int b = 0; b < busCount; b++) {
+                if (busFailedThisHour[b]) { anyBusFailed = true; break; }
+            }
+            if (anyBusFailed) {
+                ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "BUS_FAILED");
+            }
+
+            int dgFailedNow = 0;
+            int wtFailedNow = 0;
+            int btFailedNow = 0;
+            for (PowerBus bus : buses) {
+                for (DieselGenerator dg : bus.getDieselGenerators()) {
+                    if (!dg.isAvailable() && dg.getRepairDurationHours() > 0) {
+                        // First hour of repair/maintenance.
+                        if (dg.getRepairDurationHours() == dg.getRepairTimeHours() || dg.isInMaintenance()) {
+                            dgFailedNow++;
+                        }
+                    }
+                }
+                for (WindTurbine wt : bus.getWindTurbines()) {
+                    if (!wt.isAvailable() && wt.getRepairDurationHours() > 0
+                            && wt.getRepairDurationHours() == wt.getRepairTimeHours()) {
+                        wtFailedNow++;
+                    }
+                }
+
+                Battery bt = bus.getBattery();
+                if (bt != null && !bt.isAvailable() && bt.getRepairDurationHours() > 0
+                        && bt.getRepairDurationHours() == bt.getRepairTimeHours()) {
+                    btFailedNow++;
+                }
+            }
+
+            if (dgFailedNow > 0) ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "DG_FAILED: " + dgFailedNow);
+            if (wtFailedNow > 0) ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "WT_FAILED: " + wtFailedNow);
+            if (btFailedNow > 0) ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "BESS_FAILED: " + btFailedNow);
+
             // ENS event statistics: track per-hour ENS and "start ENS" (DG start delay ENS)
             final double ensBeforeHour = totals.ensKwh;
             final double startEnsBeforeHour = totals.startEnsKwh;
@@ -348,7 +387,7 @@ public final class SingleRunSimulator {
                     }
 
                     Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
-                    trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
+                    trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed, ctx.status.get());
                 }
 
                 // ENS event stats (whole system, per hour)
@@ -584,7 +623,7 @@ public final class SingleRunSimulator {
                 }
                 totalWreAtTime = hourWreRef[0];
                 Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
-                trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
+                trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed, ctx.status.get());
             }
 
             // ENS event stats (whole system, per hour)

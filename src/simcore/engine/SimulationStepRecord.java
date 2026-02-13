@@ -12,6 +12,9 @@ public class SimulationStepRecord {
     private final double totalDeficitKw;
     private final double totalWreKw;
 
+    /** Краткое описание режима/события за час (для trace). */
+    private final String status;
+
     /** null если межсекционного автомата нет */
     private final Boolean breakerClosed;
 
@@ -47,6 +50,7 @@ public class SimulationStepRecord {
                                 double totalDeficitKw,
                                 double totalWreKw,
                                 Boolean breakerClosed,
+                                String status,
                                 boolean[] busStatus,
                                 double[] busLoadKw,
                                 double[] busGenWindKw,
@@ -69,6 +73,7 @@ public class SimulationStepRecord {
         this.totalDeficitKw = totalDeficitKw;
         this.totalWreKw = totalWreKw;
         this.breakerClosed = breakerClosed;
+        this.status = (status == null) ? "" : status;
 
         this.busStatus = busStatus.clone();
         this.busLoadKw = busLoadKw.clone();
@@ -119,6 +124,10 @@ public class SimulationStepRecord {
 
     public double getTotalWreKw() {
         return totalWreKw;
+    }
+
+    public String getStatus() {
+        return status;
     }
 
     public Boolean getBreakerClosed() {

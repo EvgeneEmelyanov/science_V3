@@ -18,20 +18,21 @@ public class Main {
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
+
     public static double MAX_LOAD;
 
     private static final class Cli {
 
-        Task task = Task.SOBOL_HARD;
+        Task task = Task.RUN;
         RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 50;
+        int mcIterations = 1;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
 
-//         String exportDriversPath = "D:/econ_drivers.csv";
+//                 String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
         // Econ sobol
         String econDriversPath = "D:/econ_drivers.csv";
@@ -132,10 +133,12 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
-                                .setFirstCat(p1)
-                                .setBatteryCapacityKwhPerBus(p2)
-//                        .setNonReserveDischargeLevel(p1)
-//                                .setMaxDischargeCurrent(p2)
+//                                .setWindTurbinePowerKw(p1)
+//                                .setDieselGeneratorPowerKw(p2)
+//                                .setFirstCat(p1)
+                                .setBatteryCapacityKwhPerBus(p1*1346/2)
+//                                 .setNonReserveDischargeLevel(p2)
+                                .setMaxDischargeCurrent(p2)
 //                                .setDieselGeneratorFailureRatePerYear(p2)
 //                                .setDieselGeneratorRepairTimeHours(p2)
                                 .build();
@@ -158,11 +161,16 @@ public class Main {
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
         // ===== Axes (edit here) =====
+//        double[] param1 = new double[]{0, 168.25, 336.5, 673, 1346}; // Мощность ВЭУ
+//        double[] param2 = new double[]{336.5, 420.625, 504.75, 588.875, 673.0, 757.125, 841.25}; // Мощность ДГУ для 4 шт
+//        double[] param2 = new double[]{224.3333333, 280.4166667, 336.5, 392.5833333, 448.6666667, 504.75, 560.8333333}; // Мощность ДГУ для 6 шт
+//        double[] param2 = new double[]{168.25, 210.3125, 252.375, 294.4375, 336.5, 378.5625, 420.625}; // Мощность ДГУ для 8 шт
+
+
         double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-        double[] param2 = new double[]{0.0, 125, 250, 375, 500, 625, 750, 875, 900, 1125, 1250};
-//        double[] param1 = new double[]{0.0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500};
-//        double[] param1 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
-//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+
+//        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
+        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
 //        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};
@@ -216,8 +224,8 @@ public class Main {
                 TunableParamId.FIRST_CAT,
                 TunableParamId.SECOND_CAT,
 
-                TunableParamId.DG_POWER,
-                TunableParamId.DG_COUNT,
+//                TunableParamId.DG_POWER,
+//                TunableParamId.DG_COUNT,
 
                 TunableParamId.WT_POWER,
                 TunableParamId.WT_COUNT,
@@ -595,7 +603,8 @@ public class Main {
         );
     }
 
-    private record EconInputs(UnitCosts costs, double discountRatePerYear) {}
+    private record EconInputs(UnitCosts costs, double discountRatePerYear) {
+    }
 
     private static EconInputs econInputsFromUnitRow(double[] u01, List<TunableParamId> ids, BusSystemType busType) {
         // Порядок ids должен совпадать с заполнением строки u01

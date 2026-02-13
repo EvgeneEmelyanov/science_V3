@@ -45,11 +45,13 @@ public final class NoTraceSession implements TraceSession {
         // no-op
     }
 
+    @Override
     public void addHourRecord(int timeIndex,
                               double totalLoadKw,
                               double totalDeficitKw,
                               double totalWreKw,
-                              Boolean breakerClosed) {
+                              Boolean breakerClosed,
+                              String status) {
         // no-op
     }
 
