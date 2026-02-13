@@ -182,7 +182,8 @@ final class PerBusDispatcher {
         double dgToLoadKwLocal = 0.0;
         double btNetKw = 0.0; // >0 discharge, <0 charge
         double wreLocal = 0.0;
-        double startDelayEnsEstimateKwh = 0.0;
+        // ENS on this bus for this hour (kWh, since model step = 1 hour)
+        double ensBusKwh = 0.0;
         // эффективная задержка запуска ДГУ за этот час
         double tauEff = 0.0;
 
@@ -488,6 +489,7 @@ final class PerBusDispatcher {
                         if (shedKw > SimulationConstants.EPSILON) {
                             double ensStartKwh = shedKw * tauEff;
                             ctx.totals.ensKwh += ensStartKwh;
+                            ensBusKwh += ensStartKwh;
                             EnsAllocator.addEnsByCategoryPriority321Duration(ctx.totals, loadKw, shedKw, ctx.cat1, ctx.cat2, tauEff);
 
                             int pct = (int) Math.round(100.0 * (shedKw / Math.max(loadKw, SimulationConstants.EPSILON)));
@@ -495,15 +497,6 @@ final class PerBusDispatcher {
                         }
                     }
 
-                    // If still not bridgeable even after full shed (edge cases), fall back to ENS estimate (conservative).
-                    double bridgeDefKw = Math.max(0.0, startDefKw - shedKw);
-                    if (bridgeDefKw > SimulationConstants.EPSILON
-                            && !SingleRunSimulator.canBatteryBridge(battery, ctx.sp, bridgeDefKw, tauEff, btDisCapKw)) {
-                        startDelayEnsEstimateKwh = bridgeDefKw * tauEff;
-                    }
-                } else if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
-                    double startDefKw = Math.max(0.0, deficitAfterWindKw - readyLoadStartKw);
-                    startDelayEnsEstimateKwh = startDefKw * tauEff;
                 }
 
                 boolean canCharge = btAvail
@@ -639,29 +632,27 @@ final class PerBusDispatcher {
 
         if (ctx.hourWreRef != null) ctx.hourWreRef[0] += wreLocal;
 
+        // Remaining deficit after dispatch for this hour (kWh, since step = 1 hour).
+        // Note: partial-hour ENS (e.g., during DG start delay) is already accumulated in ensBusKwh.
         double totalGenForLoad = windToLoadKw + dgToLoadKwLocal + btDisToLoad;
-        double defKw = loadKw - totalGenForLoad;
-        if (defKw < 0.0) defKw = 0.0;
+        double remDefKwh = loadKw - totalGenForLoad;
+        if (remDefKwh < 0.0) remDefKwh = 0.0;
 
-        if (tauEff > SimulationConstants.EPSILON && startDelayEnsEstimateKwh > SimulationConstants.EPSILON) {
-            defKw = Math.max(defKw, startDelayEnsEstimateKwh);
-        }
-
-        if (defKw > SimulationConstants.EPSILON) {
+        if (remDefKwh > SimulationConstants.EPSILON) {
             // ===== A3: UFLS stepwise shedding (10% steps, round up) =====
-            double uflsEns = uflsEnsRounded(loadKw, defKw);
-            if (uflsEns > SimulationConstants.EPSILON) {
-                ctx.totals.ensKwh += uflsEns;
-                EnsAllocator.addEnsByCategoryPriority321(ctx.totals, loadKw, uflsEns, ctx.cat1, ctx.cat2);
+            double uflsEnsKwh = uflsEnsRounded(loadKw, remDefKwh);
+            if (uflsEnsKwh > SimulationConstants.EPSILON) {
+                ctx.totals.ensKwh += uflsEnsKwh;
+                ensBusKwh += uflsEnsKwh;
+                EnsAllocator.addEnsByCategoryPriority321(ctx.totals, loadKw, uflsEnsKwh, ctx.cat1, ctx.cat2);
 
-                int pct = (int) Math.round(100.0 * (uflsEns / Math.max(loadKw, SimulationConstants.EPSILON)));
+                int pct = (int) Math.round(100.0 * (uflsEnsKwh / Math.max(loadKw, SimulationConstants.EPSILON)));
                 ctx.status.set(HourContext.StatusCollector.PRI_UFLS, "UFLS_SHED_" + pct + "%");
             }
-            defKw = uflsEns;
         }
 
         if (ctx.trace.enabled()) {
-            ctx.trace.setBusValues(b, true, loadKw, windToLoadKw, dgToLoadKwLocal, btNetKw, defKw);
+            ctx.trace.setBusValues(b, true, loadKw, windToLoadKw, dgToLoadKwLocal, btNetKw, ensBusKwh);
             ctx.trace.fillDgState(b, bus);
             ctx.trace.fillBatteryState(b, battery);
         }
