@@ -281,8 +281,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_DG_RUB_PER_KW_PER_KMH,
                         "COST_DG_RUB_PER_KW_PER_KMH",
-                        minFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 0.9, 800),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 1.1, 2400),
+                        minFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 0.5, 800),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 1.5, 2400),
                         SystemParametersBuilder::setCostDgRubPerKwPerKmh
                 ));
 
@@ -290,8 +290,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_FUEL_RUB_PER_KT,
                         "COST_FUEL_RUB_PER_KT",
-                        minFromBase(ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT, 0.9, 45000000),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT, 1.1, 135000000),
+                        minFromBase(ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT, 0.5, 45000000),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT, 1.5, 135000000),
                         SystemParametersBuilder::setCostFuelRubPerKt
                 ));
 
