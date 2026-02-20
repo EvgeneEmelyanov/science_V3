@@ -74,9 +74,17 @@ public final class SimulationConstants {
     public static final double DG_MAX_POWER = 1;
     public static final double DG_OPTIMAL_POWER = 1;
     public static final double DG_START_DELAY_HOURS = 0.1;
+    /** UFLS step as a fraction of the current load. */
+    public static final double UFLS_STEP = 0.10;
     public static final int DG_MAX_IDLE_HOURS = 5;
     public static final int DG_MAX_START_FACTOR = 5;
     public static final double DG_IDLE_FUEL_LOAD = -0.15;
+
+    /**
+     * Additional SOC floor (0..1) for NON-reserve battery discharge used to reduce the number of running DGs.
+     * The effective floor is BATTERY_MIN_SOC + this value.
+     */
+    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.0;
 
     private SimulationConstants() {}
 }

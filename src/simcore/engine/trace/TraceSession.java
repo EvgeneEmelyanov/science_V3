@@ -30,7 +30,8 @@ public interface TraceSession {
                        double totalLoadKw,
                        double totalDeficitKw,
                        double totalWreKw,
-                       Boolean breakerClosed);
+                       Boolean breakerClosed,
+                       String status);
 
     List<SimulationStepRecord> records();
 }

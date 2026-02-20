@@ -7,145 +7,70 @@ import simcore.model.PowerBus;
 import java.util.List;
 
 /**
- * Расчет "эффективных" нагрузок по шинам с учетом возможности переноса нагрузки
- * в зависимости от схемы шин.
+ * Эффективные нагрузки по шинам/секциям с учетом переноса категорий
+ * при "отказе шины / отсутствии grid-forming оборудования" согласно новой таблице.
+ *
+ * ВАЖНО:
+ * - Перенос по дефициту для SS/D делается в SingleRunSimulator (там нужен учет профицита/дефицита и автомата).
+ * - Здесь только перенос при отказе/нет grid-forming.
  */
 public final class BusLoadAllocator {
 
-    private BusLoadAllocator() {
-    }
+    private BusLoadAllocator() {}
 
-    /**
-     * Avoid per-hour allocations for the common case busCount==2.
-     * ThreadLocal is required because MC/Sobol can run in parallel.
-     */
     private static final ThreadLocal<double[]> TL_OUT_2 = ThreadLocal.withInitial(() -> new double[2]);
-    private static final ThreadLocal<double[]> TL_POT_2 = ThreadLocal.withInitial(() -> new double[2]);
 
     /**
-     * @return массив эффективных нагрузок по шинам или null, если перенос не применим
+     * outageHours[i] = сколько часов подряд данная шина/секция "мертва" (отказ шины ИЛИ нет grid-forming оборудования).
+     * - 0 => жива
+     * - 1 => первый час отказа
+     * - 2.. => второй и последующие часы
+     *
+     * Возвращает массив эффективных нагрузок (2 элемента) или null, если не применимо.
      */
-    public static double[] maybeComputeEffectiveLoads(SystemParameters sp,
-                                                      List<PowerBus> buses,
-                                                      boolean[] busAlive,
-                                                      int t,
-                                                      double cat1,
-                                                      double cat2,
-                                                      double windV,
-                                                      double dgMaxKw) {
-        return maybeComputeEffectiveLoads(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw, null);
-    }
-
-    /**
-     * Variant that allows passing per-bus base loads for the given hour (instead of reading buses.get(i).getLoadKw()[t]).
-     * This is used when we apply extra own-use load adjustments on the fly.
-     */
-    public static double[] maybeComputeEffectiveLoads(SystemParameters sp,
-                                                      List<PowerBus> buses,
-                                                      boolean[] busAlive,
-                                                      int t,
-                                                      double cat1,
-                                                      double cat2,
-                                                      double windV,
-                                                      double dgMaxKw,
-                                                      double[] baseLoadsThisHourKw) {
-        final int busCount = buses.size();
-        final BusSystemType busType = sp.getBusSystemType();
-
-        if (busCount != 2) {
-            return null;
-        }
-        if (busType != BusSystemType.SINGLE_SECTIONAL_BUS && busType != BusSystemType.DOUBLE_BUS) {
-            return null;
-        }
-
-        if (busType == BusSystemType.SINGLE_SECTIONAL_BUS) {
-            // Перенос 1/2 категории только при отказе секции (если одна секция недоступна)
-            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, false, baseLoadsThisHourKw);
-        }
-
-        // DOUBLE_BUS: перенос нагрузки выполняется ТОЛЬКО при отказе шины.
-        // Если обе шины доступны, перенос нагрузки не выполняется (вместо этого возможен временный перенос ДГУ,
-        // см. SingleRunSimulator).
-        return computeEffectiveLoadsForDoubleBus(sp, buses, busAlive, t, cat1, cat2, windV, dgMaxKw, baseLoadsThisHourKw);
-    }
-
-    private static double[] computeEffectiveLoadsForSectional(SystemParameters sp,
+    public static double[] maybeComputeEffectiveLoadsOnOutage(SystemParameters sp,
                                                               List<PowerBus> buses,
-                                                              boolean[] busAlive,
                                                               int t,
                                                               double cat1,
                                                               double cat2,
-                                                              boolean allowCat3AfterFirstHour,
-                                                              double[] baseLoadsThisHourKw) {
-        final int n = buses.size();
-        final double[] out = (n == 2) ? TL_OUT_2.get() : new double[n];
-        for (int i = 0; i < n; i++) {
-            out[i] = (baseLoadsThisHourKw != null) ? baseLoadsThisHourKw[i] : buses.get(i).getLoadKw()[t];
-        }
+                                                              double[] baseLoadsThisHourKw,
+                                                              int[] outageHours) {
 
-        if (buses.size() != 2) {
-            return out;
-        }
-        if (busAlive[0] == busAlive[1]) {
-            return out;
-        }
+        if (buses.size() != 2) return null;
 
-        int dead = busAlive[0] ? 1 : 0;
-        int live = busAlive[0] ? 0 : 1;
+        final BusSystemType busType = sp.getBusSystemType();
+        if (busType != BusSystemType.SINGLE_SECTIONAL_BUS && busType != BusSystemType.DOUBLE_BUS) return null;
 
-        PowerBus deadBus = buses.get(dead);
-        int busRepairTime = sp.getBusRepairTimeHours();
-        boolean firstRepairHour = (deadBus.getRepairDurationHours() == busRepairTime);
+        double[] out = TL_OUT_2.get();
+        out[0] = (baseLoadsThisHourKw != null) ? baseLoadsThisHourKw[0] : buses.get(0).getLoadKw()[t];
+        out[1] = (baseLoadsThisHourKw != null) ? baseLoadsThisHourKw[1] : buses.get(1).getLoadKw()[t];
+
+        // Если обе живы или обе мертвы — тут перенос не решаем.
+        boolean alive0 = outageHours[0] == 0;
+        boolean alive1 = outageHours[1] == 0;
+        if (alive0 == alive1) return out;
+
+        int dead = alive0 ? 1 : 0;
+        int live = 1 - dead;
+
+        // По таблице:
+        // SS: I сразу, II со следующего часа, III -> ENS
+        // D : I сразу, II+III со следующего часа (и генерация со следующего часа - это обрабатываем в SingleRunSimulator)
+        boolean isFirstHour = outageHours[dead] == 1;
 
         double ratio;
-        if (firstRepairHour) {
-            ratio = cat1;
+        if (busType == BusSystemType.SINGLE_SECTIONAL_BUS) {
+            ratio = isFirstHour ? cat1 : (cat1 + cat2); // III никогда
         } else {
-            // Для DOUBLE_BUS разрешаем перенос III категории со 2-го часа (т.е. переносима вся нагрузка)
-            ratio = allowCat3AfterFirstHour ? 1.0 : (cat1 + cat2);
+            // DOUBLE_BUS
+            ratio = isFirstHour ? cat1 : 1.0; // II+III со следующего часа
         }
-        // Ограничиваем долю переносимой нагрузки в [0..1]
-        ratio = Math.min(1.0, Math.max(0.0, ratio));
+
+        ratio = Math.max(0.0, Math.min(1.0, ratio));
         double transfer = out[dead] * ratio;
 
         out[dead] = Math.max(0.0, out[dead] - transfer);
         out[live] += transfer;
-        return out;
-    }
-
-    private static double[] computeEffectiveLoadsForDoubleBus(SystemParameters sp,
-                                                              List<PowerBus> buses,
-                                                              boolean[] busAlive,
-                                                              int t,
-                                                              double cat1,
-                                                              double cat2,
-                                                              double windV,
-                                                              double dgMaxKw,
-                                                              double[] baseLoadsThisHourKw) {
-        // Базовая нагрузка по шинам
-        final int n = buses.size();
-        final double[] out = (n == 2) ? TL_OUT_2.get() : new double[n];
-        for (int i = 0; i < n; i++) {
-            out[i] = (baseLoadsThisHourKw != null) ? baseLoadsThisHourKw[i] : buses.get(i).getLoadKw()[t];
-        }
-
-        if (buses.size() != 2) {
-            return out;
-        }
-
-        // Если одна шина недоступна — используем ту же логику переноса (1-я сразу, 2-я с задержкой)
-        if (busAlive[0] != busAlive[1]) {
-            return computeEffectiveLoadsForSectional(sp, buses, busAlive, t, cat1, cat2, true, baseLoadsThisHourKw);
-        }
-
-        // Если обе недоступны или обе доступны — работаем далее только для случая "обе доступны"
-        if (!busAlive[0] && !busAlive[1]) {
-            return out;
-        }
-
-        // ВАЖНО: при одновременной доступности обеих шин перенос нагрузки не выполняется.
-        // Балансировка в таком случае делается переносом ДГУ (см. SingleRunSimulator).
         return out;
     }
 }

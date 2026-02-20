@@ -15,19 +15,32 @@ import simcore.engine.trace.ArrayTraceSession;
 import simcore.engine.trace.NoTraceSession;
 import simcore.engine.trace.TraceSession;
 import simcore.economy.*;
-import simcore.engine.bus.DgTransferController;
 
 
 import static simcore.economy.RuCostAdjuster.effectiveRuCost;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public final class SingleRunSimulator {
 
     static boolean considerRotationReserve;
+
+    /**
+     * "Есть grid-forming оборудование" == на шине физически присутствует (и доступно) хотя бы одно из:
+     * - любой ДГУ (available)
+     * - АКБ (available)
+     *
+     * ВАЖНО: это НЕ зависит от того, работал ли ДГУ в прошлом часу. Если оборудование доступно,
+     * то оно может быть запущено/использовано в текущем часу.
+     */
+    private static boolean hasAnyGridFormingEquipment(PowerBus bus) {
+        if (bus == null) return false;
+        for (DieselGenerator dg : bus.getDieselGenerators()) {
+            if (dg != null && dg.isAvailable()) return true;
+        }
+        Battery bt = bus.getBattery();
+        return bt != null && bt.isAvailable();
+    }
 
     public SimulationMetrics simulate(SimInput input, long seed, boolean traceEnabled) {
 
@@ -144,6 +157,14 @@ public final class SingleRunSimulator {
         final boolean[] busFailedThisHour = new boolean[busCount];
         final boolean[] busAlive = new boolean[busCount];
 
+        // "Энергизована" == физически жива и есть grid-forming оборудование (ДГУ и/или АКБ).
+        final boolean[] busEnergised = new boolean[busCount];
+        // Счетчик часов подряд, когда шина не энергизована (для правил "в следующий час").
+        final int[] outageHours = new int[busCount];
+
+        // DOUBLE_BUS: если МШВ не работает, то перенос II/III и генерации выполняется в следующий час.
+        int pendingDoubleBusTransferFrom = -1;
+
         // часто используемые параметры ДГУ
         final double dgRatedKw = sp.getDieselGeneratorPowerKw();
         final double dgMaxKw = dgRatedKw * SimulationConstants.DG_MAX_POWER;
@@ -183,6 +204,13 @@ public final class SingleRunSimulator {
                     busAlive,
                     rawLoadThisHourKw
             );
+
+            // ===== effective energised state (physical alive + grid-forming equipment presence) =====
+            for (int b = 0; b < busCount; b++) {
+                busEnergised[b] = busAlive[b] && hasAnyGridFormingEquipment(buses.get(b));
+                if (busEnergised[b]) outageHours[b] = 0;
+                else outageHours[b] = outageHours[b] + 1;
+            }
 
             if (config.isConsiderHotReserve()) {
                 for (int b = 0; b < busCount; b++) {
@@ -226,6 +254,45 @@ public final class SingleRunSimulator {
                     trace
             );
 
+            // ===== Trace status (failures / repairs) =====
+            boolean anyBusFailed = false;
+            for (int b = 0; b < busCount; b++) {
+                if (busFailedThisHour[b]) { anyBusFailed = true; break; }
+            }
+            if (anyBusFailed) {
+                ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "BUS_FAILED");
+            }
+
+            int dgFailedNow = 0;
+            int wtFailedNow = 0;
+            int btFailedNow = 0;
+            for (PowerBus bus : buses) {
+                for (DieselGenerator dg : bus.getDieselGenerators()) {
+                    if (!dg.isAvailable() && dg.getRepairDurationHours() > 0) {
+                        // First hour of repair/maintenance.
+                        if (dg.getRepairDurationHours() == dg.getRepairTimeHours() || dg.isInMaintenance()) {
+                            dgFailedNow++;
+                        }
+                    }
+                }
+                for (WindTurbine wt : bus.getWindTurbines()) {
+                    if (!wt.isAvailable() && wt.getRepairDurationHours() > 0
+                            && wt.getRepairDurationHours() == wt.getRepairTimeHours()) {
+                        wtFailedNow++;
+                    }
+                }
+
+                Battery bt = bus.getBattery();
+                if (bt != null && !bt.isAvailable() && bt.getRepairDurationHours() > 0
+                        && bt.getRepairDurationHours() == bt.getRepairTimeHours()) {
+                    btFailedNow++;
+                }
+            }
+
+            if (dgFailedNow > 0) ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "DG_FAILED: " + dgFailedNow);
+            if (wtFailedNow > 0) ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "WT_FAILED: " + wtFailedNow);
+            if (btFailedNow > 0) ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "BESS_FAILED: " + btFailedNow);
+
             // ENS event statistics: track per-hour ENS and "start ENS" (DG start delay ENS)
             final double ensBeforeHour = totals.ensKwh;
             final double startEnsBeforeHour = totals.startEnsKwh;
@@ -238,24 +305,46 @@ public final class SingleRunSimulator {
             // ===== Bus system logic (SINGLE_SECTIONAL_BUS / DOUBLE_BUS) =====
             final BusSystemType busType = sp.getBusSystemType();
 
-            final double[] effectiveLoadKw = BusLoadAllocator.maybeComputeEffectiveLoads(
+            final double[] effectiveLoadKw = BusLoadAllocator.maybeComputeEffectiveLoadsOnOutage(
                     sp,
                     buses,
-                    busAlive,
                     t,
                     cat1,
                     cat2,
-                    windV,
-                    dgMaxKw,
-                    rawLoadThisHourKw
+                    rawLoadThisHourKw,
+                    outageHours
             );
+
+
+            // ===== SINGLE_BUS (SN): outage / no grid-forming => 100% ENS =====
+            if (busType == BusSystemType.SINGLE_NOT_SECTIONAL_BUS && busCount == 1 && !busEnergised[0]) {
+                double loadKw = rawLoadThisHourKw[0];
+                totals.loadKwh += loadKw;
+                totals.ensKwh += loadKw;
+                EnsAllocator.addEnsByCategoryProportional(totals, loadKw, loadKw, cat1, cat2);
+                ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "SN_OUTAGE_FULL_ENS");
+
+                if (doTrace) {
+                    trace.setBusDown(0, loadKw, loadKw);
+                    trace.fillDgState(0, buses.get(0));
+                    trace.fillBatteryState(0, buses.get(0).getBattery());
+                    Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
+                    trace.addHourRecord(t, loadKw, loadKw, 0.0, brkClosed, ctx.status.get());
+                }
+
+                // ENS event stats (whole system, per hour)
+                double ensThisHour = totals.ensKwh - ensBeforeHour;
+                double startEnsThisHour = totals.startEnsKwh - startEnsBeforeHour;
+                totals.ensEventStats.updateHour(ensThisHour, startEnsThisHour);
+                continue;
+            }
 
             boolean sectionalClosedThisHour = false;
             if (busType == BusSystemType.SINGLE_SECTIONAL_BUS
                     && busCount == 2
                     && breaker != null
                     && breaker.isAvailable()
-                    && busAlive[0] && busAlive[1]) {
+                    && busEnergised[0] && busEnergised[1]) {
 
                 double[] loadsForDecision;
                 if (effectiveLoadKw != null) {
@@ -274,16 +363,12 @@ public final class SingleRunSimulator {
 
                 // If the tie-breaker is closed due to deficit balancing and one bus fails this hour,
                 // treat it as a coupled failure: both buses go down (no separate breaker failure needed).
-                if (sectionalClosedThisHour && (busFailedThisHour[0] ^ busFailedThisHour[1])) {
-                    int failed = busFailedThisHour[0] ? 0 : 1;
-                    int other = 1 - failed;
-                    // Force the other bus into failure now to couple the outage.
-                    buses.get(other).forceFailNow();
-                    busFailedThisHour[other] = true;
-                    busAlive[0] = false;
-                    busAlive[1] = false;
-                    busAvailAfter[0] = false;
-                    busAvailAfter[1] = false;
+                if (sectionalClosedThisHour && (busEnergised[0] ^ busEnergised[1])) {
+                    // По новой логике: при объединенной шине, если откажет одна из шин ИЛИ пропадет grid-forming,
+                    // то откажут обе.
+                    busEnergised[0] = false;
+                    busEnergised[1] = false;
+                    ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "SS_COUPLED_OUTAGE");
                 }
             } else {
                 if (breaker != null) breaker.setClosed(false);
@@ -348,7 +433,7 @@ public final class SingleRunSimulator {
                     }
 
                     Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
-                    trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
+                    trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed, ctx.status.get());
                 }
 
                 // ENS event stats (whole system, per hour)
@@ -433,10 +518,76 @@ public final class SingleRunSimulator {
             }
 
             // ===== Standard per-bus dispatch =====
-            // DOUBLE_BUS: when both buses are alive, do NOT transfer load under deficit.
-// Instead, transfer DGs between buses before dispatch (instant readiness).
-            if (busType == BusSystemType.DOUBLE_BUS && busCount == 2 && busAlive[0] && busAlive[1]) {
-                DgTransferController.transferDieselsIfNeeded(sp, buses, busAlive, rawLoadThisHourKw, windV, dgMaxKw);
+            // ===== DOUBLE_BUS: deficit handling per new table =====
+            // If the other bus has surplus:
+            //  - MSHV works: transfer I/II/III and generation NOW (modeled as immediate load shift)
+            //  - MSHV failed: transfer I NOW, II/III and generation NEXT hour
+            if (busType == BusSystemType.DOUBLE_BUS && busCount == 2 && busEnergised[0] && busEnergised[1]) {
+
+                // Apply pending transfer from previous hour (MSHV failed case)
+                if (pendingDoubleBusTransferFrom != -1) {
+                    int from = pendingDoubleBusTransferFrom;
+                    int to = 1 - from;
+                    double transfer = rawLoadThisHourKw[from] * (1.0 - cat1);
+                    rawLoadThisHourKw[from] = Math.max(0.0, rawLoadThisHourKw[from] - transfer);
+                    rawLoadThisHourKw[to] += transfer;
+                    pendingDoubleBusTransferFrom = -1;
+                    ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_II_III_AND_GEN_NEXT");
+                }
+
+                double load0 = (effectiveLoadKw != null) ? effectiveLoadKw[0] : rawLoadThisHourKw[0];
+                double load1 = (effectiveLoadKw != null) ? effectiveLoadKw[1] : rawLoadThisHourKw[1];
+
+                double pot0 = BusPotential.windPotentialNoSideEffects(buses.get(0), windV)
+                        + BusPotential.dieselPotential(buses.get(0), dgMaxKw)
+                        + BusPotential.batteryDischargePotential(buses.get(0), sp);
+                double pot1 = BusPotential.windPotentialNoSideEffects(buses.get(1), windV)
+                        + BusPotential.dieselPotential(buses.get(1), dgMaxKw)
+                        + BusPotential.batteryDischargePotential(buses.get(1), sp);
+
+                double deficit0 = Math.max(0.0, load0 - pot0);
+                double deficit1 = Math.max(0.0, load1 - pot1);
+                double surplus0 = Math.max(0.0, pot0 - load0);
+                double surplus1 = Math.max(0.0, pot1 - load1);
+
+                if (deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON) {
+                    if (breaker != null && breaker.isAvailable()) {
+                        // Transfer NOW in 10% steps (round up): if need 35% -> 40%.
+                        double stepKw = SimulationConstants.UFLS_STEP * Math.max(load0, SimulationConstants.EPSILON);
+                        double transferKw = (stepKw > SimulationConstants.EPSILON)
+                                ? Math.ceil(deficit0 / stepKw) * stepKw
+                                : deficit0;
+                        transferKw = Math.min(load0, transferKw);
+                        rawLoadThisHourKw[0] = Math.max(0.0, rawLoadThisHourKw[0] - transferKw);
+                        rawLoadThisHourKw[1] += transferKw;
+                        int pct = (int) Math.round(100.0 * (transferKw / Math.max(load0, SimulationConstants.EPSILON)));
+                        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_ALL_NOW_" + pct + "%");
+                    } else {
+                        double transferI = rawLoadThisHourKw[0] * cat1;
+                        rawLoadThisHourKw[0] = Math.max(0.0, rawLoadThisHourKw[0] - transferI);
+                        rawLoadThisHourKw[1] += transferI;
+                        pendingDoubleBusTransferFrom = 0;
+                        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_I_NOW_II_III_GEN_NEXT");
+                    }
+                } else if (deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON) {
+                    if (breaker != null && breaker.isAvailable()) {
+                        double stepKw = SimulationConstants.UFLS_STEP * Math.max(load1, SimulationConstants.EPSILON);
+                        double transferKw = (stepKw > SimulationConstants.EPSILON)
+                                ? Math.ceil(deficit1 / stepKw) * stepKw
+                                : deficit1;
+                        transferKw = Math.min(load1, transferKw);
+                        rawLoadThisHourKw[1] = Math.max(0.0, rawLoadThisHourKw[1] - transferKw);
+                        rawLoadThisHourKw[0] += transferKw;
+                        int pct = (int) Math.round(100.0 * (transferKw / Math.max(load1, SimulationConstants.EPSILON)));
+                        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_ALL_NOW_" + pct + "%");
+                    } else {
+                        double transferI = rawLoadThisHourKw[1] * cat1;
+                        rawLoadThisHourKw[1] = Math.max(0.0, rawLoadThisHourKw[1] - transferI);
+                        rawLoadThisHourKw[0] += transferI;
+                        pendingDoubleBusTransferFrom = 1;
+                        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_I_NOW_II_III_GEN_NEXT");
+                    }
+                }
             }
 
             // DOUBLE_BUS: if one bus is down, from the 2nd repair hour transfer ALL DG and WT from the dead bus
@@ -444,106 +595,18 @@ public final class SingleRunSimulator {
             int doubleBusDead = -1;
             int doubleBusLive = -1;
             boolean doubleBusTransferGen = false;
-            if (busType == BusSystemType.DOUBLE_BUS && busCount == 2 && (busAlive[0] ^ busAlive[1])) {
-                doubleBusDead = busAlive[0] ? 1 : 0;
+            if (busType == BusSystemType.DOUBLE_BUS && busCount == 2 && (busEnergised[0] ^ busEnergised[1])) {
+                doubleBusDead = busEnergised[0] ? 1 : 0;
                 doubleBusLive = 1 - doubleBusDead;
-                PowerBus deadBus = buses.get(doubleBusDead);
-                boolean firstRepairHour = (deadBus.getRepairDurationHours() == sp.getBusRepairTimeHours());
-                doubleBusTransferGen = !firstRepairHour;
-            }
-
-            // DOUBLE_BUS: if both buses are alive and there is generation imbalance (surplus on one bus, deficit on the other),
-            // do NOT transfer load. Instead, try to temporarily move unused DGs from the surplus bus to the deficit bus for this hour.
-            // At the end of the hour DGs are considered returned automatically because we only affect dispatch selection for the hour.
-            List<DieselGenerator> dgExtraForBus0 = null;
-            List<DieselGenerator> dgExtraForBus1 = null;
-            Set<DieselGenerator> dgExcludeOnBus0 = null;
-            Set<DieselGenerator> dgExcludeOnBus1 = null;
-
-            if (busType == BusSystemType.DOUBLE_BUS
-                    && busCount == 2
-                    && busAlive[0] && busAlive[1]
-                    && !doubleBusTransferGen) {
-
-                // Potential-based conservative decision (no side effects): WT + max DG + max BT discharge
-                // If one bus has deficit and the other has surplus, transfer whole DG units (dgMaxKw each)
-                // but only if after removal the source bus still has no deficit.
-                final PowerBus bus0 = buses.get(0);
-                final PowerBus bus1 = buses.get(1);
-
-                final double load0 = (effectiveLoadKw != null) ? effectiveLoadKw[0] : rawLoadThisHourKw[0];
-                final double load1 = (effectiveLoadKw != null) ? effectiveLoadKw[1] : rawLoadThisHourKw[1];
-
-                final double pot0 =
-                        BusPotential.windPotentialNoSideEffects(bus0, windV)
-                                + BusPotential.batteryDischargePotential(bus0, sp)
-                                + BusPotential.dieselPotential(bus0, dgMaxKw);
-                final double pot1 =
-                        BusPotential.windPotentialNoSideEffects(bus1, windV)
-                                + BusPotential.batteryDischargePotential(bus1, sp)
-                                + BusPotential.dieselPotential(bus1, dgMaxKw);
-
-                final double deficit0 = Math.max(0.0, load0 - pot0);
-                final double deficit1 = Math.max(0.0, load1 - pot1);
-                final double surplus0 = Math.max(0.0, pot0 - load0);
-                final double surplus1 = Math.max(0.0, pot1 - load1);
-
-                int source = -1;
-                int sink = -1;
-                double deficit = 0.0;
-                double surplus = 0.0;
-                if (deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON) {
-                    sink = 0;
-                    source = 1;
-                    deficit = deficit0;
-                    surplus = surplus1;
-                } else if (deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON) {
-                    sink = 1;
-                    source = 0;
-                    deficit = deficit1;
-                    surplus = surplus0;
-                }
-
-                if (source != -1 && sink != -1) {
-                    int maxTransferBySurplus = (int) Math.floor(surplus / dgMaxKw);
-                    int needByDeficit = (int) Math.ceil(deficit / dgMaxKw);
-                    int transferCount = Math.max(0, Math.min(maxTransferBySurplus, needByDeficit));
-
-                    if (transferCount > 0) {
-                        PowerBus srcBus = buses.get(source);
-
-                        // Only transfer DGs that are available and were NOT working at hour start
-                        // (i.e., truly unused on the source bus in this hour context).
-                        ArrayList<DieselGenerator> transferable = new ArrayList<>();
-                        for (DieselGenerator dg : srcBus.getDieselGenerators()) {
-                            if (!dg.isAvailable()) continue;
-                            if (dg.wasWorkingAtHourStart()) continue;
-                            transferable.add(dg);
-                            if (transferable.size() >= transferCount) break;
-                        }
-
-                        if (!transferable.isEmpty()) {
-                            int actual = Math.min(transferCount, transferable.size());
-                            ArrayList<DieselGenerator> moved = new ArrayList<>(actual);
-                            for (int i = 0; i < actual; i++) moved.add(transferable.get(i));
-
-                            if (sink == 0) {
-                                dgExtraForBus0 = moved; // брекпоинт
-                                dgExcludeOnBus1 = new HashSet<>(moved);
-                            } else {
-                                dgExtraForBus1 = moved;
-                                dgExcludeOnBus0 = new HashSet<>(moved);
-                            }
-                        }
-                    }
-                }
+                // Transfer generation starting from the 2nd outage hour.
+                doubleBusTransferGen = outageHours[doubleBusDead] >= 2;
             }
 
             for (int b = 0; b < busCount; b++) {
                 final PowerBus bus = buses.get(b);
                 final double loadKw = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
 
-                if (!busAlive[b]) {
+                if (!busEnergised[b]) {
                     // If gen transfer is active, do not stop diesels on the dead bus:
                     // these diesels are being used on the live bus.
                     if (doubleBusTransferGen && b == doubleBusDead) {
@@ -567,13 +630,7 @@ public final class SingleRunSimulator {
                         PowerBus extra = (b == doubleBusLive) ? buses.get(doubleBusDead) : null;
                         PerBusDispatcher.dispatchOneBusOneHourWithExtraSources(ctx, bus, extra, true, b, loadKw);
                     } else {
-                        List<DieselGenerator> extraDgs = (b == 0) ? dgExtraForBus0 : dgExtraForBus1;
-                        Set<DieselGenerator> excludeDgs = (b == 0) ? dgExcludeOnBus0 : dgExcludeOnBus1;
-                        if (extraDgs != null || excludeDgs != null) {
-                            PerBusDispatcher.dispatchOneBusOneHourWithDgTransfer(ctx, bus, true, b, loadKw, extraDgs, excludeDgs);
-                        } else {
-                            PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, true, b, loadKw);
-                        }
+                        PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, true, b, loadKw);
                     }
                 }
             }
@@ -584,7 +641,7 @@ public final class SingleRunSimulator {
                 }
                 totalWreAtTime = hourWreRef[0];
                 Boolean brkClosed = (breaker == null) ? null : breaker.isClosed();
-                trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed);
+                trace.addHourRecord(t, totalLoadAtTime, totalDefAtTime, totalWreAtTime, brkClosed, ctx.status.get());
             }
 
             // ENS event stats (whole system, per hour)

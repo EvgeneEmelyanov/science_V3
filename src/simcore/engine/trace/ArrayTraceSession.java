@@ -133,7 +133,8 @@ public final class ArrayTraceSession implements TraceSession {
                               double totalLoadKw,
                               double totalDeficitKw,
                               double totalWreKw,
-                              Boolean breakerClosed) {
+                              Boolean breakerClosed,
+                              String status) {
 
         records.add(new SimulationStepRecord(
                 timeIndex,
@@ -141,6 +142,7 @@ public final class ArrayTraceSession implements TraceSession {
                 totalDeficitKw,
                 totalWreKw,
                 breakerClosed,
+                status,
                 busStatus,
                 busLoadKw,
                 busWindToLoadKw,

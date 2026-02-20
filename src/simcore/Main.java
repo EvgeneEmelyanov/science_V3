@@ -27,7 +27,7 @@ public class Main {
         RunMode runMode = RunMode.SINGLE;
         int mcIterations = 1;
 
-        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.SINGLE_NOT_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;

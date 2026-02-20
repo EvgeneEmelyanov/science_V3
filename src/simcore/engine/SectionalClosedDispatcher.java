@@ -187,6 +187,35 @@ final class SectionalClosedDispatcher {
                 final int dgCountPlanned = Math.min(needed, available);
                 int dgToUse = dgCountPlanned;
 
+                // ===== Non-reserve BESS use: try to reduce DG count for fuel saving =====
+                // Effective SOC floor is MIN_SOC + nonReserveAdd.
+                final double nonReserveAdd = ctx.sp.getNonReserveDischargeLevel();
+                final double socNonReserveFloor = SimulationConstants.BATTERY_MIN_SOC + nonReserveAdd;
+
+                if ((bt0Avail || bt1Avail) && dgToUse > 1) {
+                    while (dgToUse > 1) {
+                        int cand = dgToUse - 1;
+                        double needFromBtKw = Math.max(0.0, deficitAfterWindBt - cand * ctx.dgMaxKw);
+                        if (needFromBtKw <= SimulationConstants.EPSILON) {
+                            dgToUse = cand;
+                            continue;
+                        }
+
+                        double btCapKw = (bt0Avail ? bt0.getDischargeCapacity(ctx.sp) : 0.0)
+                                + (bt1Avail ? bt1.getDischargeCapacity(ctx.sp) : 0.0);
+                        if (btCapKw + SimulationConstants.EPSILON < needFromBtKw) break;
+
+                        double btEnergyKwh = 0.0;
+                        if (bt0Avail) btEnergyKwh += Math.max(0.0, (bt0.getStateOfCharge() - socNonReserveFloor))
+                                * bt0.getMaxCapacityKwh() * SimulationConstants.BATTERY_EFFICIENCY;
+                        if (bt1Avail) btEnergyKwh += Math.max(0.0, (bt1.getStateOfCharge() - socNonReserveFloor))
+                                * bt1.getMaxCapacityKwh() * SimulationConstants.BATTERY_EFFICIENCY;
+
+                        if (btEnergyKwh + SimulationConstants.EPSILON < needFromBtKw) break; // duration=1h
+                        dgToUse = cand;
+                    }
+                }
+
                 final boolean maintenanceStartedThisHour = DieselGenerator.isMaintenanceStartedThisHour(dgs);
 
                 final double tauEff = maintenanceStartedThisHour ? 0.0 : ctx.dgStartDelayHours;
@@ -207,7 +236,41 @@ final class SectionalClosedDispatcher {
 
                 if (tauEff > SimulationConstants.EPSILON && dgToUse > readyWorking) {
                     double startDefKw = Math.max(0.0, deficitAfterWindBt - readyLoadStartKw);
-                    startDelayEnsEstimateKwh = startDefKw * tauEff;
+
+                    // ===== Reserve BESS bridging during tau (NO non-reserve restriction) =====
+                    double remainingStartDefKw = startDefKw;
+
+                    // Try BT0
+                    if (bt0Avail && remainingStartDefKw > SimulationConstants.EPSILON) {
+                        double capKw = bt0.getDischargeCapacity(ctx.sp);
+                        double pDis0 = Math.min(remainingStartDefKw, capKw);
+                        double availKwh = Math.max(0.0, (bt0.getStateOfCharge() - SimulationConstants.BATTERY_MIN_SOC))
+                                * bt0.getMaxCapacityKwh() * SimulationConstants.BATTERY_EFFICIENCY;
+                        double needKwh = pDis0 * tauEff;
+                        if (availKwh + SimulationConstants.EPSILON >= needKwh) {
+                            bt0.adjustCapacity(bt0, -pDis0 * tauEff, pDis0, true, ctx.considerDegradation);
+                            // btNet stores hour-equivalent contribution; scale partial-hour discharge.
+                            btNet[0] += pDis0 * tauEff;
+                            remainingStartDefKw -= pDis0;
+                        }
+                    }
+
+                    // Try BT1
+                    if (bt1Avail && remainingStartDefKw > SimulationConstants.EPSILON) {
+                        double capKw = bt1.getDischargeCapacity(ctx.sp);
+                        double pDis1 = Math.min(remainingStartDefKw, capKw);
+                        double availKwh = Math.max(0.0, (bt1.getStateOfCharge() - SimulationConstants.BATTERY_MIN_SOC))
+                                * bt1.getMaxCapacityKwh() * SimulationConstants.BATTERY_EFFICIENCY;
+                        double needKwh = pDis1 * tauEff;
+                        if (availKwh + SimulationConstants.EPSILON >= needKwh) {
+                            bt1.adjustCapacity(bt1, -pDis1 * tauEff, pDis1, true, ctx.considerDegradation);
+                            btNet[1] += pDis1 * tauEff;
+                            remainingStartDefKw -= pDis1;
+                        }
+                    }
+
+                    remainingStartDefKw = Math.max(0.0, remainingStartDefKw);
+                    startDelayEnsEstimateKwh = remainingStartDefKw * tauEff;
                 }
 
                 double sumDieselKw = 0.0;

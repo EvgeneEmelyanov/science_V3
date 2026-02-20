@@ -24,7 +24,7 @@ public final class SimulationTraceExporter {
         try (BufferedWriter w = new BufferedWriter(new FileWriter(path))) {
 
             /* ---------- HEADER ---------- */
-            StringBuilder h = new StringBuilder("t;L;BRK");
+            StringBuilder h = new StringBuilder("t;L;BRK;STATUS");
             for (int b = 0; b < busCnt; b++) {
                 int bi = b + 1;
                 h.append(";B").append(bi).append("_L");
@@ -55,7 +55,9 @@ public final class SimulationTraceExporter {
                 s.append(r.getTimeIndex()).append(';')
                         .append(f(r.getTotalLoadKw()))
                         .append(';')
-                        .append(brk(r.getBreakerClosed()));
+                        .append(brk(r.getBreakerClosed()))
+                        .append(';')
+                        .append(escape(r.getStatus()));
 
                 boolean[] busStatus = r.getBusStatus();
                 double[] busLoad = r.getBusLoadKw();
@@ -112,5 +114,11 @@ public final class SimulationTraceExporter {
     private static String f(double v) {
         if (!Double.isFinite(v)) return "";
         return String.format(RU, "%.1f", v);
+    }
+
+    private static String escape(String s) {
+        if (s == null) return "";
+        // CSV uses ';' as separator, replace with ',' to keep 1-cell status.
+        return s.replace(';', ',');
     }
 }
