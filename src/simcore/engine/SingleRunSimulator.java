@@ -204,7 +204,27 @@ public final class SingleRunSimulator {
                     busAlive,
                     rawLoadThisHourKw
             );
+// если на шине ТО началось в этом часу => все остальные ДГУ делаем hot-standby до snapshot
+            for (PowerBus bus : buses) {
+                boolean maintenanceStartedNow = false;
+                for (DieselGenerator dg : bus.getDieselGenerators()) {
+                    if (dg.isInMaintenance() && dg.getRepairDurationHours() == 4) { // первый час ТО
+                        maintenanceStartedNow = true;
+                        break;
+                    }
+                }
+                if (maintenanceStartedNow) {
+                    // выставит isWorking=true для всех available ДГУ (ТОшная сюда не попадет, она не available)
+                    DieselGenerator.keepAllDieselsReadyHotStandby(bus);
+                }
+            }
 
+// Snapshot DG working states at the beginning of the hour
+            for (PowerBus bus : buses) {
+                for (DieselGenerator dg : bus.getDieselGenerators()) {
+                    dg.snapshotWorkingAtHourStart();
+                }
+            }
             // ===== effective energised state (physical alive + grid-forming equipment presence) =====
             for (int b = 0; b < busCount; b++) {
                 busEnergised[b] = busAlive[b] && hasAnyGridFormingEquipment(buses.get(b));
@@ -951,7 +971,7 @@ public final class SingleRunSimulator {
 
         double btFirm = 0.0;
         if (btAvail) {
-            double btDisCap = battery.getDischargeCapacity(sp);
+            double btDisCap = battery.getDischargePowerCapKw(sp);
             if (canBatteryBridge(battery, sp, windLoss, tau, btDisCap)) {
                 btFirm = windLoss;
             } else {
@@ -970,7 +990,7 @@ public final class SingleRunSimulator {
         if (idleNeed > available) idleNeed = available;
 
         if (btAvail) {
-            double btDisCap = battery.getDischargeCapacity(sp);
+            double btDisCap = battery.getDischargePowerCapKw(sp);
             idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
         }
 
@@ -1083,7 +1103,7 @@ public final class SingleRunSimulator {
                 : 0;
 
         if (btAvail) {
-            double btDisCap = battery.getDischargeCapacity(sp);
+            double btDisCap = battery.getDischargePowerCapKw(sp);
             idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
         }
         idleNeed = considerRotationReserve ? idleNeed + 1 : idleNeed;
@@ -1177,7 +1197,7 @@ public final class SingleRunSimulator {
 
         boolean batteryCovers = false;
         if (btAvail && deficitAfterTripKw > SimulationConstants.EPSILON) {
-            double btDisCap = battery.getDischargeCapacity(sp);
+            double btDisCap = battery.getDischargePowerCapKw(sp);
             batteryCovers = canBatteryBridge(battery, sp, deficitAfterTripKw, tauEff, btDisCap);
         }
 

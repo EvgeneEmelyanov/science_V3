@@ -86,8 +86,8 @@ final class SectionalClosedDispatcher {
         boolean bt0Avail = bt0 != null && bt0.isAvailable();
         boolean bt1Avail = bt1 != null && bt1.isAvailable();
 
-        double bt0DisCap = bt0Avail ? bt0.getDischargeCapacity(ctx.sp) : 0.0;
-        double bt1DisCap = bt1Avail ? bt1.getDischargeCapacity(ctx.sp) : 0.0;
+        double bt0DisCap = bt0Avail ? bt0.getDischargePowerCapKw(ctx.sp) : 0.0;
+        double bt1DisCap = bt1Avail ? bt1.getDischargePowerCapKw(ctx.sp) : 0.0;
 
         // btNet: >0 discharge, <0 charge
 
@@ -150,7 +150,7 @@ final class SectionalClosedDispatcher {
             double surplusKw = Math.max(0.0, windPot - totalLoad);
 
             if (bt0Avail && bt0.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
-                double cap = bt0.getChargeCapacity(ctx.sp);
+                double cap = bt0.getChargePowerCapKw(ctx.sp);
                 double ch = Math.min(surplusKw, cap);
                 if (ch > SimulationConstants.EPSILON) {
                     bt0.adjustCapacity(bt0, +ch, ch, false, ctx.considerDegradation);
@@ -159,7 +159,7 @@ final class SectionalClosedDispatcher {
                 }
             }
             if (bt1Avail && bt1.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
-                double cap = bt1.getChargeCapacity(ctx.sp);
+                double cap = bt1.getChargePowerCapKw(ctx.sp);
                 double ch = Math.min(surplusKw, cap);
                 if (ch > SimulationConstants.EPSILON) {
                     bt1.adjustCapacity(bt1, +ch, ch, false, ctx.considerDegradation);
@@ -189,8 +189,8 @@ final class SectionalClosedDispatcher {
 
                 // ===== Non-reserve BESS use: try to reduce DG count for fuel saving =====
                 // Effective SOC floor is MIN_SOC + nonReserveAdd.
-                final double nonReserveAdd = ctx.sp.getNonReserveDischargeLevel();
-                final double socNonReserveFloor = SimulationConstants.BATTERY_MIN_SOC + nonReserveAdd;
+                // Non-reserve floor is ABSOLUTE (>= max(SOC_MIN, nonReserveLevel)).
+                final double socNonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
 
                 if ((bt0Avail || bt1Avail) && dgToUse > 1) {
                     while (dgToUse > 1) {
@@ -201,8 +201,8 @@ final class SectionalClosedDispatcher {
                             continue;
                         }
 
-                        double btCapKw = (bt0Avail ? bt0.getDischargeCapacity(ctx.sp) : 0.0)
-                                + (bt1Avail ? bt1.getDischargeCapacity(ctx.sp) : 0.0);
+                        double btCapKw = (bt0Avail ? bt0.getDischargePowerCapKw(ctx.sp) : 0.0)
+                                + (bt1Avail ? bt1.getDischargePowerCapKw(ctx.sp) : 0.0);
                         if (btCapKw + SimulationConstants.EPSILON < needFromBtKw) break;
 
                         double btEnergyKwh = 0.0;
@@ -242,7 +242,7 @@ final class SectionalClosedDispatcher {
 
                     // Try BT0
                     if (bt0Avail && remainingStartDefKw > SimulationConstants.EPSILON) {
-                        double capKw = bt0.getDischargeCapacity(ctx.sp);
+                        double capKw = bt0.getDischargePowerCapKw(ctx.sp);
                         double pDis0 = Math.min(remainingStartDefKw, capKw);
                         double availKwh = Math.max(0.0, (bt0.getStateOfCharge() - SimulationConstants.BATTERY_MIN_SOC))
                                 * bt0.getMaxCapacityKwh() * SimulationConstants.BATTERY_EFFICIENCY;
@@ -257,7 +257,7 @@ final class SectionalClosedDispatcher {
 
                     // Try BT1
                     if (bt1Avail && remainingStartDefKw > SimulationConstants.EPSILON) {
-                        double capKw = bt1.getDischargeCapacity(ctx.sp);
+                        double capKw = bt1.getDischargePowerCapKw(ctx.sp);
                         double pDis1 = Math.min(remainingStartDefKw, capKw);
                         double availKwh = Math.max(0.0, (bt1.getStateOfCharge() - SimulationConstants.BATTERY_MIN_SOC))
                                 * bt1.getMaxCapacityKwh() * SimulationConstants.BATTERY_EFFICIENCY;
@@ -371,7 +371,7 @@ final class SectionalClosedDispatcher {
 
                 if (allowChargeNow && dieselSurplus > SimulationConstants.EPSILON) {
                     if (bt0Avail && bt0.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
-                        double cap = bt0.getChargeCapacity(ctx.sp);
+                        double cap = bt0.getChargePowerCapKw(ctx.sp);
                         double ch = Math.min(dieselSurplus, cap);
                         if (ch > SimulationConstants.EPSILON) {
                             bt0.adjustCapacity(bt0, +ch, ch, true, ctx.considerDegradation);
@@ -380,7 +380,7 @@ final class SectionalClosedDispatcher {
                         }
                     }
                     if (bt1Avail && bt1.getStateOfCharge() < SimulationConstants.BATTERY_MAX_SOC - SimulationConstants.EPSILON) {
-                        double cap = bt1.getChargeCapacity(ctx.sp);
+                        double cap = bt1.getChargePowerCapKw(ctx.sp);
                         double ch = Math.min(dieselSurplus, cap);
                         if (ch > SimulationConstants.EPSILON) {
                             bt1.adjustCapacity(bt1, +ch, ch, true, ctx.considerDegradation);

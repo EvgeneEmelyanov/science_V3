@@ -68,7 +68,7 @@ final class PerBusDispatcher {
 
     private static double batteryMaxDischargeKw(Battery bt, HourContext ctx) {
         if (bt == null || !bt.isAvailable()) return 0.0;
-        return bt.getDischargeCapacity(ctx.sp);
+        return bt.getDischargePowerCapKw(ctx.sp);
     }
 
     private static double dischargeBattery(Battery bt, HourContext ctx, double powerKw, double durationHours, boolean bridgeMode) {
@@ -76,6 +76,7 @@ final class PerBusDispatcher {
         if (powerKw <= SimulationConstants.EPSILON || durationHours <= 0.0) return 0.0;
 
         double capKw = bt.getDischargeCapacity(ctx.sp);
+        // getDischargeCapacity() is a power cap in kW (backward-compatible name).
         double p = Math.min(powerKw, capKw);
         if (p <= SimulationConstants.EPSILON) return 0.0;
 
@@ -88,7 +89,7 @@ final class PerBusDispatcher {
         if (bt == null || !bt.isAvailable()) return 0.0;
         if (powerKw <= SimulationConstants.EPSILON || durationHours <= 0.0) return 0.0;
 
-        double capKw = bt.getChargeCapacity(ctx.sp);
+        double capKw = bt.getChargePowerCapKw(ctx.sp);
         double p = Math.min(powerKw, capKw);
         if (p <= SimulationConstants.EPSILON) return 0.0;
 
@@ -237,6 +238,44 @@ final class PerBusDispatcher {
             windToLoadKw = windPotKw;
             double deficitAfterWindKw = Math.max(0.0, loadKw - windToLoadKw);
 
+            // ===== 0) Special case: BESS can cover the entire deficit for the whole hour (fuel-saving) =====
+            // Non-reserve floor is an ABSOLUTE SOC floor (>= max(SOC_MIN, nonReserveLevel)).
+            if (btAvail && deficitAfterWindKw > SimulationConstants.EPSILON) {
+                double nonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
+                double btCapKw0 = batteryMaxDischargeKw(bt, ctx);
+                double needKw0 = deficitAfterWindKw;
+                double needKwh0 = needKw0; // 1 hour
+
+                double availKwh0 = bt.getAvailableDischargeEnergyKwhAbove(nonReserveFloor);
+
+                if (needKw0 <= btCapKw0 + SimulationConstants.EPSILON
+                        && availKwh0 + SimulationConstants.EPSILON >= needKwh0) {
+
+                    DieselGenerator.stopAllDieselsOnBus(bus);
+                    if (extraSourceBus != null) DieselGenerator.stopAllDieselsOnBus(extraSourceBus);
+
+                    double actualDisKw0 = dischargeBattery(bt, ctx, needKw0, 1.0, false);
+                    btNetKw += actualDisKw0; // full hour average
+                    dgToLoadKw = 0.0;
+
+                    ctx.status.set(HourContext.StatusCollector.PRI_NORMAL, "BESS_SUPPLIES_DEFICIT_NO_DG");
+
+                    // totals / ENS at the end will see zero deficit
+                    ctx.totals.wtToLoadKwh += windToLoadKw;
+                    ctx.totals.dgToLoadKwh += 0.0;
+                    ctx.totals.btToLoadKwh += Math.max(0.0, btNetKw);
+                    ctx.totals.wreKwh += 0.0;
+                    ctx.totals.fuelLiters += SingleRunSimulator.computeFuelLitersOneHour(bus.getDieselGenerators(), ctx.dgRatedKw);
+
+                    if (ctx.trace.enabled()) {
+                        ctx.trace.setBusValues(b, true, loadKw, windToLoadKw, 0.0, btNetKw, 0.0);
+                        ctx.trace.fillDgState(b, bus);
+                        ctx.trace.fillBatteryState(b, bt);
+                    }
+                    return;
+                }
+            }
+
             final double tau = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : ctx.dgStartDelayHours;
 
             // ===== 1) DG count by max power =====
@@ -244,13 +283,13 @@ final class PerBusDispatcher {
             int nNeededByMax = (ctx.dgMaxKw > SimulationConstants.EPSILON)
                     ? (int) Math.ceil(deficitAfterWindKw / ctx.dgMaxKw)
                     : nAvail;
-            int nPlanned = Math.min(Math.max(1, nNeededByMax), Math.max(1, nAvail));
+            int nPlanned = Math.min(Math.max(0, nNeededByMax), Math.max(0, nAvail));
 
             // ===== 2) Non-reserve BESS use: reduce DG count if possible =====
             // Threshold: SOC >= SOC_MIN + nonReserveAdd (from system parameters).
             // This applies ONLY to the part of discharge that is used to *reduce* DG count.
-            double nonReserveAdd = ctx.sp.getNonReserveDischargeLevel();
-            double socNonReserveFloor = SimulationConstants.BATTERY_MIN_SOC + nonReserveAdd;
+            // Non-reserve floor is ABSOLUTE (>= max(SOC_MIN, nonReserveLevel)).
+            double socNonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
 
             int nPlannedReduced = nPlanned;
             if (btAvail && nAvail > 0) {
@@ -265,7 +304,7 @@ final class PerBusDispatcher {
                     if (btCapKw + SimulationConstants.EPSILON < needFromBtKw) break;
 
                     double needEnergyKwh = needFromBtKw * 1.0;
-                    double availEnergyKwh = batteryAvailableEnergyKwhAbove(bt, socNonReserveFloor);
+                    double availEnergyKwh = bt.getAvailableDischargeEnergyKwhAbove(socNonReserveFloor);
                     if (availEnergyKwh + SimulationConstants.EPSILON < needEnergyKwh) break;
 
                     nPlannedReduced = cand;
@@ -323,7 +362,10 @@ final class PerBusDispatcher {
                     double btDisKw = Math.min(deficitTauKw, btCapKw);
 
                     // Ensure energy is available above SOC_MIN for tau.
-                    double availKwh = batteryAvailableEnergyKwhAbove(bt, SimulationConstants.BATTERY_MIN_SOC);
+                    double availKwh = btAvail
+                            ? bt.getAvailableDischargeEnergyKwhAbove(SimulationConstants.BATTERY_MIN_SOC)
+                            : 0.0;
+
                     double needKwh = btDisKw * tau;
                     if (btAvail && availKwh + SimulationConstants.EPSILON >= needKwh) {
                         double actualDisKw = dischargeBattery(bt, ctx, btDisKw, tau, true);
@@ -357,7 +399,7 @@ final class PerBusDispatcher {
                 double reqKw = Math.min(steadyNeedFromBtKw, btCapKw);
 
                 // Non-reserve allowance energy (above SOC_MIN+add).
-                double nonResAvailKwh = batteryAvailableEnergyKwhAbove(bt, socNonReserveFloor);
+                double nonResAvailKwh = bt.getAvailableDischargeEnergyKwhAbove(socNonReserveFloor);
                 double nonResMaxKw = Math.min(reqKw, nonResAvailKwh); // because duration=1h for this phase
 
                 double disNonResKw = 0.0;
@@ -369,7 +411,7 @@ final class PerBusDispatcher {
 
                 // Reserve part down to SOC_MIN.
                 if (reqKw > SimulationConstants.EPSILON) {
-                    double resAvailKwh = batteryAvailableEnergyKwhAbove(bt, SimulationConstants.BATTERY_MIN_SOC);
+                    double resAvailKwh = bt.getAvailableDischargeEnergyKwhAbove(SimulationConstants.BATTERY_MIN_SOC);
                     double resMaxKw = Math.min(reqKw, resAvailKwh / Math.max(1e-9, (1.0 - tau)));
                     double disResKw = dischargeBattery(bt, ctx, resMaxKw, 1.0 - tau, false);
                     btNetKw += disResKw * (1.0 - tau);

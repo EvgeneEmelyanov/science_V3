@@ -285,8 +285,10 @@ public class DieselGenerator extends Equipment {
 
     public static boolean isMaintenanceStartedThisHour(DieselGenerator[] dgs) {
         for (DieselGenerator dg : dgs) {
-            if (!dg.isAvailable()) continue;
-            if (dg.isInMaintenance() && dg.getRepairTimeHours() == 4) return true;
+            // НЕ фильтруем по isAvailable(), потому что ТО => status=false
+            if (dg.isInMaintenance() && dg.getRepairDurationHours() == MAINTENANCE_DURATION_HOURS) {
+                return true; // первый час ТО
+            }
         }
         return false;
     }

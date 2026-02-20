@@ -16,7 +16,9 @@ import java.util.concurrent.Executors;
 public class Main {
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
+
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
+
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
     public static double MAX_LOAD;
@@ -27,12 +29,12 @@ public class Main {
         RunMode runMode = RunMode.SINGLE;
         int mcIterations = 1;
 
-        BusSystemType busType = BusSystemType.SINGLE_NOT_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
 
-//                 String exportDriversPath = "D:/econ_drivers.csv";
+        //                 String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
         // Econ sobol
         String econDriversPath = "D:/econ_drivers.csv";
@@ -46,7 +48,7 @@ public class Main {
         String loadFilePath = null;
         String windFilePath = Defaults.WIND_PATH;
         String resultsXlsxPath = Defaults.RESULTS_XLSX;
-        String traceCsvPath = Defaults.TRACE_CSV;
+        String traceXlsxPath = Defaults.TRACE_XLSX;
 
         static Cli parse(String[] args) {
             Cli c = new Cli();
@@ -64,7 +66,7 @@ public class Main {
                 if (a.startsWith("--load=")) c.loadFilePath = a.substring("--load=".length()).trim();
                 if (a.startsWith("--wind=")) c.windFilePath = a.substring("--wind=".length()).trim();
                 if (a.startsWith("--results=")) c.resultsXlsxPath = a.substring("--results=".length()).trim();
-                if (a.startsWith("--trace=")) c.traceCsvPath = a.substring("--trace=".length()).trim();
+                if (a.startsWith("--trace=")) c.traceXlsxPath = a.substring("--trace=".length()).trim();
 
                 if (a.startsWith("--threads=")) c.threads = Integer.parseInt(a.substring("--threads=".length()).trim());
                 if (a.startsWith("--mc=")) c.mcIterations = Integer.parseInt(a.substring("--mc=".length()).trim());
@@ -108,7 +110,8 @@ public class Main {
         if (mode == RunMode.SWEEP_1) {
             for (double p1 : param1) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setBatteryCapacityKwhPerBus(p1)
+                        .setTotalWindTurbineCount((int) p1)
+//                        .setBatteryCapacityKwhPerBus(p2)
                         .build();
                 paramSets.add(p);
             }
@@ -133,12 +136,13 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
+                                .setTotalWindTurbineCount((int) p1)
 //                                .setWindTurbinePowerKw(p1)
 //                                .setDieselGeneratorPowerKw(p2)
 //                                .setFirstCat(p1)
-                                .setBatteryCapacityKwhPerBus(p1*1346/2)
+                                .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
 //                                 .setNonReserveDischargeLevel(p2)
-                                .setMaxDischargeCurrent(p2)
+//                                .setMaxDischargeCurrent(p2)
 //                                .setDieselGeneratorFailureRatePerYear(p2)
 //                                .setDieselGeneratorRepairTimeHours(p2)
                                 .build();
@@ -161,16 +165,13 @@ public class Main {
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
         // ===== Axes (edit here) =====
-//        double[] param1 = new double[]{0, 168.25, 336.5, 673, 1346}; // Мощность ВЭУ
-//        double[] param2 = new double[]{336.5, 420.625, 504.75, 588.875, 673.0, 757.125, 841.25}; // Мощность ДГУ для 4 шт
-//        double[] param2 = new double[]{224.3333333, 280.4166667, 336.5, 392.5833333, 448.6666667, 504.75, 560.8333333}; // Мощность ДГУ для 6 шт
-//        double[] param2 = new double[]{168.25, 210.3125, 252.375, 294.4375, 336.5, 378.5625, 420.625}; // Мощность ДГУ для 8 шт
 
-
-        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+//        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
+        double[] param2 = new double[]{0, 0.25, 0.5, 0.75, 1};
 
 //        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
-        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
 //        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};
@@ -207,7 +208,7 @@ public class Main {
                         && est.singleRun != null
                         && est.singleRun.trace != null
                         && !est.singleRun.trace.isEmpty()) {
-                    SimulationTraceExporter.exportToCsv(cli.traceCsvPath, est.singleRun.trace);
+                    SimulationTraceExporter.exportToXlsx(cli.traceXlsxPath, est.singleRun.trace);
                 }
             }
 
@@ -370,7 +371,7 @@ public class Main {
         // Paths
         static final String WIND_PATH = "D:/08_ModelingData/02_Wind.txt";
         static final String RESULTS_XLSX = "D:/results.xlsx";
-        static final String TRACE_CSV = "D:/trace.csv";
+        static final String TRACE_XLSX = "D:/trace.xlsx";
 
         // Load paths (can be overridden by --load=)
         static final String LOAD_GOK = "D:/08_ModelingData/01_Load_g.txt";

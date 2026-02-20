@@ -98,29 +98,53 @@ public class Battery extends Equipment {
 
 
     public double getChargeCapacity(SystemParameters systemParameters) {
-        if (!isAvailableForUse()) return 0.0;
-
-        double maxByCapacity = Math.max(
-                0.0,
-                maxCapacityKwh * (SimulationConstants.BATTERY_MAX_SOC - soc) / SimulationConstants.BATTERY_EFFICIENCY
-        );
-
-        double maxByCurrent = maxCapacityKwh * systemParameters.getMaxChargeCurrent();
-
-        return Math.min(maxByCapacity, maxByCurrent);
+        // Backward-compatible name: return CHARGE POWER CAP (kW).
+        // Energy headroom must be checked separately via getAvailableChargeEnergyKwhBelow(...).
+        return getChargePowerCapKw(systemParameters);
     }
 
     public double getDischargeCapacity(SystemParameters systemParameters) {
+        // Backward-compatible name: return DISCHARGE POWER CAP (kW).
+        // Energy availability must be checked separately via getAvailableDischargeEnergyKwhAbove(...).
+        return getDischargePowerCapKw(systemParameters);
+    }
+
+    /**
+     * Максимальная мощность разряда (кВт) по ограничению тока (C-rate).
+     * Энергетический лимит (SOC floor) проверяйте отдельно.
+     */
+    public double getDischargePowerCapKw(SystemParameters systemParameters) {
         if (!isAvailableForUse()) return 0.0;
+        return Math.max(0.0, maxCapacityKwh * systemParameters.getMaxDischargeCurrent());
+    }
 
-        double maxByCapacity = Math.max(
-                0.0,
-                (soc - SimulationConstants.BATTERY_MIN_SOC) * maxCapacityKwh * SimulationConstants.BATTERY_EFFICIENCY
-        );
+    /**
+     * Максимальная мощность заряда (кВт) по ограничению тока (C-rate).
+     * Свободную ёмкость (SOC ceiling) проверяйте отдельно.
+     */
+    public double getChargePowerCapKw(SystemParameters systemParameters) {
+        if (!isAvailableForUse()) return 0.0;
+        return Math.max(0.0, maxCapacityKwh * systemParameters.getMaxChargeCurrent());
+    }
 
-        double maxByCurrent = maxCapacityKwh * systemParameters.getMaxDischargeCurrent();
+    /**
+     * Доступная энергия разряда (кВт·ч) выше заданного SOC floor (учитывается КПД).
+     */
+    public double getAvailableDischargeEnergyKwhAbove(double socFloor) {
+        if (!isAvailableForUse()) return 0.0;
+        double usableSoc = Math.max(0.0, soc - socFloor);
+        return usableSoc * maxCapacityKwh * SimulationConstants.BATTERY_EFFICIENCY;
+    }
 
-        return Math.min(maxByCapacity, maxByCurrent);
+    /**
+     * Доступная "ёмкость для заряда" (кВт·ч) до заданного SOC ceiling (учитывается КПД).
+     * Это энергия со стороны сети, которую можно принять (т.е. с учетом КПД).
+     */
+    public double getAvailableChargeEnergyKwhBelow(double socCeil) {
+        if (!isAvailableForUse()) return 0.0;
+        double headroomSoc = Math.max(0.0, socCeil - soc);
+        double eff = Math.max(SimulationConstants.EPSILON, SimulationConstants.BATTERY_EFFICIENCY);
+        return headroomSoc * maxCapacityKwh / eff;
     }
 
     /**
