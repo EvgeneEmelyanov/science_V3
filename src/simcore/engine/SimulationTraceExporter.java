@@ -2,7 +2,7 @@ package simcore.engine;
 
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -17,20 +17,24 @@ public final class SimulationTraceExporter {
      * false = краткая форма (по умолчанию)
      * true  = подробная форма
      */
-    private static final boolean DETAILED_OUTPUT = false;
+    private static final boolean DETAILED_OUTPUT = true;
+
+    // сколько строк держать в памяти (остальное будет сбрасываться во временные файлы)
+    private static final int SXSSF_WINDOW = 200;
 
     private SimulationTraceExporter() {}
 
     /**
      * Экспорт трассы в Excel (XLSX):
-     * - все значения центрированы по горизонтали и вертикали
+     * - streaming запись (не падает по heap на больших трассах)
+     * - центрирование по горизонтали и вертикали
      * - закреплена верхняя строка
-     * - включен автофильтр (data-filter) на заголовке
+     * - включен автофильтр
      *
      * В КРАТКОМ выводе (DETAILED_OUTPUT=false) УБРАНЫ:
-     * - время работы ДГУ и время работы ДГУ на низкой загрузке (B*_D*_T и B*_D*_I)
-     * - время работы АКБ (B*_H)
-     * - максимальная/фактическая емкость АКБ (B*_C)
+     * - B*_D*_T, B*_D*_I
+     * - B*_H
+     * - B*_C
      */
     public static void exportToXlsx(String path, List<SimulationStepRecord> recs) throws IOException {
         if (recs == null || recs.isEmpty()) {
@@ -39,9 +43,11 @@ public final class SimulationTraceExporter {
 
         final int busCnt = recs.get(0).getBusLoadKw().length;
 
-        try (Workbook wb = new XSSFWorkbook()) {
+        // SXSSFWorkbook = streaming writer
+        try (SXSSFWorkbook wb = new SXSSFWorkbook(SXSSF_WINDOW)) {
+            wb.setCompressTempFiles(true);
+
             Sheet sh = wb.createSheet("TRACE");
-            wb.setForceFormulaRecalculation(false);
 
             // ===== Styles =====
             DataFormat df = wb.createDataFormat();
@@ -72,8 +78,9 @@ public final class SimulationTraceExporter {
             // ===== Header =====
             int r = 0;
             Row hdr = sh.createRow(r++);
-            int c = 0;
+            hdr.setHeightInPoints(18);
 
+            int c = 0;
             writeHeaderCell(hdr, c++, "t", headerStyle);
             writeHeaderCell(hdr, c++, "L", headerStyle);
             writeHeaderCell(hdr, c++, "BRK", headerStyle);
@@ -92,19 +99,21 @@ public final class SimulationTraceExporter {
                     writeHeaderCell(hdr, c++, "B" + bi + "_D" + di, headerStyle);
 
                     if (DETAILED_OUTPUT) {
-                        // Подробный режим (в этом задании выключен)
                         writeHeaderCell(hdr, c++, "B" + bi + "_D" + di + "_T", headerStyle);
                         writeHeaderCell(hdr, c++, "B" + bi + "_D" + di + "_I", headerStyle);
                     }
                 }
 
-                writeHeaderCell(hdr, c++, "B" + bi + "_B", headerStyle);     // BT generation kW
+                writeHeaderCell(hdr, c++, "B" + bi + "_B", headerStyle);
+
                 if (DETAILED_OUTPUT) {
-                    writeHeaderCell(hdr, c++, "B" + bi + "_C", headerStyle); // BT capacity (removed in short)
+                    writeHeaderCell(hdr, c++, "B" + bi + "_C", headerStyle);
                 }
-                writeHeaderCell(hdr, c++, "B" + bi + "_SOC", headerStyle);   // SOC
+
+                writeHeaderCell(hdr, c++, "B" + bi + "_SOC", headerStyle);
+
                 if (DETAILED_OUTPUT) {
-                    writeHeaderCell(hdr, c++, "B" + bi + "_H", headerStyle); // BT time worked (removed in short)
+                    writeHeaderCell(hdr, c++, "B" + bi + "_H", headerStyle);
                 }
             }
 
@@ -113,24 +122,22 @@ public final class SimulationTraceExporter {
             // ===== Data =====
             for (SimulationStepRecord rec : recs) {
                 Row row = sh.createRow(r++);
+                row.setHeightInPoints(16);
+
                 int cc = 0;
 
-                // t
                 Cell ct = row.createCell(cc++);
                 ct.setCellValue(rec.getTimeIndex());
                 ct.setCellStyle(intStyle);
 
-                // L
                 writeNum1(row, cc++, rec.getTotalLoadKw(), num1Style);
 
-                // BRK
                 Cell cbrk = row.createCell(cc++);
                 cbrk.setCellValue(brk(rec.getBreakerClosed()));
                 cbrk.setCellStyle(textStyle);
 
-                // STATUS
                 Cell cst = row.createCell(cc++);
-                cst.setCellValue(escape(rec.getStatus()));
+                cst.setCellValue(cleanStatus(rec.getStatus()));
                 cst.setCellStyle(textStyle);
 
                 boolean[] busStatus = rec.getBusStatus();
@@ -143,7 +150,6 @@ public final class SimulationTraceExporter {
                 boolean[][] dgAvail = rec.getDgAvailable();
                 boolean[][] dgMaint = rec.getDgInMaintenance();
 
-                // These are used only in detailed mode; keep lazy access.
                 double[][] dgTotalT = null;
                 int[][] dgIdleT = null;
                 double[] btCap = null;
@@ -159,20 +165,16 @@ public final class SimulationTraceExporter {
                 double[] btSoc = rec.getBtActualSOC();
 
                 for (int b = 0; b < busCnt; b++) {
-                    // B*_L
+
                     if (busStatus[b]) {
                         writeNum1(row, cc++, busLoad[b], num1Style);
                     } else {
                         writeText(row, cc++, "OFF", textStyle);
                     }
 
-                    // B*_Def
                     writeNum1(row, cc++, busDef[b], num1Style);
-
-                    // B*_W
                     writeNum1(row, cc++, busW[b], num1Style);
 
-                    // DG columns
                     int dgCnt = dgLoad[b].length;
                     for (int i = 0; i < dgCnt; i++) {
                         if (!dgAvail[b][i]) {
@@ -189,19 +191,15 @@ public final class SimulationTraceExporter {
                         }
                     }
 
-                    // B*_B (BT generation kW)
                     writeNum1(row, cc++, busB[b], num1Style);
 
                     if (DETAILED_OUTPUT) {
-                        // B*_C (capacity)
                         writeNum1(row, cc++, btCap[b], num1Style);
                     }
 
-                    // B*_SOC
                     writeNum1(row, cc++, btSoc[b], num1Style);
 
                     if (DETAILED_OUTPUT) {
-                        // B*_H (time worked)
                         writeNum1(row, cc++, btH[b], num1Style);
                     }
                 }
@@ -211,21 +209,32 @@ public final class SimulationTraceExporter {
             sh.createFreezePane(0, 1);
             sh.setAutoFilter(new CellRangeAddress(0, 0, 0, lastCol0));
 
-            // ===== Autosize =====
-            for (int col = 0; col <= lastCol0; col++) {
-                sh.autoSizeColumn(col);
-                // небольшой минимум, чтобы "STATUS" не был слишком узкий при коротких значениях
-                int w = sh.getColumnWidth(col);
-                sh.setColumnWidth(col, Math.min(Math.max(w, 10 * 256), 80 * 256));
+            // ===== Column widths (вместо autoSizeColumn) =====
+            // Общие
+            setWidth(sh, 0, 6);   // t
+            setWidth(sh, 1, 10);  // L
+            setWidth(sh, 2, 8);   // BRK
+            setWidth(sh, 3, 40);  // STATUS
+
+            // Остальные колонки — умеренная ширина
+            for (int col = 4; col <= lastCol0; col++) {
+                setWidth(sh, col, 11);
             }
 
             try (FileOutputStream out = new FileOutputStream(path)) {
                 wb.write(out);
+            } finally {
+                // важно: удалить временные файлы SXSSF
+                wb.dispose();
             }
         }
     }
 
     // ===== Helpers =====
+
+    private static void setWidth(Sheet sh, int col0, int chars) {
+        sh.setColumnWidth(col0, Math.min(Math.max(chars, 4), 80) * 256);
+    }
 
     private static void writeHeaderCell(Row row, int col, String text, CellStyle style) {
         Cell cell = row.createCell(col, CellType.STRING);
@@ -258,9 +267,8 @@ public final class SimulationTraceExporter {
         return Math.rint(v * 10.0) / 10.0;
     }
 
-    private static String escape(String s) {
+    private static String cleanStatus(String s) {
         if (s == null) return "";
-        // В Excel ';' не разделитель, но оставим замену чтобы статус был "чистым".
         return s.replace(';', ',');
     }
 }

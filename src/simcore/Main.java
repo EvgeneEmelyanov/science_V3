@@ -110,8 +110,7 @@ public class Main {
         if (mode == RunMode.SWEEP_1) {
             for (double p1 : param1) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setTotalWindTurbineCount((int) p1)
-//                        .setBatteryCapacityKwhPerBus(p2)
+                        .setBatteryCapacityKwhPerBus(p1 * 1346/2)
                         .build();
                 paramSets.add(p);
             }
@@ -167,10 +166,10 @@ public class Main {
         // ===== Axes (edit here) =====
 
 //        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
-        double[] param2 = new double[]{0, 0.25, 0.5, 0.75, 1};
+//        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
+        double[] param1 = new double[]{0, 0.25, 0.5, 0.75, 1};
 
-//        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
+        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
 //        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 

@@ -5,6 +5,7 @@ import simcore.engine.metrics.EnsAllocator;
 import simcore.model.Battery;
 import simcore.model.DieselGenerator;
 import simcore.model.PowerBus;
+import simcore.config.ModelDefaults;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,12 +76,21 @@ final class PerBusDispatcher {
         if (bt == null || !bt.isAvailable()) return 0.0;
         if (powerKw <= SimulationConstants.EPSILON || durationHours <= 0.0) return 0.0;
 
+        // Limit by inverter current.
         double capKw = bt.getDischargeCapacity(ctx.sp);
-        // getDischargeCapacity() is a power cap in kW (backward-compatible name).
-        double p = Math.min(powerKw, capKw);
+
+        // Also limit by actually available stored energy (avoid "discharge" at SOC=0).
+        // Energy delta passed to Battery.adjustCapacity() is terminal energy (before efficiency).
+        double maxCapKwh = bt.getMaxCapacityKwh();
+        double soc = bt.getStateOfCharge();
+        double storedKwh = Math.max(0.0, soc * maxCapKwh);
+        double capByStoredKw = storedKwh <= 0.0
+                ? 0.0
+                : (storedKwh / durationHours) * SimulationConstants.BATTERY_EFFICIENCY;
+
+        double p = Math.min(powerKw, Math.min(capKw, capByStoredKw));
         if (p <= SimulationConstants.EPSILON) return 0.0;
 
-        // Energy delta is negative for discharge.
         bt.adjustCapacity(bt, -p * durationHours, p, bridgeMode, ctx.considerDegradation);
         return p;
     }
@@ -89,8 +99,19 @@ final class PerBusDispatcher {
         if (bt == null || !bt.isAvailable()) return 0.0;
         if (powerKw <= SimulationConstants.EPSILON || durationHours <= 0.0) return 0.0;
 
-        double capKw = bt.getChargePowerCapKw(ctx.sp);
-        double p = Math.min(powerKw, capKw);
+        // Limit by inverter current.
+        double capKw = bt.getChargeCapacity(ctx.sp);
+
+        // Also limit by remaining free capacity (avoid "charge" at SOC=1).
+        // Energy delta passed to Battery.adjustCapacity() is terminal energy (before efficiency).
+        double maxCapKwh = bt.getMaxCapacityKwh();
+        double soc = bt.getStateOfCharge();
+        double freeKwh = Math.max(0.0, (1.0 - soc) * maxCapKwh);
+        double capByFreeKw = freeKwh <= 0.0
+                ? 0.0
+                : (freeKwh / durationHours) / SimulationConstants.BATTERY_EFFICIENCY;
+
+        double p = Math.min(powerKw, Math.min(capKw, capByFreeKw));
         if (p <= SimulationConstants.EPSILON) return 0.0;
 
         bt.adjustCapacity(bt, +p * durationHours, p, false, ctx.considerDegradation);
@@ -324,7 +345,13 @@ final class PerBusDispatcher {
 
                 // If one DG is lost: remaining DG max.
                 double remainingDgMaxKw = Math.max(0.0, (nOn - 1) * ctx.dgMaxKw);
-                double gapKw = Math.max(0.0, criticalDefAfterWind - remainingDgMaxKw);
+                double gapKw;
+                if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
+                    gapKw = (isBus1 ? ctx.avgLoadB1 : ctx.avgLoadB2)
+                            * ModelDefaults.CFG_ROTATION_RESERVE_COEFF;
+                } else {
+                    gapKw = Math.max(0.0, criticalDefAfterWind - remainingDgMaxKw);
+                }
 
                 if (gapKw > SimulationConstants.EPSILON) {
                     boolean btCanBridge = btAvail && SingleRunSimulator.canBatteryBridge(bt, ctx.sp, gapKw, tau, batteryMaxDischargeKw(bt, ctx));

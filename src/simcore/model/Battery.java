@@ -172,7 +172,7 @@ public class Battery extends Equipment {
 
         double prevSoc = soc;
 
-        // SOC update
+// SOC update (with clamping)
         if (energyDelta > 0) {
             soc = Math.min(
                     SimulationConstants.BATTERY_MAX_SOC,
@@ -183,6 +183,28 @@ public class Battery extends Equipment {
                     SimulationConstants.BATTERY_MIN_SOC,
                     soc + (energyDelta / maxCapacityKwh) / SimulationConstants.BATTERY_EFFICIENCY
             );
+        }
+
+// Effective terminal energy actually moved after clamping.
+// This prevents counting "work" / degradation when the battery is full/empty.
+        double socDelta = soc - prevSoc;
+        double effEnergyDelta;
+        if (Math.abs(socDelta) <= SimulationConstants.EPSILON || maxCapacityKwh <= SimulationConstants.EPSILON) {
+            effEnergyDelta = 0.0;
+        } else if (socDelta > 0.0) {
+            // charge: socDelta = (E * eff) / C  =>  E = socDelta * C / eff
+            effEnergyDelta = (socDelta * maxCapacityKwh) / SimulationConstants.BATTERY_EFFICIENCY;
+        } else {
+            // discharge: socDelta = E / (C * eff)  =>  E = socDelta * C * eff
+            effEnergyDelta = (socDelta * maxCapacityKwh) * SimulationConstants.BATTERY_EFFICIENCY;
+        }
+
+// Наработка: только если реально прошла энергия (после учёта пределов SOC)
+        if (!doubleTime && Math.abs(effEnergyDelta) > 0.0005 * nominalCapacityKwh) {
+            if (!workedCountedThisHour) {
+                battery.timeWorked++;
+                workedCountedThisHour = true;
+            }
         }
 
         // Наработка как у тебя, но не более +1 за час

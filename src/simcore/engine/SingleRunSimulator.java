@@ -22,6 +22,13 @@ import static simcore.economy.RuCostAdjuster.effectiveRuCost;
 import java.util.List;
 
 public final class SingleRunSimulator {
+    private static double computeAverageLoad(double[] profile) {
+        if (profile == null || profile.length == 0) return 0.0;
+        double sum = 0.0;
+        for (double v : profile) sum += v;
+        return sum / profile.length;
+    }
+
 
     static boolean considerRotationReserve;
 
@@ -619,7 +626,7 @@ public final class SingleRunSimulator {
                 doubleBusDead = busEnergised[0] ? 1 : 0;
                 doubleBusLive = 1 - doubleBusDead;
                 // Transfer generation starting from the 2nd outage hour.
-                doubleBusTransferGen = outageHours[doubleBusDead] >= 2;
+                doubleBusTransferGen = outageHours[doubleBusDead] >= 1;
             }
 
             for (int b = 0; b < busCount; b++) {
