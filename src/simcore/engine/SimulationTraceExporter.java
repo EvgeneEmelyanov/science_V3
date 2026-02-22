@@ -17,7 +17,7 @@ public final class SimulationTraceExporter {
      * false = краткая форма (по умолчанию)
      * true  = подробная форма
      */
-    private static final boolean DETAILED_OUTPUT = true;
+    private static final boolean DETAILED_OUTPUT = false;
 
     // сколько строк держать в памяти (остальное будет сбрасываться во временные файлы)
     private static final int SXSSF_WINDOW = 200;

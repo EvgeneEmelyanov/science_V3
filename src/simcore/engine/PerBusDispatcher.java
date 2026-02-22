@@ -99,13 +99,17 @@ final class PerBusDispatcher {
         if (bt == null || !bt.isAvailable()) return 0.0;
         if (powerKw <= SimulationConstants.EPSILON || durationHours <= 0.0) return 0.0;
 
+        // If battery is (almost) full, do not "charge" it and do not count work/degradation.
+        double soc0 = bt.getStateOfCharge();
+        if (soc0 >= 1.0 - 1e-9) return 0.0;
+
         // Limit by inverter current.
         double capKw = bt.getChargeCapacity(ctx.sp);
 
         // Also limit by remaining free capacity (avoid "charge" at SOC=1).
         // Energy delta passed to Battery.adjustCapacity() is terminal energy (before efficiency).
         double maxCapKwh = bt.getMaxCapacityKwh();
-        double soc = bt.getStateOfCharge();
+        double soc = soc0;
         double freeKwh = Math.max(0.0, (1.0 - soc) * maxCapKwh);
         double capByFreeKw = freeKwh <= 0.0
                 ? 0.0
@@ -347,8 +351,7 @@ final class PerBusDispatcher {
                 double remainingDgMaxKw = Math.max(0.0, (nOn - 1) * ctx.dgMaxKw);
                 double gapKw;
                 if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
-                    gapKw = (isBus1 ? ctx.avgLoadB1 : ctx.avgLoadB2)
-                            * ModelDefaults.CFG_ROTATION_RESERVE_COEFF;
+                    gapKw = SingleRunSimulator.getAvgLoadPerBusKw() * ModelDefaults.CFG_ROTATION_RESERVE_COEFF;
                 } else {
                     gapKw = Math.max(0.0, criticalDefAfterWind - remainingDgMaxKw);
                 }

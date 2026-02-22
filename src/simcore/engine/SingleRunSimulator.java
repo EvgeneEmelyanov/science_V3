@@ -1,9 +1,6 @@
 package simcore.engine;
 
-import simcore.config.SimulationConfig;
-import simcore.config.SimulationConstants;
-import simcore.config.SystemParameters;
-import simcore.config.BusSystemType;
+import simcore.config.*;
 import simcore.model.*;
 import simcore.engine.failures.FailureStepper;
 import simcore.engine.metrics.EnsAllocator;
@@ -22,15 +19,16 @@ import static simcore.economy.RuCostAdjuster.effectiveRuCost;
 import java.util.List;
 
 public final class SingleRunSimulator {
-    private static double computeAverageLoad(double[] profile) {
-        if (profile == null || profile.length == 0) return 0.0;
-        double sum = 0.0;
-        for (double v : profile) sum += v;
-        return sum / profile.length;
-    }
-
 
     static boolean considerRotationReserve;
+
+    // Average load per bus for the whole horizon (computed once per run).
+    // Used only when ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY == true.
+    private static double avgLoadPerBusKw;
+
+    static double getAvgLoadPerBusKw() {
+        return avgLoadPerBusKw;
+    }
 
     /**
      * "Есть grid-forming оборудование" == на шине физически присутствует (и доступно) хотя бы одно из:
@@ -77,6 +75,20 @@ public final class SingleRunSimulator {
         final int[] roomIndexByBus = system.getRoomIndexByBus();
 
         FailureStepper.initFailureModels(seed, considerFailures, buses, breaker, rooms);
+
+        // Average load over the full horizon, per bus.
+        // Requirement: if 2 buses, divide average total load equally between buses.
+        double[] totalLoad = input.getTotalLoadKw();
+        if (totalLoad != null && totalLoad.length > 0) {
+            double sum = 0.0;
+            for (double v : totalLoad) {
+                if (Double.isFinite(v)) sum += v;
+            }
+            double avgTotal = sum / (double) totalLoad.length;
+            avgLoadPerBusKw = avgTotal / Math.max(1, busCount);
+        } else {
+            avgLoadPerBusKw = 0.0;
+        }
 
         final Totals totals = new Totals();
 
@@ -974,7 +986,16 @@ public final class SingleRunSimulator {
         boolean[] keepOn = new boolean[dgCountAll];
 
         double pCrit = SimulationConstants.MAX_LOAD * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
-        double windLoss = Math.min(windToLoadKw, pCrit);
+
+        // Wind-loss power to be bridged during idle-reserve decisions.
+        // Default: depends on current hour wind-to-load.
+        // Avg-load policy: use avgLoadPerBus * coeff (independent from current wind).
+        double windLoss;
+        if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
+            windLoss = avgLoadPerBusKw * ModelDefaults.CFG_IDLE_RESERVE_COEFF;
+        } else {
+            windLoss = Math.min(windToLoadKw, pCrit);
+        }
 
         double btFirm = 0.0;
         if (btAvail) {

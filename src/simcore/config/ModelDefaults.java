@@ -18,7 +18,7 @@ public final class ModelDefaults {
     // Battery
     public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 336.5; //336.5
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1;
-    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 1.0;
+    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
     public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.8;
 
     // Reliability (rates are double, repair times are int)
@@ -66,8 +66,9 @@ public final class ModelDefaults {
     public static final boolean CFG_RESERVE_THIRD_CATEGORY = true;
     public static final boolean CFG_CONSIDER_ROTATION_RESERVE = true;
 
-    // ===== Policy-based reserve via average load coefficients =====
-    public static final boolean CFG_USE_AVG_LOAD_RESERVE_POLICY = true;
-    public static final double CFG_IDLE_RESERVE_COEFF = 0.30;
-    public static final double CFG_ROTATION_RESERVE_COEFF = 0.40;
+    public static final boolean CFG_USE_AVG_LOAD_RESERVE_POLICY = false;
+
+    public static final double CFG_IDLE_RESERVE_COEFF = 2.0;
+
+    public static final double CFG_ROTATION_RESERVE_COEFF = 2.0;
 }
