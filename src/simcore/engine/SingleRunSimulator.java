@@ -184,7 +184,9 @@ public final class SingleRunSimulator {
         // DOUBLE_BUS: если МШВ не работает, то перенос II/III и генерации выполняется в следующий час.
         int pendingDoubleBusTransferFrom = -1;
 
-        // часто используемые параметры ДГУ
+        int pendingDoubleBusTransferGenFrom = -1;
+
+// часто используемые параметры ДГУ
         final double dgRatedKw = sp.getDieselGeneratorPowerKw();
         final double dgMaxKw = dgRatedKw * SimulationConstants.DG_MAX_POWER;
         final double dgMinKw = dgRatedKw * SimulationConstants.DG_MIN_POWER;
@@ -559,78 +561,91 @@ public final class SingleRunSimulator {
 
             // ===== Standard per-bus dispatch =====
             // ===== DOUBLE_BUS: deficit handling per new table =====
-            // If the other bus has surplus:
-            //  - MSHV works: transfer I/II/III and generation NOW (modeled as immediate load shift)
-            //  - MSHV failed: transfer I NOW, II/III and generation NEXT hour
-            if (busType == BusSystemType.DOUBLE_BUS && busCount == 2 && busEnergised[0] && busEnergised[1]) {
+// If the other bus has surplus:
+//  - MSHV works: transfer I/II/III and generation NOW (modeled as immediate load shift + extra sources)
+//  - MSHV failed: transfer I NOW, II/III and generation NEXT hour
+int extraSourceForBus0 = -1;
+int extraSourceForBus1 = -1;
+if (busType == BusSystemType.DOUBLE_BUS && busCount == 2 && busEnergised[0] && busEnergised[1]) {
 
-                // Apply pending transfer from previous hour (MSHV failed case)
-                if (pendingDoubleBusTransferFrom != -1) {
-                    int from = pendingDoubleBusTransferFrom;
-                    int to = 1 - from;
-                    double transfer = rawLoadThisHourKw[from] * (1.0 - cat1);
-                    rawLoadThisHourKw[from] = Math.max(0.0, rawLoadThisHourKw[from] - transfer);
-                    rawLoadThisHourKw[to] += transfer;
-                    pendingDoubleBusTransferFrom = -1;
-                    ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_II_III_AND_GEN_NEXT");
-                }
+    // Apply pending transfer from previous hour (MSHV failed case)
+    if (pendingDoubleBusTransferFrom != -1) {
+        int from = pendingDoubleBusTransferFrom;
+        int to = 1 - from;
 
-                double load0 = (effectiveLoadKw != null) ? effectiveLoadKw[0] : rawLoadThisHourKw[0];
-                double load1 = (effectiveLoadKw != null) ? effectiveLoadKw[1] : rawLoadThisHourKw[1];
+        double transfer = rawLoadThisHourKw[from] * (1.0 - cat1);
+        rawLoadThisHourKw[from] = Math.max(0.0, rawLoadThisHourKw[from] - transfer);
+        rawLoadThisHourKw[to] += transfer;
 
-                double pot0 = BusPotential.windPotentialNoSideEffects(buses.get(0), windV)
-                        + BusPotential.dieselPotential(buses.get(0), dgMaxKw)
-                        + BusPotential.batteryDischargePotential(buses.get(0), sp);
-                double pot1 = BusPotential.windPotentialNoSideEffects(buses.get(1), windV)
-                        + BusPotential.dieselPotential(buses.get(1), dgMaxKw)
-                        + BusPotential.batteryDischargePotential(buses.get(1), sp);
+        pendingDoubleBusTransferFrom = -1;
 
-                double deficit0 = Math.max(0.0, load0 - pot0);
-                double deficit1 = Math.max(0.0, load1 - pot1);
-                double surplus0 = Math.max(0.0, pot0 - load0);
-                double surplus1 = Math.max(0.0, pot1 - load1);
+        if (pendingDoubleBusTransferGenFrom == from) {
+            // Transfer generation as well (next hour rule when MSHV failed).
+            if (to == 0) extraSourceForBus0 = from;
+            else extraSourceForBus1 = from;
+            pendingDoubleBusTransferGenFrom = -1;
+        }
 
-                if (deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON) {
-                    if (breaker != null && breaker.isAvailable()) {
-                        // Transfer NOW in 10% steps (round up): if need 35% -> 40%.
-                        double stepKw = SimulationConstants.UFLS_STEP * Math.max(load0, SimulationConstants.EPSILON);
-                        double transferKw = (stepKw > SimulationConstants.EPSILON)
-                                ? Math.ceil(deficit0 / stepKw) * stepKw
-                                : deficit0;
-                        transferKw = Math.min(load0, transferKw);
-                        rawLoadThisHourKw[0] = Math.max(0.0, rawLoadThisHourKw[0] - transferKw);
-                        rawLoadThisHourKw[1] += transferKw;
-                        int pct = (int) Math.round(100.0 * (transferKw / Math.max(load0, SimulationConstants.EPSILON)));
-                        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_ALL_NOW_" + pct + "%");
-                    } else {
-                        double transferI = rawLoadThisHourKw[0] * cat1;
-                        rawLoadThisHourKw[0] = Math.max(0.0, rawLoadThisHourKw[0] - transferI);
-                        rawLoadThisHourKw[1] += transferI;
-                        pendingDoubleBusTransferFrom = 0;
-                        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_I_NOW_II_III_GEN_NEXT");
-                    }
-                } else if (deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON) {
-                    if (breaker != null && breaker.isAvailable()) {
-                        double stepKw = SimulationConstants.UFLS_STEP * Math.max(load1, SimulationConstants.EPSILON);
-                        double transferKw = (stepKw > SimulationConstants.EPSILON)
-                                ? Math.ceil(deficit1 / stepKw) * stepKw
-                                : deficit1;
-                        transferKw = Math.min(load1, transferKw);
-                        rawLoadThisHourKw[1] = Math.max(0.0, rawLoadThisHourKw[1] - transferKw);
-                        rawLoadThisHourKw[0] += transferKw;
-                        int pct = (int) Math.round(100.0 * (transferKw / Math.max(load1, SimulationConstants.EPSILON)));
-                        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_ALL_NOW_" + pct + "%");
-                    } else {
-                        double transferI = rawLoadThisHourKw[1] * cat1;
-                        rawLoadThisHourKw[1] = Math.max(0.0, rawLoadThisHourKw[1] - transferI);
-                        rawLoadThisHourKw[0] += transferI;
-                        pendingDoubleBusTransferFrom = 1;
-                        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_I_NOW_II_III_GEN_NEXT");
-                    }
-                }
-            }
+        ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_II_III_AND_GEN_NEXT");
+    }
 
-            // DOUBLE_BUS: if one bus is down, from the 2nd repair hour transfer ALL DG and WT from the dead bus
+    double load0 = (effectiveLoadKw != null) ? effectiveLoadKw[0] : rawLoadThisHourKw[0];
+    double load1 = (effectiveLoadKw != null) ? effectiveLoadKw[1] : rawLoadThisHourKw[1];
+
+    // IMPORTANT: deficit/surplus must be evaluated against *firm* max average supply for THIS HOUR.
+    // Using plain dgMaxKw without start-delay (tau) overestimates capability and prevents transfers.
+    double pot0 = maxAvgSupplyPotentialKw(buses.get(0), sp, windV, dgMaxKw, dgStartDelayHours);
+    double pot1 = maxAvgSupplyPotentialKw(buses.get(1), sp, windV, dgMaxKw, dgStartDelayHours);
+
+    double deficit0 = Math.max(0.0, load0 - pot0);
+    double deficit1 = Math.max(0.0, load1 - pot1);
+    double surplus0 = Math.max(0.0, pot0 - load0);
+    double surplus1 = Math.max(0.0, pot1 - load1);
+
+    // Decide transfer direction.
+    int from = -1;
+    int to = -1;
+    if (deficit0 > SimulationConstants.EPSILON && surplus1 > SimulationConstants.EPSILON) {
+        from = 0; to = 1;
+    } else if (deficit1 > SimulationConstants.EPSILON && surplus0 > SimulationConstants.EPSILON) {
+        from = 1; to = 0;
+    }
+
+    if (from != -1) {
+        if (breaker != null && breaker.isAvailable()) {
+            // MSHV works: transfer ALL load and make ALL generation available on the receiving bus NOW.
+            breaker.setClosed(true);
+
+            double transferAll = rawLoadThisHourKw[from];
+            rawLoadThisHourKw[from] = 0.0;
+            rawLoadThisHourKw[to] += transferAll;
+
+            if (to == 0) extraSourceForBus0 = from;
+            else extraSourceForBus1 = from;
+
+            int pct = (int) Math.round(100.0 * (transferAll / Math.max((from == 0 ? load0 : load1), SimulationConstants.EPSILON)));
+            ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_ALL_LOAD_AND_GEN_NOW_" + pct + "%");
+        } else {
+            // MSHV failed: transfer only CAT1 now, CAT2/3 + generation next hour.
+            if (breaker != null) breaker.setClosed(false);
+
+            double transferI = rawLoadThisHourKw[from] * cat1;
+            rawLoadThisHourKw[from] = Math.max(0.0, rawLoadThisHourKw[from] - transferI);
+            rawLoadThisHourKw[to] += transferI;
+
+            pendingDoubleBusTransferFrom = from;
+            pendingDoubleBusTransferGenFrom = from;
+
+            int pct = (int) Math.round(100.0 * (transferI / Math.max((from == 0 ? load0 : load1), SimulationConstants.EPSILON)));
+            ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_TRANSFER_CAT1_NOW_CAT2_3_GEN_NEXT_" + pct + "%");
+        }
+    } else {
+        if (breaker != null) breaker.setClosed(false);
+    }
+}
+
+// DOUBLE_BUS: if one bus is down, from the 2nd repair hour transfer ALL DG and WT from the dead bus
+
             // onto the live bus (in addition to load transfer performed in BusLoadAllocator).
             int doubleBusDead = -1;
             int doubleBusLive = -1;
@@ -666,8 +681,15 @@ public final class SingleRunSimulator {
                         PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, false, b, loadKw);
                     }
                 } else {
+                    PowerBus extra = null;
                     if (doubleBusTransferGen) {
-                        PowerBus extra = (b == doubleBusLive) ? buses.get(doubleBusDead) : null;
+                        extra = (b == doubleBusLive) ? buses.get(doubleBusDead) : null;
+                    } else {
+                        if (b == 0 && extraSourceForBus0 != -1) extra = buses.get(extraSourceForBus0);
+                        if (b == 1 && extraSourceForBus1 != -1) extra = buses.get(extraSourceForBus1);
+                    }
+
+                    if (extra != null) {
                         PerBusDispatcher.dispatchOneBusOneHourWithExtraSources(ctx, bus, extra, true, b, loadKw);
                     } else {
                         PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, true, b, loadKw);
@@ -861,6 +883,61 @@ public final class SingleRunSimulator {
     // Helpers
     // ======================================================================
 
+
+/**
+ * Max average available supply for the current hour on a given bus, accounting for:
+ * - WT potential (no side effects)
+ * - DG start delay (tau) via average power over the hour depending on wasWorkingAtHourStart()
+ * - BESS discharge power capability and energy above SOC_MIN (firm for 1h)
+ *
+ * Used for DOUBLE_BUS transfer decisions to avoid overestimating supply and missing needed transfers.
+ */
+private static double maxAvgSupplyPotentialKw(
+        PowerBus bus,
+        SystemParameters sp,
+        double windV,
+        double dgMaxKw,
+        double dgStartDelayHours
+) {
+    if (bus == null) return 0.0;
+
+    // WT: potential without work-time side effects (this is just a decision estimate).
+    double windPotKw = BusPotential.windPotentialNoSideEffects(bus, windV);
+
+    // DG: available count vs already working at hour start -> average due to start delay.
+    DieselGenerator[] dgs = DieselGenerator.getSortedDgs(bus);
+    int available = 0;
+    int workingAtStart = 0;
+    for (DieselGenerator dg : dgs) {
+        if (dg == null) continue;
+        if (!dg.isAvailable()) continue;
+        available++;
+        if (dg.wasWorkingAtHourStart()) workingAtStart++;
+    }
+
+    double tauRaw = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : dgStartDelayHours;
+    double tauEff = (available > workingAtStart) ? tauRaw : 0.0;
+    if (tauEff < 0.0) tauEff = 0.0;
+    if (tauEff > 1.0) tauEff = 1.0;
+
+    double dgMaxAvgKw = Math.max(0.0,
+            (workingAtStart * dgMaxKw)
+                    + ((available - workingAtStart) * dgMaxKw * Math.max(0.0, 1.0 - tauEff))
+    );
+
+    // BESS: firm 1-hour discharge potential above SOC_MIN (not just inverter current).
+    double btAvgKw = 0.0;
+    Battery bt = bus.getBattery();
+    if (bt != null && bt.isAvailable()) {
+        double capKw = bt.getDischargeCapacity(sp);
+        double availKwh = bt.getAvailableDischargeEnergyKwhAbove(SimulationConstants.BATTERY_MIN_SOC);
+        btAvgKw = Math.max(0.0, Math.min(capKw, availKwh)); // duration=1h
+    }
+
+    return windPotKw + dgMaxAvgKw + btAvgKw;
+}
+
+
     private static long sumMotoHours(java.util.List<PowerBus> buses) {
         long s = 0;
         for (PowerBus bus : buses) {
@@ -994,39 +1071,25 @@ public final class SingleRunSimulator {
         // Avg-load policy: use avgLoadPerBus * coeff (independent from current wind).
         double windLoss;
         if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
-            windLoss = avgLoadPerBusKw * sp.getIdleReserveCoeff();
+            windLoss = avgLoadPerBusKw * ModelDefaults.CFG_IDLE_RESERVE_COEFF;
         } else {
             windLoss = Math.min(windToLoadKw, pCrit);
         }
 
-        // РЕЗЕРВ (idle / rotation policy)
-        double reserveNeed;
-        if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
-            // Avg-load policy: reserve is based on long-term average load, independent from current hour wind/load.
-            reserveNeed = avgLoadPerBusKw * sp.getRotationReserveCoeff();
-        } else {
-            reserveNeed = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
-            reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
-        }
+        // РЕЗЕРВ
+        double reserveNeed = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
+//        double reserveNeed = windLoss;
+        reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
         if (reserveNeed < 0.0) reserveNeed = 0.0;
 
-        int idleNeed = (reserveNeed > SimulationConstants.EPSILON)
+        int idleNeed = (loadKw > SimulationConstants.EPSILON)
                 ? (int) Math.ceil(reserveNeed / dgRatedKw)
                 : 0;
         if (idleNeed > available) idleNeed = available;
 
         if (btAvail) {
             double btDisCap = battery.getDischargePowerCapKw(sp);
-
-            // Battery can replace diesel idle/rotation reserve only if it can bridge the wind-loss / start-delay window.
-            // Avg-load policy: use avgLoadPerBus * CFG_IDLE_RESERVE_COEFF as the required bridging power.
-            double requiredPowerKw = ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY
-                    ? (avgLoadPerBusKw * sp.getIdleReserveCoeff())
-                    : (dgRatedKw * idleNeed);
-
-            idleNeed = canBatteryBridge(battery, sp, requiredPowerKw, SimulationConstants.DG_START_DELAY_HOURS, btDisCap)
-                    ? 0
-                    : idleNeed;
+            idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
         }
 
         // Rotation reserve: if any DG must run, keep N+1 units online.
@@ -1102,6 +1165,90 @@ public final class SingleRunSimulator {
             dg.setCurrentLoad(0.0);
             dg.stopWork();
             dg.setIdle(false);
+        }
+    }
+
+    static void applyIdleReserveInWindDeficit(
+            DieselGenerator[] dgs,
+            double loadKw,
+            double windToLoadKw,
+            double cat1,
+            double cat2,
+            boolean reserveThirdCategory,
+            boolean btAvail,
+            Battery battery,
+            SystemParameters sp,
+            double tauEff,
+            double btDisCapKw,
+            double dgRatedKw,
+            double dgMinKw,
+            double dgMaxKw
+    ) {
+        int dgCountAll = dgs.length;
+
+        double cat3 = Math.max(0.0, 1.0 - cat1 - cat2);
+        double reserveShare = cat1 + SimulationConstants.DG_IDLE_K2 * cat2 + (reserveThirdCategory ? cat3 : 0.0);
+
+        double pCrit = loadKw * reserveShare;
+        double windLoss = Math.min(windToLoadKw, pCrit);
+
+        // РЕЗЕРВ
+        double reserveNeed = loadKw * reserveShare;
+//        double reserveNeed = windLoss;
+        reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
+        if (reserveNeed < 0.0) reserveNeed = 0.0;
+
+        int idleNeed = (reserveNeed > SimulationConstants.EPSILON)
+                ? (int) Math.ceil(reserveNeed / dgRatedKw)
+                : 0;
+
+        if (btAvail) {
+            double btDisCap = battery.getDischargePowerCapKw(sp);
+            idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
+        }
+        idleNeed = considerRotationReserve ? idleNeed + 1 : idleNeed;
+
+        int idleCapable = 0;
+        for (DieselGenerator dg : dgs) {
+            if (!dg.isAvailable()) continue;
+            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
+            idleCapable++;
+        }
+        if (idleNeed > idleCapable) idleNeed = idleCapable;
+
+        // 1) working
+        for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
+            DieselGenerator dg = dgs[k];
+            if (!dg.isAvailable()) continue;
+            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
+            if (!dg.isWorking()) continue;
+
+            // Reserve units are kept online at the minimum technical load (e.g. 30%),
+            // not with a special negative "idle fuel" power.
+            double genKw = dgMinKw;
+            dg.setCurrentLoad(genKw);
+            dg.addWorkTime(1, 1);
+            dg.startWork();
+
+            idleNeed--;
+        }
+
+        // 2) start new
+        for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
+            DieselGenerator dg = dgs[k];
+            if (!dg.isAvailable()) continue;
+            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
+            if (dg.isWorking()) continue;
+
+            dg.startWork();
+
+            // Reserve units are kept online at the minimum technical load (e.g. 30%),
+            // not with a special negative "idle fuel" power.
+            double genKw = dgMinKw;
+            dg.setCurrentLoad(genKw);
+            dg.addWorkTime(1, 1 + SimulationConstants.DG_MAX_START_FACTOR);
+
+            idleNeed--;
         }
     }
 

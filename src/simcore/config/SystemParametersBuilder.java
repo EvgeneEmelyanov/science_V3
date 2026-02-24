@@ -44,9 +44,6 @@ public class SystemParametersBuilder {
     private double busCcfBetaSectional;
     private double busCcfBetaDouble;
 
-    private double idleReserveCoeff;
-    private double rotationReserveCoeff;
-
     // ----- economics -----
     private double discountRatePerYear;
     private double costRuRub;
@@ -81,8 +78,6 @@ public class SystemParametersBuilder {
         b.maxChargeCurrent = base.getMaxChargeCurrent();
         b.maxDischargeCurrent = base.getMaxDischargeCurrent();
         b.nonReserveDischargeLevel = base.getNonReserveDischargeLevel();
-        b.idleReserveCoeff = base.getIdleReserveCoeff();
-        b.rotationReserveCoeff = base.getRotationReserveCoeff();
 
         b.windTurbineFailureRatePerYear = base.getWindTurbineFailureRatePerYear();
         b.windTurbineRepairTimeHours = base.getWindTurbineRepairTimeHours();
@@ -142,8 +137,6 @@ public class SystemParametersBuilder {
                 switchgearRoomRepairTimeHours,
                 busCcfBetaSectional,
                 busCcfBetaDouble,
-                idleReserveCoeff,
-                rotationReserveCoeff,
 
                 discountRatePerYear,
                 costRuRub,
@@ -427,23 +420,5 @@ public class SystemParametersBuilder {
 
     public double getDamageRubPerKwhCat3() { return damageRubPerKwhCat3; }
     public SystemParametersBuilder setDamageRubPerKwhCat3(double v) { this.damageRubPerKwhCat3 = v; return this; }
-
-    public double getIdleReserveCoeff() {
-        return idleReserveCoeff;
-    }
-
-    public SystemParametersBuilder setIdleReserveCoeff(double idleReserveCoeff) {
-        this.idleReserveCoeff = idleReserveCoeff;
-        return this;
-    }
-
-    public double getRotationReserveCoeff() {
-        return rotationReserveCoeff;
-    }
-
-    public SystemParametersBuilder setRotationReserveCoeff(double rotationReserveCoeff) {
-        this.rotationReserveCoeff = rotationReserveCoeff;
-        return this;
-    }
 
 }

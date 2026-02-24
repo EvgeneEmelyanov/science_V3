@@ -29,7 +29,7 @@ public class Main {
         RunMode runMode = RunMode.SINGLE;
         int mcIterations = 1;
 
-        BusSystemType busType = BusSystemType.SINGLE_NOT_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
@@ -41,7 +41,7 @@ public class Main {
         String econCaseId = "case_0";
         Integer econN = null;
 
-        LoadType loadType = LoadType.KOMUNAL; // тип нагрузки
+        LoadType loadType = LoadType.DEF; // тип нагрузки
         Integer maxLoadOverride = null;
         int threads = Runtime.getRuntime().availableProcessors();
         long mcBaseSeed = 1_000_000L;
@@ -135,14 +135,13 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
-
 //                                .setTotalWindTurbineCount((int) p1)
 //                                .setWindTurbinePowerKw(p1)
 //                                .setDieselGeneratorPowerKw(p2)
 //                                .setFirstCat(p1)
-//                                .setBatteryCapacityKwhPerBus(p1 * 1346)
+                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
 //                                 .setNonReserveDischargeLevel(p2)
-//                                .setMaxDischargeCurrent(p2)
+                                .setMaxDischargeCurrent(p2)
 //                                .setDieselGeneratorFailureRatePerYear(p2)
 //                                .setDieselGeneratorRepairTimeHours(p2)
                                 .build();
@@ -168,13 +167,10 @@ public class Main {
 
 //        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 //        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
-//        double[] param1 = new double[]{0, 0.2, 0.4, 0.6, 0.8, 1};
-        double[] param1 = new double[]{0.25, 0.5, 0.75, 1, 1.25, 1.5};
-        double[] param2 = new double[]{0.25, 0.5, 0.75, 1, 1.25, 1.5};
-
+        double[] param1 = new double[]{0, 0.2, 0.4, 0.6, 0.8, 1};
 
 //        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
-//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
 //        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};
@@ -383,9 +379,9 @@ public class Main {
         static final String LOAD_DEF = "D:/08_ModelingData/01_Load.txt";
 
         // Max load by profile
-        static final int MAX_LOAD_GOK = 1346;
-        static final int MAX_LOAD_KOMUNAL = 1346;
-        static final int MAX_LOAD_SELHOZ = 1346;
+        static final int MAX_LOAD_GOK = 7740;
+        static final int MAX_LOAD_KOMUNAL = 40;
+        static final int MAX_LOAD_SELHOZ = 44;
         static final int MAX_LOAD_DEF = 1346;
 
         // Categories share (k1, k2); k3 implied = 1 - k1 - k2
@@ -426,10 +422,6 @@ public class Main {
         static final int DEFAULT_SWITCHGEAR_ROOM_REPAIR_TIME_HOURS = ModelDefaults.DEFAULT_SWITCHGEAR_ROOM_REPAIR_TIME_HOURS;
         static final double DEFAULT_BUS_CCF_BETA_SECTIONAL = ModelDefaults.DEFAULT_BUS_CCF_BETA_SECTIONAL;
         static final double DEFAULT_BUS_CCF_BETA_DOUBLE = ModelDefaults.DEFAULT_BUS_CCF_BETA_DOUBLE;
-
-        // ---- Avg-load reserve policy coeffs (stored in SystemParameters) ----
-        static final double DEFAULT_IDLE_RESERVE_COEFF = ModelDefaults.CFG_IDLE_RESERVE_COEFF;
-        static final double DEFAULT_ROTATION_RESERVE_COEFF = ModelDefaults.CFG_ROTATION_RESERVE_COEFF;
 
         // ---- Economics defaults ----
         static final double DEFAULT_DISCOUNT_RATE = ModelDefaults.DEFAULT_DISCOUNT_RATE;
@@ -536,9 +528,6 @@ public class Main {
 
                     Defaults.DEFAULT_BUS_CCF_BETA_SECTIONAL,
                     Defaults.DEFAULT_BUS_CCF_BETA_DOUBLE,
-
-                    Defaults.DEFAULT_IDLE_RESERVE_COEFF,
-                    Defaults.DEFAULT_ROTATION_RESERVE_COEFF,
 
                     Defaults.DEFAULT_DISCOUNT_RATE,
                     Defaults.DEFAULT_COST_RU_RUB,

@@ -135,9 +135,6 @@ public class SystemParameters {
      */
     private final double nonReserveDischargeLevel;
 
-    private final double idleReserveCoeff;
-    private final double rotationReserveCoeff;
-
     // ---------- Экономические параметры (для LCOE) ----------
 
     /** Ставка дисконтирования, 1/год (например, 0.08 = 8%). */
@@ -204,8 +201,6 @@ public class SystemParameters {
                             int switchgearRoomRepairTimeHours,
                             double busCcfBetaSectional,
                             double busCcfBetaDouble,
-                            double idleReserveCoeff,
-                            double rotationReserveCoeff,
 
                             double discountRatePerYear,
                             double costRuRub,
@@ -247,8 +242,7 @@ public class SystemParameters {
         this.switchgearRoomRepairTimeHours = switchgearRoomRepairTimeHours;
         this.busCcfBetaSectional = busCcfBetaSectional;
         this.busCcfBetaDouble = busCcfBetaDouble;
-        this.idleReserveCoeff = idleReserveCoeff;
-        this.rotationReserveCoeff = rotationReserveCoeff;
+
 
         this.discountRatePerYear = discountRatePerYear;
         this.costRuRub = costRuRub;
@@ -294,8 +288,6 @@ public class SystemParameters {
                 switchgearRoomRepairTimeHours,
                 busCcfBetaSectional,
                 busCcfBetaDouble,
-                idleReserveCoeff,
-                rotationReserveCoeff,
                 discountRatePerYear,
                 costRuRub,
                 costDgRubPerKw,
@@ -417,8 +409,6 @@ public class SystemParameters {
         return busCcfBetaDouble;
     }
 
-    public double getIdleReserveCoeff() { return idleReserveCoeff; }
-    public double getRotationReserveCoeff() { return rotationReserveCoeff; }
     // ---------- getters: economics ----------
 
     public double getDiscountRatePerYear() { return discountRatePerYear; }
