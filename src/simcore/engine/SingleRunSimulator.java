@@ -1015,10 +1015,10 @@ public final class SingleRunSimulator {
             idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
         }
 
-        // Rotation reserve: when at least one DG must be kept online, keep an extra DG
-        // and share the minimum technical load between them.
+// Rotation reserve: if any DG must run, keep N+1 units online.
+// In wind surplus this means at least 2 DG online.
         if (considerRotationReserve && idleNeed > 0) {
-            idleNeed = Math.min(available, idleNeed + 1);
+            idleNeed = Math.min(available, Math.max(2, idleNeed + 1));
         }
 
         final boolean rotationSurplusMode = considerRotationReserve && idleNeed == 2;
