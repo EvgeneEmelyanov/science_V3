@@ -1015,8 +1015,8 @@ public final class SingleRunSimulator {
             idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
         }
 
-// Rotation reserve: if any DG must run, keep N+1 units online.
-// In wind surplus this means at least 2 DG online.
+        // Rotation reserve: if any DG must run, keep N+1 units online.
+        // In wind surplus this means at least 2 DG online.
         if (considerRotationReserve && idleNeed > 0) {
             idleNeed = Math.min(available, Math.max(2, idleNeed + 1));
         }
@@ -1091,89 +1091,89 @@ public final class SingleRunSimulator {
         }
     }
 
-    static void applyIdleReserveInWindDeficit(
-            DieselGenerator[] dgs,
-            double loadKw,
-            double windToLoadKw,
-            double cat1,
-            double cat2,
-            boolean reserveThirdCategory,
-            boolean btAvail,
-            Battery battery,
-            SystemParameters sp,
-            double tauEff,
-            double btDisCapKw,
-            double dgRatedKw,
-            double dgMinKw,
-            double dgMaxKw
-    ) {
-        int dgCountAll = dgs.length;
-
-        double cat3 = Math.max(0.0, 1.0 - cat1 - cat2);
-        double reserveShare = cat1 + SimulationConstants.DG_IDLE_K2 * cat2 + (reserveThirdCategory ? cat3 : 0.0);
-
-        double pCrit = loadKw * reserveShare;
-        double windLoss = Math.min(windToLoadKw, pCrit);
-
-        // РЕЗЕРВ
-        double reserveNeed = loadKw * reserveShare;
-//        double reserveNeed = windLoss;
-        reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
-        if (reserveNeed < 0.0) reserveNeed = 0.0;
-
-        int idleNeed = (reserveNeed > SimulationConstants.EPSILON)
-                ? (int) Math.ceil(reserveNeed / dgRatedKw)
-                : 0;
-
-        if (btAvail) {
-            double btDisCap = battery.getDischargePowerCapKw(sp);
-            idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
-        }
-        idleNeed = considerRotationReserve ? idleNeed + 1 : idleNeed;
-
-        int idleCapable = 0;
-        for (DieselGenerator dg : dgs) {
-            if (!dg.isAvailable()) continue;
-            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
-            idleCapable++;
-        }
-        if (idleNeed > idleCapable) idleNeed = idleCapable;
-
-        // 1) working
-        for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
-            DieselGenerator dg = dgs[k];
-            if (!dg.isAvailable()) continue;
-            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
-            if (!dg.isWorking()) continue;
-
-            // Reserve units are kept online at the minimum technical load (e.g. 30%),
-            // not with a special negative "idle fuel" power.
-            double genKw = dgMinKw;
-            dg.setCurrentLoad(genKw);
-            dg.addWorkTime(1, 1);
-            dg.startWork();
-
-            idleNeed--;
-        }
-
-        // 2) start new
-        for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
-            DieselGenerator dg = dgs[k];
-            if (!dg.isAvailable()) continue;
-            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
-            if (dg.isWorking()) continue;
-
-            dg.startWork();
-
-            // Reserve units are kept online at the minimum technical load (e.g. 30%),
-            // not with a special negative "idle fuel" power.
-            double genKw = dgMinKw;
-            dg.setCurrentLoad(genKw);
-            dg.addWorkTime(1, 1 + SimulationConstants.DG_MAX_START_FACTOR);
-
-            idleNeed--;
-        }
-    }
+//    static void applyIdleReserveInWindDeficit(
+//            DieselGenerator[] dgs,
+//            double loadKw,
+//            double windToLoadKw,
+//            double cat1,
+//            double cat2,
+//            boolean reserveThirdCategory,
+//            boolean btAvail,
+//            Battery battery,
+//            SystemParameters sp,
+//            double tauEff,
+//            double btDisCapKw,
+//            double dgRatedKw,
+//            double dgMinKw,
+//            double dgMaxKw
+//    ) {
+//        int dgCountAll = dgs.length;
+//
+//        double cat3 = Math.max(0.0, 1.0 - cat1 - cat2);
+//        double reserveShare = cat1 + SimulationConstants.DG_IDLE_K2 * cat2 + (reserveThirdCategory ? cat3 : 0.0);
+//
+//        double pCrit = loadKw * reserveShare;
+//        double windLoss = Math.min(windToLoadKw, pCrit);
+//
+//        // РЕЗЕРВ
+//        double reserveNeed = loadKw * reserveShare;
+////        double reserveNeed = windLoss;
+//        reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
+//        if (reserveNeed < 0.0) reserveNeed = 0.0;
+//
+//        int idleNeed = (reserveNeed > SimulationConstants.EPSILON)
+//                ? (int) Math.ceil(reserveNeed / dgRatedKw)
+//                : 0;
+//
+//        if (btAvail) {
+//            double btDisCap = battery.getDischargePowerCapKw(sp);
+//            idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
+//        }
+//        idleNeed = considerRotationReserve ? idleNeed + 1 : idleNeed;
+//
+//        int idleCapable = 0;
+//        for (DieselGenerator dg : dgs) {
+//            if (!dg.isAvailable()) continue;
+//            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
+//            idleCapable++;
+//        }
+//        if (idleNeed > idleCapable) idleNeed = idleCapable;
+//
+//        // 1) working
+//        for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
+//            DieselGenerator dg = dgs[k];
+//            if (!dg.isAvailable()) continue;
+//            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
+//            if (!dg.isWorking()) continue;
+//
+//            // Reserve units are kept online at the minimum technical load (e.g. 30%),
+//            // not with a special negative "idle fuel" power.
+//            double genKw = dgMinKw;
+//            dg.setCurrentLoad(genKw);
+//            dg.addWorkTime(1, 1);
+//            dg.startWork();
+//
+//            idleNeed--;
+//        }
+//
+//        // 2) start new
+//        for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
+//            DieselGenerator dg = dgs[k];
+//            if (!dg.isAvailable()) continue;
+//            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
+//            if (dg.isWorking()) continue;
+//
+//            dg.startWork();
+//
+//            // Reserve units are kept online at the minimum technical load (e.g. 30%),
+//            // not with a special negative "idle fuel" power.
+//            double genKw = dgMinKw;
+//            dg.setCurrentLoad(genKw);
+//            dg.addWorkTime(1, 1 + SimulationConstants.DG_MAX_START_FACTOR);
+//
+//            idleNeed--;
+//        }
+//    }
 
     static double applyRotationReserveNminus1(
             DieselGenerator[] dgs,

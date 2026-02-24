@@ -11,7 +11,8 @@ import java.util.Random;
  *
  * Реализовано:
  *  1) Саморазряд: вычитаем фиксированную энергию (кВт·ч) от nominalCapacityKwh каждый час.
- *  2) Деградация: throughput/EFC модель с мягкими множителями C-rate и DoD.
+ *  2) Деградация: throughput/EFC модель (учёт только по энергии/количеству циклов).
+ *     ВАЖНО: влияние тока (C-rate) на деградацию НЕ учитывается (3C считается нормальным током).
  */
 public class Battery extends Equipment {
 
@@ -159,8 +160,8 @@ public class Battery extends Equipment {
 
     /**
      * energyDelta: +заряд, -разряд (кВт·ч за шаг)
-     * current: мощность (кВт) для оценки C-rate
-     * doubleTime: у тебя это флаг "короткого мостика" (на деградацию даём ослабление C-rate штрафа)
+     * current: мощность (кВт) (используется только для диспетчеризации, на деградацию не влияет)
+     * doubleTime: флаг "короткого мостика" (на деградацию не влияет)
      */
     public void adjustCapacity(Battery battery,
                                double energyDelta,
@@ -216,7 +217,7 @@ public class Battery extends Equipment {
         }
 
 
-        // Деградация: throughput power-law + exp(C-rate)
+        // Деградация: throughput power-law по EFC (учёт только по энергии разряда).
         if (considerDegradation && energyDelta < 0.0) {
 
             double eDis = -energyDelta; // кВт·ч
@@ -224,25 +225,9 @@ public class Battery extends Equipment {
             // dEFC по энергии разряда (один EFC = разряд на nominalCapacityKwh)
             double dEfc = eDis / nominalCapacityKwh;
 
-            // C-rate по мощности: C = P / C_nom
-            double p = Math.abs(current); // кВт
-            double cRate = (nominalCapacityKwh > SimulationConstants.EPSILON)
-                    ? (p / nominalCapacityKwh)
-                    : 0.0;
-
-            // Фактор C-rate (semi-empirical)
-            double sevC = Math.exp(SimulationConstants.BATTERY_DEG_H * cRate);
-
-            // Ослабление токового влияния в режиме мостика
-            if (doubleTime) {
-                double relief = clamp01(SimulationConstants.BATTERY_BRIDGE_CRATE_RELIEF);
-                sevC = 1.0 + (sevC - 1.0) * relief;
-            }
-
-            // Накопление "эффективного" EFC
+            // Накопление EFC (без штрафов по току/C-rate).
             double efcPrev = efcEff;
-            double dEfcEff = dEfc * sevC;
-            double efcNew = efcPrev + dEfcEff;
+            double efcNew = efcPrev + dEfc;
             efcEff = efcNew;
 
             // Кумулятивная модель: lossFrac = K * (EFC_eff)^z

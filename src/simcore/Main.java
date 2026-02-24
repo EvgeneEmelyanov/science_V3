@@ -26,10 +26,10 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 1;
+        RunMode runMode = RunMode.SWEEP_2;
+        int mcIterations = 50;
 
-        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.SINGLE_NOT_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
@@ -139,7 +139,7 @@ public class Main {
 //                                .setWindTurbinePowerKw(p1)
 //                                .setDieselGeneratorPowerKw(p2)
 //                                .setFirstCat(p1)
-                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+                                .setBatteryCapacityKwhPerBus(p1 * 1346)
 //                                 .setNonReserveDischargeLevel(p2)
                                 .setMaxDischargeCurrent(p2)
 //                                .setDieselGeneratorFailureRatePerYear(p2)
