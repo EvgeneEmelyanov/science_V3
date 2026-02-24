@@ -131,7 +131,7 @@ public final class FailureStepper {
                             && rawLoadThisHourKw[b] <= SimulationConstants.EPSILON;
 
             for (DieselGenerator dg : bus.getDieselGenerators()) {
-                boolean allowMaintenanceStart = !maintenanceOnBus;
+                boolean allowMaintenanceStart = simcore.config.ModelDefaults.CFG_CONSIDER_MAINTENANCE && !maintenanceOnBus;
 
                 dg.updateFailureOneHour(considerFailures, allowMaintenanceStart);
 

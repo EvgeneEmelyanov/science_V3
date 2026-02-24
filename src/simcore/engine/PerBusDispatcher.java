@@ -301,7 +301,9 @@ final class PerBusDispatcher {
                 }
             }
 
-            final double tau = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : ctx.dgStartDelayHours;
+            final double tauRaw = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : ctx.dgStartDelayHours;
+        // tau only applies when new DG start this hour
+        double tau = tauRaw;
 
             // ===== 1) DG count by max power =====
             int nAvail = availableDg;
@@ -370,9 +372,27 @@ final class PerBusDispatcher {
             int nAlready = Math.min(nWorkingAtStart, nOn);
             int nNew = Math.max(0, nOn - nAlready);
 
+            if (nNew == 0) {
+                tau = 0.0;
+            }
+
             // ===== 5) DG dispatch (start interval tau + steady interval 1-tau) =====
             double dgSteadyTotalKw = Math.min(deficitAfterWindKw, nOn * ctx.dgMaxKw);
-            double perDgSteadyKw = (nOn > 0) ? Math.min(ctx.dgMaxKw, deficitAfterWindKw / nOn) : 0.0;
+            double perDgSteadyKw = 0.0;
+            if (nOn > 0) {
+                double target = deficitAfterWindKw / nOn;
+                double optimal = ctx.perDgOptimalKw;
+                if (target <= optimal) {
+                    perDgSteadyKw = target;
+                } else {
+                    // prefer optimal load unless it causes deficit
+                    if (optimal * nOn >= deficitAfterWindKw) {
+                        perDgSteadyKw = optimal;
+                    } else {
+                        perDgSteadyKw = Math.min(ctx.dgMaxKw, target);
+                    }
+                }
+            }
 
             double dgStartTotalKw;
             if (tau <= SimulationConstants.EPSILON || nAlready <= 0) {

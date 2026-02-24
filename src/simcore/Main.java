@@ -26,8 +26,8 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 1;
+        RunMode runMode = RunMode.SWEEP_2;
+        int mcIterations = 50;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
@@ -135,12 +135,12 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
-                                .setTotalWindTurbineCount((int) p1)
+//                                .setTotalWindTurbineCount((int) p1)
 //                                .setWindTurbinePowerKw(p1)
 //                                .setDieselGeneratorPowerKw(p2)
 //                                .setFirstCat(p1)
-                                .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
-//                                 .setNonReserveDischargeLevel(p2)
+                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+                                 .setNonReserveDischargeLevel(p2)
 //                                .setMaxDischargeCurrent(p2)
 //                                .setDieselGeneratorFailureRatePerYear(p2)
 //                                .setDieselGeneratorRepairTimeHours(p2)
@@ -165,11 +165,11 @@ public class Main {
 
         // ===== Axes (edit here) =====
 
-//        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 //        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
-        double[] param1 = new double[]{0, 0.25, 0.5, 0.75, 1};
+        double[] param1 = new double[]{0, 0.2, 0.4, 0.6, 0.8, 1};
 
-        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
+//        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
 //        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 

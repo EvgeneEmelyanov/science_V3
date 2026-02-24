@@ -1,3 +1,4 @@
+// File: simcore/engine/bus/TieBreakerController.java
 package simcore.engine.bus;
 
 import simcore.config.SimulationConstants;
@@ -8,11 +9,13 @@ import java.util.List;
 
 /**
  * Решение о замыкании межсекционного выключателя (для SINGLE_SECTIONAL_BUS).
+ *
+ * Исправление: потенциал АКБ должен учитывать не только мощность, но и энергию на интервал,
+ * иначе pot завышается и deficit/surplus считаются неверно -> СВ может не замыкаться при АКБ.
  */
 public final class TieBreakerController {
 
-    private TieBreakerController() {
-    }
+    private TieBreakerController() {}
 
     public static boolean shouldCloseTieBreakerThisHour(SystemParameters sp,
                                                         List<PowerBus> buses,
@@ -26,12 +29,18 @@ public final class TieBreakerController {
         double load0 = loads[0];
         double load1 = loads[1];
 
+        // Для замыкания СВ в "аварийной помощи" логично разрешать АКБ разряжаться до MIN_SOC.
+        // Если хочешь, чтобы tie-breaker учитывал только "нерезервный" ресурс, замени на:
+        // double socFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, sp.getNonReserveDischargeLevel());
+        double socFloor = SimulationConstants.BATTERY_MIN_SOC;
+
         double pot0 = BusPotential.windPotentialNoSideEffects(bus0, windV)
                 + BusPotential.dieselPotential(bus0, dgMaxKw)
-                + BusPotential.batteryDischargePotential(bus0, sp);
+                + BusPotential.batteryDischargePotentialFirm(bus0, sp, 1.0, socFloor);
+
         double pot1 = BusPotential.windPotentialNoSideEffects(bus1, windV)
                 + BusPotential.dieselPotential(bus1, dgMaxKw)
-                + BusPotential.batteryDischargePotential(bus1, sp);
+                + BusPotential.batteryDischargePotentialFirm(bus1, sp, 1.0, socFloor);
 
         double deficit0 = Math.max(0.0, load0 - pot0);
         double deficit1 = Math.max(0.0, load1 - pot1);
