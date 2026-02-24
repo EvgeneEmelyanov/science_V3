@@ -276,6 +276,7 @@ public final class SingleRunSimulator {
             }
 
             final HourContext ctx = new HourContext(
+                    t,
                     sp,
                     windV,
                     considerDegradation,
@@ -967,6 +968,7 @@ public final class SingleRunSimulator {
     static void applyIdleReserveInWindSurplus(
             PowerBus bus,
             SystemParameters sp,
+            int hourIndex,
             double loadKw,
             double windToLoadKw,
             double cat1,
@@ -1013,7 +1015,22 @@ public final class SingleRunSimulator {
             idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
         }
 
-        idleNeed = considerRotationReserve ? idleNeed + 1 : idleNeed;
+        // Rotation reserve: when at least one DG must be kept online, keep an extra DG
+        // and share the minimum technical load between them.
+        if (considerRotationReserve && idleNeed > 0) {
+            idleNeed = Math.min(available, idleNeed + 1);
+        }
+
+        final boolean rotationSurplusMode = considerRotationReserve && idleNeed == 2;
+        final boolean burnThisHour = rotationSurplusMode && (hourIndex % 4 == 0);
+        final double reservePerDgKw;
+        if (rotationSurplusMode) {
+            // Default: 15% + 15% == 30% total.
+            // Every 4 hours: "прожиг" (temporarily raise load).
+            reservePerDgKw = burnThisHour ? dgMinKw : (dgMinKw * 0.5);
+        } else {
+            reservePerDgKw = dgMinKw;
+        }
 
         // 1) сначала уже working
         for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
@@ -1027,7 +1044,7 @@ public final class SingleRunSimulator {
 
             // Reserve units are kept online at the minimum technical load (e.g. 30%),
             // not with a special negative "idle fuel" power.
-            double genKw = dgMinKw;
+            double genKw = reservePerDgKw;
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1);
             dg.startWork();
@@ -1050,7 +1067,7 @@ public final class SingleRunSimulator {
 
             // Reserve units are kept online at the minimum technical load (e.g. 30%),
             // not with a special negative "idle fuel" power.
-            double genKw = dgMinKw;
+            double genKw = reservePerDgKw;
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1 + SimulationConstants.DG_MAX_START_FACTOR);
 

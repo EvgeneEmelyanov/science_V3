@@ -170,8 +170,8 @@ final class SectionalClosedDispatcher {
 
             wre = Math.max(0.0, surplusKw);
 
-            SingleRunSimulator.applyIdleReserveInWindSurplus(b0, ctx.sp, load0, windToLoad[0], ctx.cat1, ctx.cat2, bt0Avail, bt0, ctx.dgRatedKw, ctx.dgMinKw, ctx.dgStartDelayHours);
-            SingleRunSimulator.applyIdleReserveInWindSurplus(b1, ctx.sp, load1, windToLoad[1], ctx.cat1, ctx.cat2, bt1Avail, bt1, ctx.dgRatedKw, ctx.dgMinKw, ctx.dgStartDelayHours);
+            SingleRunSimulator.applyIdleReserveInWindSurplus(b0, ctx.sp, ctx.hourIndex, load0, windToLoad[0], ctx.cat1, ctx.cat2, bt0Avail, bt0, ctx.dgRatedKw, ctx.dgMinKw, ctx.dgStartDelayHours);
+            SingleRunSimulator.applyIdleReserveInWindSurplus(b1, ctx.sp, ctx.hourIndex, load1, windToLoad[1], ctx.cat1, ctx.cat2, bt1Avail, bt1, ctx.dgRatedKw, ctx.dgMinKw, ctx.dgStartDelayHours);
 
             SingleRunSimulator.finalizeIdleAndBurn(ctx, dgs, ctx.dgMinKw);
             SingleRunSimulator.finalizeStoppedDgs(dgs);

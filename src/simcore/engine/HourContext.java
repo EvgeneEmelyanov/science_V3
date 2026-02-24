@@ -5,6 +5,9 @@ import simcore.engine.trace.TraceSession;
 
 final class HourContext {
 
+    /** 0-based hour index within the simulated horizon. */
+    final int hourIndex;
+
     final SystemParameters sp;
     final double windV;
 
@@ -58,6 +61,7 @@ final class HourContext {
     }
 
     HourContext(
+            int hourIndex,
             SystemParameters sp,
             double windV,
             boolean considerDegradation,
@@ -74,6 +78,7 @@ final class HourContext {
             double[] hourWreRef,
             TraceSession trace
     ) {
+        this.hourIndex = hourIndex;
         this.sp = sp;
         this.windV = windV;
         this.considerDegradation = considerDegradation;
