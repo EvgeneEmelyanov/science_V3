@@ -78,7 +78,6 @@ public final class SimulationConstants {
     public static final double UFLS_STEP = 0.10;
     public static final int DG_MAX_IDLE_HOURS = 5;
     public static final int DG_MAX_START_FACTOR = 5;
-    public static final double DG_IDLE_FUEL_LOAD = -0.15;
 
     private SimulationConstants() {}
 }

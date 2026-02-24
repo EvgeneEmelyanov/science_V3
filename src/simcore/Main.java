@@ -27,7 +27,7 @@ public class Main {
 
         Task task = Task.RUN;
         RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 50;
+        int mcIterations = 100;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
@@ -140,8 +140,8 @@ public class Main {
 //                                .setDieselGeneratorPowerKw(p2)
 //                                .setFirstCat(p1)
                                 .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
-                                 .setNonReserveDischargeLevel(p2)
-//                                .setMaxDischargeCurrent(p2)
+//                                 .setNonReserveDischargeLevel(p2)
+                                .setMaxDischargeCurrent(p2)
 //                                .setDieselGeneratorFailureRatePerYear(p2)
 //                                .setDieselGeneratorRepairTimeHours(p2)
                                 .build();
@@ -165,12 +165,12 @@ public class Main {
 
         // ===== Axes (edit here) =====
 
-        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+//        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 //        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
         double[] param1 = new double[]{0, 0.2, 0.4, 0.6, 0.8, 1};
 
 //        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
-//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
 //        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};

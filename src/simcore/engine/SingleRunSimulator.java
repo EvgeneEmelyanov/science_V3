@@ -997,15 +997,6 @@ public final class SingleRunSimulator {
             windLoss = Math.min(windToLoadKw, pCrit);
         }
 
-        double btFirm = 0.0;
-        if (btAvail) {
-            double btDisCap = battery.getDischargePowerCapKw(sp);
-            if (canBatteryBridge(battery, sp, windLoss, tau, btDisCap)) {
-                btFirm = windLoss;
-            } else {
-                btFirm = btDisCap;
-            }
-        }
         // РЕЗЕРВ
         double reserveNeed = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
 //        double reserveNeed = windLoss;
@@ -1034,7 +1025,9 @@ public final class SingleRunSimulator {
             }
             if (!dg.isWorking()) continue;
 
-            double genKw = SimulationConstants.DG_IDLE_FUEL_LOAD * dgRatedKw;
+            // Reserve units are kept online at the minimum technical load (e.g. 30%),
+            // not with a special negative "idle fuel" power.
+            double genKw = dgMinKw;
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1);
             dg.startWork();
@@ -1055,7 +1048,9 @@ public final class SingleRunSimulator {
 
             dg.startWork();
 
-            double genKw = SimulationConstants.DG_IDLE_FUEL_LOAD * dgRatedKw;
+            // Reserve units are kept online at the minimum technical load (e.g. 30%),
+            // not with a special negative "idle fuel" power.
+            double genKw = dgMinKw;
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1 + SimulationConstants.DG_MAX_START_FACTOR);
 
@@ -1103,24 +1098,7 @@ public final class SingleRunSimulator {
         double pCrit = loadKw * reserveShare;
         double windLoss = Math.min(windToLoadKw, pCrit);
 
-        double btFirm = 0.0;
-        if (btAvail) {
-            if (canBatteryBridge(battery, sp, windLoss, tauEff, btDisCapKw)) {
-                btFirm = windLoss;
-            } else {
-                btFirm = btDisCapKw;
-            }
-        }
-
-        double dgFirm = 0.0;
-        for (DieselGenerator dg : dgs) {
-            if (!dg.isAvailable()) continue;
-            if (!dg.isWorking()) continue;
-            if (dg.getCurrentLoad() < -SimulationConstants.EPSILON) continue;
-            dgFirm += dgMaxKw;
-        }
         // РЕЗЕРВ
-//        double reserveNeed = windLoss - (btFirm + dgFirm);
         double reserveNeed = loadKw * reserveShare;
 //        double reserveNeed = windLoss;
         reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
@@ -1151,7 +1129,9 @@ public final class SingleRunSimulator {
             if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
             if (!dg.isWorking()) continue;
 
-            double genKw = SimulationConstants.DG_IDLE_FUEL_LOAD * dgRatedKw;
+            // Reserve units are kept online at the minimum technical load (e.g. 30%),
+            // not with a special negative "idle fuel" power.
+            double genKw = dgMinKw;
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1);
             dg.startWork();
@@ -1168,7 +1148,9 @@ public final class SingleRunSimulator {
 
             dg.startWork();
 
-            double genKw = SimulationConstants.DG_IDLE_FUEL_LOAD * dgRatedKw;
+            // Reserve units are kept online at the minimum technical load (e.g. 30%),
+            // not with a special negative "idle fuel" power.
+            double genKw = dgMinKw;
             dg.setCurrentLoad(genKw);
             dg.addWorkTime(1, 1 + SimulationConstants.DG_MAX_START_FACTOR);
 
@@ -1316,6 +1298,40 @@ public final class SingleRunSimulator {
 // LCOE (discounted): PV(cost) / PV(served energy)
 // served = load - ENS (ENS не входит в знаменатель)
 // ======================================================================
+
+    // ======================================================================
+// LCOE (discounted): PV(cost) / PV(served energy)
+// served = load - ENS (ENS не входит в знаменатель)
+// ======================================================================
+    private static double computeLcoeRubPerKwh(
+            SystemParameters sp,
+            java.util.List<PowerBus> buses,
+            double[] servedKwhByYear,
+            double[] fuelLitersByYear,
+            double[] motoHoursByYear,
+            long[] btReplByYear,
+            double[] ensCat1KwhByYear,
+            double[] ensCat2KwhByYear,
+            double[] ensCat3KwhByYear
+    ) {
+        EconomyDrivers d = buildEconomyDrivers(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear,
+                ensCat1KwhByYear, ensCat2KwhByYear, ensCat3KwhByYear);
+        UnitCosts c = new UnitCosts(
+                effectiveRuCost(sp.getBusSystemType(), sp.getCostRuRub()),
+                sp.getCostDgRubPerKw(),
+                sp.getCostWtRubPerKw(),
+                sp.getCostBtRubPerKwh(),
+                sp.getCostFuelRubPerKt(),
+                sp.getCostDgRubPerKwPerKmh(),
+                sp.getCostWtRubPerKwPerYear(),
+                sp.getCostBtRubPerKwhPerYear(),
+                sp.getDamageRubPerKwhCat1(),
+                sp.getDamageRubPerKwhCat2(),
+                sp.getDamageRubPerKwhCat3()
+        );
+        return DiscountedLcoeCalculator.computeRubPerKwh(d, c);
+
+    }
 
     private static EconomyDrivers buildEconomyDrivers(
             SystemParameters sp,
