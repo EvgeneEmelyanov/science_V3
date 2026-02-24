@@ -1317,40 +1317,6 @@ public final class SingleRunSimulator {
 // served = load - ENS (ENS не входит в знаменатель)
 // ======================================================================
 
-    // ======================================================================
-// LCOE (discounted): PV(cost) / PV(served energy)
-// served = load - ENS (ENS не входит в знаменатель)
-// ======================================================================
-    private static double computeLcoeRubPerKwh(
-            SystemParameters sp,
-            java.util.List<PowerBus> buses,
-            double[] servedKwhByYear,
-            double[] fuelLitersByYear,
-            double[] motoHoursByYear,
-            long[] btReplByYear,
-            double[] ensCat1KwhByYear,
-            double[] ensCat2KwhByYear,
-            double[] ensCat3KwhByYear
-    ) {
-        EconomyDrivers d = buildEconomyDrivers(sp, buses, servedKwhByYear, fuelLitersByYear, motoHoursByYear, btReplByYear,
-                ensCat1KwhByYear, ensCat2KwhByYear, ensCat3KwhByYear);
-        UnitCosts c = new UnitCosts(
-                effectiveRuCost(sp.getBusSystemType(), sp.getCostRuRub()),
-                sp.getCostDgRubPerKw(),
-                sp.getCostWtRubPerKw(),
-                sp.getCostBtRubPerKwh(),
-                sp.getCostFuelRubPerKt(),
-                sp.getCostDgRubPerKwPerKmh(),
-                sp.getCostWtRubPerKwPerYear(),
-                sp.getCostBtRubPerKwhPerYear(),
-                sp.getDamageRubPerKwhCat1(),
-                sp.getDamageRubPerKwhCat2(),
-                sp.getDamageRubPerKwhCat3()
-        );
-        return DiscountedLcoeCalculator.computeRubPerKwh(d, c);
-
-    }
-
     private static EconomyDrivers buildEconomyDrivers(
             SystemParameters sp,
             java.util.List<PowerBus> buses,

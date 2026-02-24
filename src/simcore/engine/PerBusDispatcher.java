@@ -59,14 +59,6 @@ final class PerBusDispatcher {
         return out;
     }
 
-    private static double batteryAvailableEnergyKwhAbove(Battery bt, double socFloor) {
-        if (bt == null || !bt.isAvailable()) return 0.0;
-        double soc = bt.getStateOfCharge();
-        double cap = bt.getMaxCapacityKwh();
-        double usableSoc = Math.max(0.0, soc - socFloor);
-        return usableSoc * cap * SimulationConstants.BATTERY_EFFICIENCY;
-    }
-
     private static double batteryMaxDischargeKw(Battery bt, HourContext ctx) {
         if (bt == null || !bt.isAvailable()) return 0.0;
         return bt.getDischargePowerCapKw(ctx.sp);

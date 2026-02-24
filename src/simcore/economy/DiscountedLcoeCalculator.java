@@ -5,8 +5,7 @@ package simcore.economy;
  *   LCOE = PV(cost) / PV(served energy)
  * served = load - ENS (served energy is provided by drivers)
  *
- * This matches the logic previously implemented inside SingleRunSimulator.computeLcoeRubPerKwh(...)
- * and is intended for fast post-processing and Sobol sensitivity over unit costs.
+ * Intended for fast post-processing and Sobol sensitivity over unit costs.
  */
 public final class DiscountedLcoeCalculator {
 
