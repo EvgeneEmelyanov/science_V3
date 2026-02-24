@@ -388,7 +388,7 @@ final class PerBusDispatcher {
                 double remainingDgMaxKw = Math.max(0.0, (nOn - 1) * ctx.dgMaxKw);
                 double gapKw;
                 if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
-                    gapKw = SingleRunSimulator.getAvgLoadPerBusKw() * ModelDefaults.CFG_ROTATION_RESERVE_COEFF;
+                    gapKw = SingleRunSimulator.getAvgLoadPerBusKw() * ctx.sp.getRotationReserveCoeff();
                 } else {
                     gapKw = Math.max(0.0, criticalDefAfterWind - remainingDgMaxKw);
                 }

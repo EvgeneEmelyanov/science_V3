@@ -16,7 +16,6 @@ public final class ModelDefaults {
     public static final double DEFAULT_DG_POWER_KW = 680;//280.416
 
     // Battery
-//    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 1346*0.5; //336.5
     public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = 1346*0.0; //336.5
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1;
     public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 1.0;
@@ -68,8 +67,6 @@ public final class ModelDefaults {
     public static final boolean CFG_CONSIDER_ROTATION_RESERVE = true;
 
     public static final boolean CFG_USE_AVG_LOAD_RESERVE_POLICY = false;
-
     public static final double CFG_IDLE_RESERVE_COEFF = 1.5;
-
     public static final double CFG_ROTATION_RESERVE_COEFF = 1.5;
 }

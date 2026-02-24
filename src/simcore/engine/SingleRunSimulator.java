@@ -994,25 +994,39 @@ public final class SingleRunSimulator {
         // Avg-load policy: use avgLoadPerBus * coeff (independent from current wind).
         double windLoss;
         if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
-            windLoss = avgLoadPerBusKw * ModelDefaults.CFG_IDLE_RESERVE_COEFF;
+            windLoss = avgLoadPerBusKw * sp.getIdleReserveCoeff();
         } else {
             windLoss = Math.min(windToLoadKw, pCrit);
         }
 
-        // РЕЗЕРВ
-        double reserveNeed = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
-//        double reserveNeed = windLoss;
-        reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
+        // РЕЗЕРВ (idle / rotation policy)
+        double reserveNeed;
+        if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
+            // Avg-load policy: reserve is based on long-term average load, independent from current hour wind/load.
+            reserveNeed = avgLoadPerBusKw * sp.getRotationReserveCoeff();
+        } else {
+            reserveNeed = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
+            reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
+        }
         if (reserveNeed < 0.0) reserveNeed = 0.0;
 
-        int idleNeed = (loadKw > SimulationConstants.EPSILON)
+        int idleNeed = (reserveNeed > SimulationConstants.EPSILON)
                 ? (int) Math.ceil(reserveNeed / dgRatedKw)
                 : 0;
         if (idleNeed > available) idleNeed = available;
 
         if (btAvail) {
             double btDisCap = battery.getDischargePowerCapKw(sp);
-            idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
+
+            // Battery can replace diesel idle/rotation reserve only if it can bridge the wind-loss / start-delay window.
+            // Avg-load policy: use avgLoadPerBus * CFG_IDLE_RESERVE_COEFF as the required bridging power.
+            double requiredPowerKw = ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY
+                    ? (avgLoadPerBusKw * sp.getIdleReserveCoeff())
+                    : (dgRatedKw * idleNeed);
+
+            idleNeed = canBatteryBridge(battery, sp, requiredPowerKw, SimulationConstants.DG_START_DELAY_HOURS, btDisCap)
+                    ? 0
+                    : idleNeed;
         }
 
         // Rotation reserve: if any DG must run, keep N+1 units online.
@@ -1090,90 +1104,6 @@ public final class SingleRunSimulator {
             dg.setIdle(false);
         }
     }
-
-//    static void applyIdleReserveInWindDeficit(
-//            DieselGenerator[] dgs,
-//            double loadKw,
-//            double windToLoadKw,
-//            double cat1,
-//            double cat2,
-//            boolean reserveThirdCategory,
-//            boolean btAvail,
-//            Battery battery,
-//            SystemParameters sp,
-//            double tauEff,
-//            double btDisCapKw,
-//            double dgRatedKw,
-//            double dgMinKw,
-//            double dgMaxKw
-//    ) {
-//        int dgCountAll = dgs.length;
-//
-//        double cat3 = Math.max(0.0, 1.0 - cat1 - cat2);
-//        double reserveShare = cat1 + SimulationConstants.DG_IDLE_K2 * cat2 + (reserveThirdCategory ? cat3 : 0.0);
-//
-//        double pCrit = loadKw * reserveShare;
-//        double windLoss = Math.min(windToLoadKw, pCrit);
-//
-//        // РЕЗЕРВ
-//        double reserveNeed = loadKw * reserveShare;
-////        double reserveNeed = windLoss;
-//        reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
-//        if (reserveNeed < 0.0) reserveNeed = 0.0;
-//
-//        int idleNeed = (reserveNeed > SimulationConstants.EPSILON)
-//                ? (int) Math.ceil(reserveNeed / dgRatedKw)
-//                : 0;
-//
-//        if (btAvail) {
-//            double btDisCap = battery.getDischargePowerCapKw(sp);
-//            idleNeed = canBatteryBridge(battery, sp, dgRatedKw * idleNeed, SimulationConstants.DG_START_DELAY_HOURS, btDisCap) ? 0 : idleNeed;
-//        }
-//        idleNeed = considerRotationReserve ? idleNeed + 1 : idleNeed;
-//
-//        int idleCapable = 0;
-//        for (DieselGenerator dg : dgs) {
-//            if (!dg.isAvailable()) continue;
-//            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
-//            idleCapable++;
-//        }
-//        if (idleNeed > idleCapable) idleNeed = idleCapable;
-//
-//        // 1) working
-//        for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
-//            DieselGenerator dg = dgs[k];
-//            if (!dg.isAvailable()) continue;
-//            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
-//            if (!dg.isWorking()) continue;
-//
-//            // Reserve units are kept online at the minimum technical load (e.g. 30%),
-//            // not with a special negative "idle fuel" power.
-//            double genKw = dgMinKw;
-//            dg.setCurrentLoad(genKw);
-//            dg.addWorkTime(1, 1);
-//            dg.startWork();
-//
-//            idleNeed--;
-//        }
-//
-//        // 2) start new
-//        for (int k = 0; k < dgCountAll && idleNeed > 0; k++) {
-//            DieselGenerator dg = dgs[k];
-//            if (!dg.isAvailable()) continue;
-//            if (dg.getCurrentLoad() > SimulationConstants.EPSILON) continue;
-//            if (dg.isWorking()) continue;
-//
-//            dg.startWork();
-//
-//            // Reserve units are kept online at the minimum technical load (e.g. 30%),
-//            // not with a special negative "idle fuel" power.
-//            double genKw = dgMinKw;
-//            dg.setCurrentLoad(genKw);
-//            dg.addWorkTime(1, 1 + SimulationConstants.DG_MAX_START_FACTOR);
-//
-//            idleNeed--;
-//        }
-//    }
 
     static double applyRotationReserveNminus1(
             DieselGenerator[] dgs,
