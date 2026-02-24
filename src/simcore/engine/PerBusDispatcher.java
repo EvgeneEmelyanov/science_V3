@@ -247,39 +247,41 @@ final class PerBusDispatcher {
                 wreKw = Math.max(0.0, surplusKw);
 
             } else {
-                // Spec: no BESS -> keep minimal 1 DG at min load to provide grid-forming.
+                // Spec: no BESS -> keep DG online for grid-forming.
+                // If rotation reserve is enabled and at least one DG must run, keep N+1 units online.
                 if (availableDg > 0) {
-                    DieselGenerator chosen = null;
+
+                    // Decide and set reserve DG loads (may keep 1x30% or 2x15% (+ burn every 4h) depending on settings).
+                    // In WT>=load mode, the "windToLoad" before curtailment equals the full dispatch load.
+                    SingleRunSimulator.applyIdleReserveInWindSurplus(
+                            bus,
+                            ctx.sp,
+                            ctx.hourIndex,
+                            dispatchLoadKw,
+                            dispatchLoadKw,
+                            ctx.cat1,
+                            ctx.cat2,
+                            false,
+                            bt,
+                            ctx.dgRatedKw,
+                            ctx.dgMinKw,
+                            0.0
+                    );
+
+                    // After reserve decision, recompute supply split:
+                    // DG takes its reserve setpoint, wind supplies the rest, remaining wind is curtailed (WRE).
+                    double dgSumKw = 0.0;
                     for (DieselGenerator dg : dgs) {
                         if (!dg.isAvailable()) continue;
-                        chosen = dg;
-                        break;
+                        double p = dg.getCurrentLoad();
+                        if (p > SimulationConstants.EPSILON) dgSumKw += p;
                     }
-                    // Defensive: should not happen because availableDg>0.
-                    if (chosen != null) {
-                        for (DieselGenerator dg : dgs) {
-                            if (!dg.isAvailable()) {
-                                dg.setCurrentLoad(0.0);
-                                dg.stopWork();
-                                continue;
-                            }
-                            if (dg == chosen) {
-                                dg.startWork();
-                                dg.setCurrentLoad(ctx.dgMinKw);
-                            } else {
-                                dg.setCurrentLoad(0.0);
-                                dg.stopWork();
-                            }
-                        }
 
-                        double dgMin = ctx.dgMinKw;
-                        double wtToLoad = Math.max(0.0, dispatchLoadKw - dgMin);
-                        windToLoadKw = wtToLoad;
-                        dgToLoadKw = Math.min(dispatchLoadKw, dgMin);
+                    dgToLoadKw = Math.min(dispatchLoadKw, dgSumKw);
+                    windToLoadKw = Math.max(0.0, dispatchLoadKw - dgToLoadKw);
 
-                        wreKw = Math.max(0.0, windPotKw - windToLoadKw);
-                        ctx.status.set(HourContext.StatusCollector.PRI_NORMAL, "WT_GE_LOAD_NO_BESS_DG_MIN");
-                    }
+                    wreKw = Math.max(0.0, windPotKw - windToLoadKw);
+                    ctx.status.set(HourContext.StatusCollector.PRI_NORMAL, "WT_GE_LOAD_NO_BESS_DG_RESERVE");
                 } else {
                     // No DG and no BESS (should have been caught by busEnergised), but stay safe.
                     windToLoadKw = dispatchLoadKw;
@@ -335,8 +337,8 @@ final class PerBusDispatcher {
             }
 
             final double tauRaw = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : ctx.dgStartDelayHours;
-        // tau only applies when new DG start this hour
-        double tau = tauRaw;
+            // tau only applies when new DG start this hour
+            double tau = tauRaw;
 
             // ===== 1) DG count by max power =====
             int nAvail = availableDg;
