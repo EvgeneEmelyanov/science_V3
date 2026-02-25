@@ -306,26 +306,6 @@ final class SectionalClosedDispatcher {
                 //   держим готовность через ХХ.
                 // - если ДГУ используются вместе с ветром, ХХ не нужен; вместо этого используется ВР (N-1).
                 boolean dgUsedForLoad = sumDieselKw > SimulationConstants.EPSILON;
-
-                if (!dgUsedForLoad && usedWind > SimulationConstants.EPSILON) {
-                    SingleRunSimulator.applyIdleReserveInWindDeficit(
-                            dgs,
-                            totalLoad,
-                            usedWind,
-                            ctx.cat1,
-                            ctx.cat2,
-                            ctx.reserveThirdCategory,
-                            false,
-                            null,
-                            ctx.sp,
-                            tauEff,
-                            0.0,
-                            ctx.dgRatedKw,
-                            ctx.dgMinKw,
-                            ctx.dgMaxKw
-                    );
-                }
-
                 // N-1 may add DG and redistribute loads
                 if (ctx.considerRotationReserve && dgUsedForLoad) {
                     sumDieselKw = SingleRunSimulator.applyRotationReserveNminus1(

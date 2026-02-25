@@ -423,6 +423,9 @@ public class Main {
         static final double DEFAULT_BUS_CCF_BETA_SECTIONAL = ModelDefaults.DEFAULT_BUS_CCF_BETA_SECTIONAL;
         static final double DEFAULT_BUS_CCF_BETA_DOUBLE = ModelDefaults.DEFAULT_BUS_CCF_BETA_DOUBLE;
 
+        static final double DEFAULT_IDLE_RESERVE_COEFF = ModelDefaults.CFG_IDLE_RESERVE_COEFF;
+        static final double DEFAULT_ROTATION_RESERVE_COEFF = ModelDefaults.CFG_ROTATION_RESERVE_COEFF;
+
         // ---- Economics defaults ----
         static final double DEFAULT_DISCOUNT_RATE = ModelDefaults.DEFAULT_DISCOUNT_RATE;
         static final double DEFAULT_COST_RU_RUB = ModelDefaults.DEFAULT_COST_RU_RUB;
@@ -528,6 +531,9 @@ public class Main {
 
                     Defaults.DEFAULT_BUS_CCF_BETA_SECTIONAL,
                     Defaults.DEFAULT_BUS_CCF_BETA_DOUBLE,
+
+                    Defaults.DEFAULT_IDLE_RESERVE_COEFF,
+                    Defaults.DEFAULT_ROTATION_RESERVE_COEFF,
 
                     Defaults.DEFAULT_DISCOUNT_RATE,
                     Defaults.DEFAULT_COST_RU_RUB,
