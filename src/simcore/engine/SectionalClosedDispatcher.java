@@ -12,6 +12,31 @@ import java.util.Arrays;
 final class SectionalClosedDispatcher {
     private SectionalClosedDispatcher() {}
 
+
+    // Start-delay-aware DG maximum average power available in the current hour (kW).
+// Used to decide whether BESS discharge is needed at all in sectional-closed / coupled modes.
+    private static double dgMaxAvgOneHour(PowerBus bus, double dgMaxKw, double dgStartDelayHours) {
+        if (bus == null) return 0.0;
+
+        DieselGenerator[] dgs = DieselGenerator.getSortedDgs(bus);
+
+        int available = 0;
+        int workingAtStart = 0;
+        for (DieselGenerator dg : dgs) {
+            if (!dg.isAvailable()) continue;
+            available++;
+            if (dg.wasWorkingAtHourStart()) workingAtStart++;
+        }
+
+        double tauRaw = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : dgStartDelayHours;
+        double tau = (available > workingAtStart) ? tauRaw : 0.0;
+
+        return Math.max(0.0,
+                (workingAtStart * dgMaxKw)
+                        + ((available - workingAtStart) * dgMaxKw * Math.max(0.0, 1.0 - tau))
+        );
+    }
+
     /**
      * Per-thread reusable buffers to avoid per-hour allocations in the hottest dispatching path.
      * SOBOL/MC can run in parallel, so we keep buffers thread-local.
@@ -86,39 +111,55 @@ final class SectionalClosedDispatcher {
         boolean bt0Avail = bt0 != null && bt0.isAvailable();
         boolean bt1Avail = bt1 != null && bt1.isAvailable();
 
+
+// ===== Battery discharge (sectional closed): use BESS only for the residual that DGs cannot cover
+// (start-delay-aware max average DG supply), and cap discharge by energy above SOC_MIN (1 hour window).
         double bt0DisCap = bt0Avail ? bt0.getDischargePowerCapKw(ctx.sp) : 0.0;
         double bt1DisCap = bt1Avail ? bt1.getDischargePowerCapKw(ctx.sp) : 0.0;
 
-        // btNet: >0 discharge, <0 charge
+        double dg0MaxAvg = dgMaxAvgOneHour(b0, ctx.dgMaxKw, ctx.dgStartDelayHours);
+        double dg1MaxAvg = dgMaxAvgOneHour(b1, ctx.dgMaxKw, ctx.dgStartDelayHours);
+        double totalRemAfterWind = Math.max(0.0, rem0) + Math.max(0.0, rem1);
+        double totalDgMaxAvg = Math.max(0.0, dg0MaxAvg) + Math.max(0.0, dg1MaxAvg);
 
-        double dis0 = bt0Avail ? Math.min(rem0, bt0DisCap) : 0.0;
-        if (dis0 > SimulationConstants.EPSILON && bt0Avail) {
-            bt0.adjustCapacity(bt0, -dis0, dis0, false, ctx.considerDegradation);
-            btNet[0] += dis0;
-            rem0 -= dis0;
-            bt0DisCap -= dis0;
-        }
-        double dis1 = bt1Avail ? Math.min(rem1, bt1DisCap) : 0.0;
-        if (dis1 > SimulationConstants.EPSILON && bt1Avail) {
-            bt1.adjustCapacity(bt1, -dis1, dis1, false, ctx.considerDegradation);
-            btNet[1] += dis1;
-            rem1 -= dis1;
-            bt1DisCap -= dis1;
-        }
+        double needBessTotal = Math.max(0.0, totalRemAfterWind - totalDgMaxAvg);
 
-        if (rem0 > SimulationConstants.EPSILON && bt1Avail && bt1DisCap > SimulationConstants.EPSILON) {
-            double x = Math.min(rem0, bt1DisCap);
-            bt1.adjustCapacity(bt1, -x, x, false, ctx.considerDegradation);
-            btNet[1] += x;
-            rem0 -= x;
-            bt1DisCap -= x;
-        }
-        if (rem1 > SimulationConstants.EPSILON && bt0Avail && bt0DisCap > SimulationConstants.EPSILON) {
-            double x = Math.min(rem1, bt0DisCap);
-            bt0.adjustCapacity(bt0, -x, x, false, ctx.considerDegradation);
-            btNet[0] += x;
-            rem1 -= x;
-            bt0DisCap -= x;
+        double disTotal = 0.0;
+        if (needBessTotal > SimulationConstants.EPSILON) {
+            // discharge BT0 first, then BT1 (can be changed later to another priority policy)
+            if (bt0Avail && bt0DisCap > SimulationConstants.EPSILON) {
+                double byEnergy0 = bt0.getAvailableDischargeEnergyKwhAbove(SimulationConstants.BATTERY_MIN_SOC);
+                double can0 = Math.min(bt0DisCap, byEnergy0); // 1h
+                double dis0 = Math.min(can0, needBessTotal - disTotal);
+                if (dis0 > SimulationConstants.EPSILON) {
+                    bt0.adjustCapacity(bt0, -dis0, dis0, false, ctx.considerDegradation);
+                    disTotal += dis0;
+                }
+            }
+            if (bt1Avail && bt1DisCap > SimulationConstants.EPSILON && (needBessTotal - disTotal) > SimulationConstants.EPSILON) {
+                double byEnergy1 = bt1.getAvailableDischargeEnergyKwhAbove(SimulationConstants.BATTERY_MIN_SOC);
+                double can1 = Math.min(bt1DisCap, byEnergy1); // 1h
+                double dis1 = Math.min(can1, needBessTotal - disTotal);
+                if (dis1 > SimulationConstants.EPSILON) {
+                    bt1.adjustCapacity(bt1, -dis1, dis1, false, ctx.considerDegradation);
+                    disTotal += dis1;
+                }
+            }
+
+            // allocate discharged power to buses proportionally to their remaining demand after wind
+            if (totalRemAfterWind > SimulationConstants.EPSILON && disTotal > SimulationConstants.EPSILON) {
+                double share0 = Math.max(0.0, rem0) / totalRemAfterWind;
+                double share1 = 1.0 - share0;
+
+                double disTo0 = disTotal * share0;
+                double disTo1 = disTotal * share1;
+
+                rem0 = Math.max(0.0, rem0 - disTo0);
+                rem1 = Math.max(0.0, rem1 - disTo1);
+
+                btNet[0] += disTo0; // positive = discharge to load
+                btNet[1] += disTo1;
+            }
         }
 
         double btDisToLoadTotal = Math.max(0.0, btNet[0]) + Math.max(0.0, btNet[1]);
