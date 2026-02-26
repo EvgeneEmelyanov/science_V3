@@ -28,9 +28,9 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.SOBOL_HARD;
+        Task task = Task.RUN;
         RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 5;
+        int mcIterations = 1;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 

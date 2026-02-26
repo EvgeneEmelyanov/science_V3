@@ -12,6 +12,9 @@ public final class SobolResult {
     private final double[] s_ens;
     private final double[] st_ens;
 
+    private final double[] s_lole;
+    private final double[] st_lole;
+
     private final double[] s_fuel;
     private final double[] st_fuel;
 
@@ -23,12 +26,15 @@ public final class SobolResult {
 
     // pooled statistics over Sobol sample means (A ∪ B)
     private final double var_ens;
+    private final double var_lole;
     private final double var_fuel;
     private final double var_moto;
     private final double var_lcoe;
 
     private final double min_ens;
     private final double max_ens;
+    private final double min_lole;
+    private final double max_lole;
     private final double min_fuel;
     private final double max_fuel;
     private final double min_moto;
@@ -39,17 +45,22 @@ public final class SobolResult {
     public SobolResult(
             SobolConfig cfg,
             double[] sEns, double[] stEns,
+            double[] sLole, double[] stLole,
             double[] sFuel, double[] stFuel,
             double[] sMoto, double[] stMoto,
             double[] sLcoe, double[] stLcoe,
-            double varEns, double varFuel, double varMoto, double varLcoe,
+            double varEns, double varLole, double varFuel, double varMoto, double varLcoe,
             double minEns, double maxEns,
+            double minLole, double maxLole,
             double minFuel, double maxFuel,
             double minMoto, double maxMoto,
             double minLcoe, double maxLcoe) {
         this.cfg = cfg;
         this.s_ens = sEns;
         this.st_ens = stEns;
+
+        this.s_lole = sLole;
+        this.st_lole = stLole;
         this.s_fuel = sFuel;
         this.st_fuel = stFuel;
         this.s_moto = sMoto;
@@ -58,12 +69,15 @@ public final class SobolResult {
         this.st_lcoe = stLcoe;
 
         this.var_ens = varEns;
+        this.var_lole = varLole;
         this.var_fuel = varFuel;
         this.var_moto = varMoto;
         this.var_lcoe = varLcoe;
 
         this.min_ens = minEns;
         this.max_ens = maxEns;
+        this.min_lole = minLole;
+        this.max_lole = maxLole;
         this.min_fuel = minFuel;
         this.max_fuel = maxFuel;
         this.min_moto = minMoto;
@@ -77,6 +91,9 @@ public final class SobolResult {
     public double[] getS_ens() { return s_ens; }
     public double[] getSt_ens() { return st_ens; }
 
+    public double[] getS_lole() { return s_lole; }
+    public double[] getSt_lole() { return st_lole; }
+
     public double[] getS_fuel() { return s_fuel; }
     public double[] getSt_fuel() { return st_fuel; }
 
@@ -87,12 +104,15 @@ public final class SobolResult {
     public double[] getSt_lcoe() { return st_lcoe; }
 
     public double getVar_ens() { return var_ens; }
+    public double getVar_lole() { return var_lole; }
     public double getVar_fuel() { return var_fuel; }
     public double getVar_moto() { return var_moto; }
     public double getVar_lcoe() { return var_lcoe; }
 
     public double getMin_ens() { return min_ens; }
     public double getMax_ens() { return max_ens; }
+    public double getMin_lole() { return min_lole; }
+    public double getMax_lole() { return max_lole; }
     public double getMin_fuel() { return min_fuel; }
     public double getMax_fuel() { return max_fuel; }
     public double getMin_moto() { return min_moto; }

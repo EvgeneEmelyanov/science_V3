@@ -63,6 +63,7 @@ public final class MonteCarloRunner {
         double fuelSum = 0.0;
         double motoSum = 0.0;
         double lcoeSum = 0.0;
+        double loleSum = 0.0;
 
         for (int mcIdx = 0; mcIdx < mcIterations; mcIdx++) {
             if (Thread.currentThread().isInterrupted()) {
@@ -74,17 +75,19 @@ public final class MonteCarloRunner {
             fuelSum += m.fuelLiters;
             motoSum += (double) m.totalMotoHours;
             lcoeSum += m.lcoeRubPerKwh;
+            loleSum += (double) m.loleHours;
         }
 
         double inv = 1.0 / mcIterations;
-        return new Means(ensSum * inv, fuelSum * inv, motoSum * inv, lcoeSum * inv);
+        return new Means(ensSum * inv, fuelSum * inv, motoSum * inv, lcoeSum * inv, loleSum * inv);
     }
 
     /** Minimal mean-only result for Sobol HARD. */
     public record Means(double meanEnsKwh,
                         double meanFuelLiters,
                         double meanMotoHours,
-                        double meanLcoeRubPerKwh) {}
+                        double meanLcoeRubPerKwh,
+                        double meanLoleHours) {}
 
     public MonteCarloEstimate evaluateForTheta(SimInput baseInput,
                                                ParameterSet theta,

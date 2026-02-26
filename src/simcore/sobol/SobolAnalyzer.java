@@ -45,11 +45,13 @@ public final class SobolAnalyzer {
 
         // store only metric means
         double[] aEns = new double[N];
+        double[] aLole = new double[N];
         double[] aFuel = new double[N];
         double[] aMoto = new double[N];
         double[] aLcoe = new double[N];
 
         double[] bEns = new double[N];
+        double[] bLole = new double[N];
         double[] bFuel = new double[N];
         double[] bMoto = new double[N];
         double[] bLcoe = new double[N];
@@ -63,7 +65,7 @@ public final class SobolAnalyzer {
         for (int from = 0; from < N; from += iChunk) {
             final int f = from;
             final int t = Math.min(N, from + iChunk);
-            Runnable r = () -> evalAChunk(baseInput, cfg, A, f, t, aEns, aFuel, aMoto, aLcoe);
+            Runnable r = () -> evalAChunk(baseInput, cfg, A, f, t, aEns, aLole, aFuel, aMoto, aLcoe);
             submitOrRun(r, futures);
         }
         awaitFutures(futures);
@@ -72,19 +74,22 @@ public final class SobolAnalyzer {
         for (int from = 0; from < N; from += iChunk) {
             final int f = from;
             final int t = Math.min(N, from + iChunk);
-            Runnable r = () -> evalBChunk(baseInput, cfg, B, f, t, bEns, bFuel, bMoto, bLcoe);
+            Runnable r = () -> evalBChunk(baseInput, cfg, B, f, t, bEns, bLole, bFuel, bMoto, bLcoe);
             submitOrRun(r, futures);
         }
         awaitFutures(futures);
 
         // pooled variances Var(Y) over A ∪ B (population variance)
         final double varEns = SobolMath.variancePooledPopulation(aEns, bEns);
+        final double varLole = SobolMath.variancePooledPopulation(aLole, bLole);
         final double varFuel = SobolMath.variancePooledPopulation(aFuel, bFuel);
         final double varMoto = SobolMath.variancePooledPopulation(aMoto, bMoto);
         final double varLcoe = SobolMath.variancePooledPopulation(aLcoe, bLcoe);
 
         final double minEns = SobolMath.minPooled(aEns, bEns);
         final double maxEns = SobolMath.maxPooled(aEns, bEns);
+        final double minLole = SobolMath.minPooled(aLole, bLole);
+        final double maxLole = SobolMath.maxPooled(aLole, bLole);
         final double minFuel = SobolMath.minPooled(aFuel, bFuel);
         final double maxFuel = SobolMath.maxPooled(aFuel, bFuel);
         final double minMoto = SobolMath.minPooled(aMoto, bMoto);
@@ -95,6 +100,8 @@ public final class SobolAnalyzer {
         // indices: First-order S via Saltelli-2002, Total-order ST via Jansen
         double[] sEns = new double[d];
         double[] stEns = new double[d];
+        double[] sLole = new double[d];
+        double[] stLole = new double[d];
         double[] sFuel = new double[d];
         double[] stFuel = new double[d];
         double[] sMoto = new double[d];
@@ -105,12 +112,14 @@ public final class SobolAnalyzer {
         List<SobolFactor> factors = cfg.getFactors();
 
         if (!(varEns > 0.0) || Double.isNaN(varEns) || Double.isInfinite(varEns)
+                || !(varLole > 0.0) || Double.isNaN(varLole) || Double.isInfinite(varLole)
                 || !(varFuel > 0.0) || Double.isNaN(varFuel) || Double.isInfinite(varFuel)
                 || !(varMoto > 0.0) || Double.isNaN(varMoto) || Double.isInfinite(varMoto)
                 || !(varLcoe > 0.0) || Double.isNaN(varLcoe) || Double.isInfinite(varLcoe)) {
             // if any metric variance collapses (rare but possible), keep behaviour explicit
             for (int j = 0; j < d; j++) {
                 sEns[j] = stEns[j] = Double.NaN;
+                sLole[j] = stLole[j] = Double.NaN;
                 sFuel[j] = stFuel[j] = Double.NaN;
                 sMoto[j] = stMoto[j] = Double.NaN;
                 sLcoe[j] = stLcoe[j] = Double.NaN;
@@ -125,6 +134,7 @@ public final class SobolAnalyzer {
                         A, B,
                         jf, jt,
                         aEns, bEns, varEns, sEns, stEns,
+                        aLole, bLole, varLole, sLole, stLole,
                         aFuel, bFuel, varFuel, sFuel, stFuel,
                         aMoto, bMoto, varMoto, sMoto, stMoto,
                         aLcoe, bLcoe, varLcoe, sLcoe, stLcoe
@@ -136,11 +146,13 @@ public final class SobolAnalyzer {
 
         SobolResult res = new SobolResult(cfg,
                 sEns, stEns,
+                sLole, stLole,
                 sFuel, stFuel,
                 sMoto, stMoto,
                 sLcoe, stLcoe,
-                varEns, varFuel, varMoto, varLcoe,
+                varEns, varLole, varFuel, varMoto, varLcoe,
                 minEns, maxEns,
+                minLole, maxLole,
                 minFuel, maxFuel,
                 minMoto, maxMoto,
                 minLcoe, maxLcoe);
@@ -181,6 +193,7 @@ public final class SobolAnalyzer {
                             int from,
                             int to,
                             double[] outEns,
+                            double[] outLole,
                             double[] outFuel,
                             double[] outMoto,
                             double[] outLcoe) {
@@ -189,6 +202,7 @@ public final class SobolAnalyzer {
             long row = sobolRowIdx(i, streamA(cfg));
             MonteCarloRunner.Means e = evalThetaMeans(baseInput, cfg, theta, row);
             outEns[i] = e.meanEnsKwh();
+            outLole[i] = e.meanLoleHours();
             outFuel[i] = e.meanFuelLiters();
             outMoto[i] = e.meanMotoHours();
             outLcoe[i] = e.meanLcoeRubPerKwh();
@@ -201,6 +215,7 @@ public final class SobolAnalyzer {
                             int from,
                             int to,
                             double[] outEns,
+                            double[] outLole,
                             double[] outFuel,
                             double[] outMoto,
                             double[] outLcoe) {
@@ -209,6 +224,7 @@ public final class SobolAnalyzer {
             long row = sobolRowIdx(i, streamB(cfg));
             MonteCarloRunner.Means e = evalThetaMeans(baseInput, cfg, theta, row);
             outEns[i] = e.meanEnsKwh();
+            outLole[i] = e.meanLoleHours();
             outFuel[i] = e.meanFuelLiters();
             outMoto[i] = e.meanMotoHours();
             outLcoe[i] = e.meanLcoeRubPerKwh();
@@ -223,6 +239,7 @@ public final class SobolAnalyzer {
                                     int jFrom,
                                     int jTo,
                                     double[] aEns, double[] bEns, double varEns, double[] sEns, double[] stEns,
+                                    double[] aLole, double[] bLole, double varLole, double[] sLole, double[] stLole,
                                     double[] aFuel, double[] bFuel, double varFuel, double[] sFuel, double[] stFuel,
                                     double[] aMoto, double[] bMoto, double varMoto, double[] sMoto, double[] stMoto,
                                     double[] aLcoe, double[] bLcoe, double varLcoe, double[] sLcoe, double[] stLcoe) {
@@ -232,6 +249,7 @@ public final class SobolAnalyzer {
             SobolFactor fct = factors.get(j);
 
             double sumSEns = 0.0, sumSTEns = 0.0;
+            double sumSLole = 0.0, sumSTLole = 0.0;
             double sumSFuel = 0.0, sumSTFuel = 0.0;
             double sumSMoto = 0.0, sumSTMoto = 0.0;
             double sumSLcoe = 0.0, sumSTLcoe = 0.0;
@@ -242,12 +260,14 @@ public final class SobolAnalyzer {
                 MonteCarloRunner.Means m = evalThetaMeans(baseInput, cfg, theta, row);
 
                 double yEns = m.meanEnsKwh();
+                double yLole = m.meanLoleHours();
                 double yFuel = m.meanFuelLiters();
                 double yMoto = m.meanMotoHours();
                 double yLcoe = m.meanLcoeRubPerKwh();
 
                 // First-order (Saltelli 2002): E[f(B) * (f(AB_j) - f(A))] / Var(Y)
                 sumSEns += bEns[i] * (yEns - aEns[i]);
+                sumSLole += bLole[i] * (yLole - aLole[i]);
                 sumSFuel += bFuel[i] * (yFuel - aFuel[i]);
                 sumSMoto += bMoto[i] * (yMoto - aMoto[i]);
                 sumSLcoe += bLcoe[i] * (yLcoe - aLcoe[i]);
@@ -255,6 +275,8 @@ public final class SobolAnalyzer {
                 // Total-order (Jansen): E[(f(A) - f(AB_j))^2] / (2 Var(Y))
                 double dEns = aEns[i] - yEns;
                 sumSTEns += dEns * dEns;
+                double dLole = aLole[i] - yLole;
+                sumSTLole += dLole * dLole;
                 double dFuel = aFuel[i] - yFuel;
                 sumSTFuel += dFuel * dFuel;
                 double dMoto = aMoto[i] - yMoto;
@@ -266,6 +288,9 @@ public final class SobolAnalyzer {
             double invN = 1.0 / N;
             sEns[j] = (sumSEns * invN) / varEns;
             stEns[j] = (sumSTEns * (invN / 2.0)) / varEns;
+
+            sLole[j] = (sumSLole * invN) / varLole;
+            stLole[j] = (sumSTLole * (invN / 2.0)) / varLole;
 
             sFuel[j] = (sumSFuel * invN) / varFuel;
             stFuel[j] = (sumSTFuel * (invN / 2.0)) / varFuel;
