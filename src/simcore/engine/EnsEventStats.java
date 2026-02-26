@@ -25,7 +25,9 @@ public final class EnsEventStats {
     private long eventsTotal;
     private long eventsStartOnly;
     private long maxRunHours;
-    private long lolHours;
+
+    // LOLE in hours (can be fractional due to DG start delay bucket <1h)
+    private double loleHours;
 
     // In-progress state
     private int currentRunHours;
@@ -41,18 +43,29 @@ public final class EnsEventStats {
         boolean hasEns = ensKwhThisHour > SimulationConstants.EPSILON;
 
         if (hasEns) {
-            lolHours++;
+            final boolean firstHourOfRun = (currentRunHours == 0);
             currentRunHours++;
 
-            // Decide whether this run is a pure "start-only" run:
-            // it must start now (first hour), have start ENS, and have no rest ENS.
-            if (currentRunHours == 1) {
+            if (firstHourOfRun) {
+                // First hour: may be a pure "start-only" ENS hour.
                 double rest = ensKwhThisHour - startEnsKwhThisHour;
-                currentRunStartOnly = startEnsKwhThisHour > SimulationConstants.EPSILON
-                        && rest <= SimulationConstants.EPSILON;
+                boolean startOnlyThisHour =
+                        startEnsKwhThisHour > SimulationConstants.EPSILON
+                                && rest <= SimulationConstants.EPSILON;
+
+                currentRunStartOnly = startOnlyThisHour;
+
+                // LOLE contribution:
+                // - start-only hour counts as tau (DG start delay)
+                // - otherwise counts as full 1h
+                loleHours += startOnlyThisHour
+                        ? SimulationConstants.DG_START_DELAY_HOURS
+                        : 1.0;
+
             } else {
-                // If the event lasts more than 1 hour, it's not start-only.
+                // Any continuation makes the event NOT start-only and counts as a full hour.
                 currentRunStartOnly = false;
+                loleHours += 1.0;
             }
             return;
         }
@@ -103,9 +116,9 @@ public final class EnsEventStats {
         return maxRunHours;
     }
 
-    /** LOLE in hours for this run: number of hours with ENS(t) > EPS. */
-    public long getLolHours() {
-        return lolHours;
+    /** LOLE in hours for this run: sum of LOLE contributions per hour (may be fractional). */
+    public double getLolHours() {
+        return loleHours;
     }
 
     /** Returns a copy of bucket counts array (length = BUCKETS). */

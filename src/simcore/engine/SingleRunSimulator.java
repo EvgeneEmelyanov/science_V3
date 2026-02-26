@@ -996,7 +996,7 @@ public final class SingleRunSimulator {
         long ensEventsTotal = totals.ensEventStats.getEventsTotal();
         long ensEventsStartOnly = totals.ensEventStats.getEventsStartOnly();
         long ensEventsMaxHours = totals.ensEventStats.getMaxRunHours();
-        long loleHours = totals.ensEventStats.getLolHours();
+        double loleHours = totals.ensEventStats.getLolHours();
 
         // Reliability-of-supply metrics derived from ENS.
         // LOLP is the fraction of hours with ENS>0.

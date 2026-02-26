@@ -47,7 +47,7 @@ public final class SimulationMetrics {
 
     // ===== Reliability-of-supply metrics derived from ENS =====
     /** LOLE, hours: number of hours with ENS(t) > 0 over the horizon. */
-    public final long loleHours;
+    public final double loleHours;
     /** LOLP, probability: LOLE_h / horizonHours. */
     public final double lolp;
     /** LPSP, energy-based: ENS / Load. */
@@ -80,7 +80,7 @@ public final class SimulationMetrics {
                              long ensEvents13to24H,
                              long ensEventsGt24H,
                              long ensEventsMaxHours,
-                             long loleHours,
+                             double loleHours,
                              double lolp,
                              double lpsp,
                              EconomyDrivers economyDrivers) {

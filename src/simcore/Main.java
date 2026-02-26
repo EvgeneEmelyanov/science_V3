@@ -16,8 +16,7 @@ import java.util.concurrent.Executors;
 public class Main {
 
     //TODO:
-//    1. старт считается неправильно походу
-//    2. учитывается ли что в некоторые часы недоотпуск только 0,1 часа?
+
 
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
@@ -29,7 +28,7 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SWEEP_2;
+        RunMode runMode = RunMode.SWEEP_1;
         int mcIterations = 50;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
