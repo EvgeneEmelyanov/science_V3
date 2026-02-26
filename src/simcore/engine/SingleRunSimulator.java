@@ -244,6 +244,9 @@ public final class SingleRunSimulator {
 
         for (int t = 0; t < hours; t++) {
 
+            if (t == 3) {
+                System.out.println();
+            }
             final double windV = windMs[t];
             final boolean doTrace = trace.enabled();
             trace.startHour(busCount);

@@ -15,10 +15,7 @@ import java.util.concurrent.Executors;
 
 public class Main {
 
-    //TODO:
-
-
-
+    // мб вернуть деградацию по току акб
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}

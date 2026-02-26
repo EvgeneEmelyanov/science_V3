@@ -65,8 +65,10 @@ public final class NetworkFailureStep {
 
                 breaker.setClosed(false);
             }
+        }
 
-            // автомат работал в этот час (если существовал)
+        // автомат "существует" => его время работы идёт всегда, независимо от положения
+        if (breaker != null) {
             breaker.addWorkTime(1);
         }
     }
