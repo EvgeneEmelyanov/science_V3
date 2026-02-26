@@ -54,18 +54,18 @@ public final class SweepResultsExcelWriter {
             centeredNumberStyle.setAlignment(HorizontalAlignment.CENTER);
             centeredNumberStyle.setVerticalAlignment(VerticalAlignment.CENTER);
             centeredNumberStyle.setDataFormat(df.getFormat("0.00"));
+            // small numbers: centered, scientific notation
+            CellStyle centeredSciStyle = wb.createCellStyle();
+            centeredSciStyle.setAlignment(HorizontalAlignment.CENTER);
+            centeredSciStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            centeredSciStyle.setDataFormat(df.getFormat("0.000E+00"));
+
 
             // integers: centered, no decimals
             CellStyle centeredIntStyle = wb.createCellStyle();
             centeredIntStyle.setAlignment(HorizontalAlignment.CENTER);
             centeredIntStyle.setVerticalAlignment(VerticalAlignment.CENTER);
             centeredIntStyle.setDataFormat(df.getFormat("0"));
-
-            // money/prices: centered, integer with thousands separator (no decimals)
-            CellStyle econMoneyStyle = wb.createCellStyle();
-            econMoneyStyle.setAlignment(HorizontalAlignment.CENTER);
-            econMoneyStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-            econMoneyStyle.setDataFormat(df.getFormat("#,##0"));
 
             // ===== RAW sheet =====
             Sheet raw = wb.createSheet("RAW");
@@ -110,7 +110,6 @@ public final class SweepResultsExcelWriter {
 
             // Outputs
             c = writeHeader(hdr, c, "LCOE, руб/кВт∙ч", headerStyle);
-            c = writeHeader(hdr, c, "Затраты млн.руб.", headerStyle);
 
             c = writeHeader(hdr, c, "ENS,кВт∙ч", headerStyle);
             c = writeHeader(hdr, c, "ENS_ciLo", headerStyle);
@@ -125,16 +124,12 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "DG_%", headerStyle);
             c = writeHeader(hdr, c, "BT_%", headerStyle);
 
-            // Failures + replacements
-            c = writeHeader(hdr, c, "FailRoom", headerStyle);
-            c = writeHeader(hdr, c, "FailBus", headerStyle);
-            c = writeHeader(hdr, c, "FailDg", headerStyle);
-            c = writeHeader(hdr, c, "FailWt", headerStyle);
-            c = writeHeader(hdr, c, "FailBt", headerStyle);
-            c = writeHeader(hdr, c, "BtRepl", headerStyle);
-            c = writeHeader(hdr, c, "FailBrk", headerStyle);
+// Reliability-of-supply metrics derived from ENS (mean over MC)
+            c = writeHeader(hdr, c, "LOLE_h", headerStyle);
+            c = writeHeader(hdr, c, "LOLP", headerStyle);
+            c = writeHeader(hdr, c, "LPSP", headerStyle);
 
-            // ENS event statistics (mean counts over the horizon)
+// ENS event statistics (mean counts over the horizon)
             c = writeHeader(hdr, c, "ENS_evtN", headerStyle);
             c = writeHeader(hdr, c, "ENS_evtStart_lt1h", headerStyle);
             c = writeHeader(hdr, c, "ENS_evt1h", headerStyle);
@@ -144,16 +139,17 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "ENS_evtGt24h", headerStyle);
             c = writeHeader(hdr, c, "ENS_evtMaxH", headerStyle);
 
-            // Reliability-of-supply metrics derived from ENS (mean over MC)
-            c = writeHeader(hdr, c, "LOLE_h", headerStyle);
-            c = writeHeader(hdr, c, "LOLP", headerStyle);
-            c = writeHeader(hdr, c, "LPSP", headerStyle);
+// Failures + replacements
+            c = writeHeader(hdr, c, "FailRoom", headerStyle);
+            c = writeHeader(hdr, c, "FailBus", headerStyle);
+            c = writeHeader(hdr, c, "FailDg", headerStyle);
+            c = writeHeader(hdr, c, "FailWt", headerStyle);
+            c = writeHeader(hdr, c, "FailBt", headerStyle);
+            c = writeHeader(hdr, c, "BtRepl", headerStyle);
+            c = writeHeader(hdr, c, "FailBrk", headerStyle);
 
-            // ===== RAW rows =====
-            // Economics inputs block is written BELOW the results (prices only).
-            final int econBlockStartRow0 = 3 + estimates.size(); // one blank row after last data row
+            final int m2 = (param2 == null) ? 0 : param2.length;
 
-            final int m2 = (param2 != null) ? param2.length : 0;
             final boolean canUseRectIndexing = (mode == simcore.Main.RunMode.SWEEP_2)
                     && param1 != null && param2 != null
                     && m2 > 0
@@ -224,43 +220,40 @@ public final class SweepResultsExcelWriter {
                 // ---- LCOE ----
                 writeNumber(rr, cc++, e.meanLcoeRubPerKwh, centeredNumberStyle);
 
-                // ---- Econ cell ----
-                final int econColIdx = cc;
-                Cell econCell = rr.createCell(cc++);
-                econCell.setCellStyle(centeredNumberStyle);
+                // Column indexes (0-based) for formulas (filled as we write the row)
+                int ensMeanColIdx = -1;
+                int ens1ColIdx = -1;
+                int ens2ColIdx = -1;
+                int fuelMlColIdx = -1;
+                int motoKhColIdx = -1;
+                int btReplColIdx = -1;
 
-                // Column indexes (0-based) for the outputs in this row, relative to Econ column.
-                final int ensMeanColIdx = econColIdx + 1;
-                final int ens1ColIdx = econColIdx + 5;
-                final int ens2ColIdx = econColIdx + 6;
-                final int fuelMlColIdx = econColIdx + 7;
-                final int motoKhColIdx = econColIdx + 8;
-                final int btReplColIdx = econColIdx + 18; // fixed by header order after Econ
-
-                // ---- outputs ----
+// ---- outputs ----
+                ensMeanColIdx = cc;
                 writeNumber(rr, cc++, s.getMean(), centeredNumberStyle);
                 writeNumber(rr, cc++, s.getCiLow(), centeredNumberStyle);
                 writeNumber(rr, cc++, s.getCiHigh(), centeredNumberStyle);
                 writeInt(rr, cc++, s.getRequiredSampleSize(), centeredIntStyle);
 
+                ens1ColIdx = cc;
                 writeNumber(rr, cc++, e.meanEnsCat1Kwh, centeredNumberStyle);
+                ens2ColIdx = cc;
                 writeNumber(rr, cc++, e.meanEnsCat2Kwh, centeredNumberStyle);
+                fuelMlColIdx = cc;
                 writeNumber(rr, cc++, fuelML, centeredNumberStyle);
+                motoKhColIdx = cc;
                 writeNumber(rr, cc++, motoKh, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanWre, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanWtPct, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanDgPct, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanBtPct, centeredNumberStyle);
 
-                writeNumber(rr, cc++, e.meanFailRoom, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanFailBus, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanFailDg, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanFailWt, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanFailBt, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanRepBt, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanFailBrk, centeredNumberStyle);
+// Reliability-of-supply metrics derived from ENS
+                writeNumber(rr, cc++, e.meanLoleHours, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanLolp, centeredSciStyle);
+                writeNumber(rr, cc++, e.meanLpsp, centeredSciStyle);
 
-                // ENS event statistics
+// ENS event statistics
                 writeNumber(rr, cc++, e.meanEnsEventsTotal, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEventsStartOnly, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEvents1H, centeredNumberStyle);
@@ -270,71 +263,19 @@ public final class SweepResultsExcelWriter {
                 writeNumber(rr, cc++, e.meanEnsEventsGt24H, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEventsMaxHours, centeredNumberStyle);
 
-                // Reliability-of-supply metrics derived from ENS
-                writeNumber(rr, cc++, e.meanLoleHours, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanLolp, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanLpsp, centeredNumberStyle);
+// Failures + replacements
+                writeNumber(rr, cc++, e.meanFailRoom, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailBus, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailDg, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailWt, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanFailBt, centeredNumberStyle);
 
-                // ---- Econ formula ----
-                int baseExcel = econBlockStartRow0 + 1; // 1-based
+                btReplColIdx = cc;
+                writeNumber(rr, cc++, e.meanRepBt, centeredNumberStyle);
 
-                String ruPrice = "RAW!$A$" + (baseExcel + 0);
+                writeNumber(rr, cc++, e.meanFailBrk, centeredNumberStyle);
 
-                String dgPricePerKw = "RAW!$A$" + (baseExcel + 1);
-                // затраты ДГУ: ₽ за 1 кВт за 1 тыс. мчт
-                String dgMotoCostPerKwPerKh = "RAW!$A$" + (baseExcel + 2);
-
-                String fuelPrice = "RAW!$A$" + (baseExcel + 3);
-
-                String wtPricePerKw = "RAW!$A$" + (baseExcel + 4);
-                String wtMaint = "RAW!$A$" + (baseExcel + 5);
-
-                String btPricePerKwh = "RAW!$A$" + (baseExcel + 6);
-                String btMaint = "RAW!$A$" + (baseExcel + 7);
-
-                String dmg1 = "RAW!$A$" + (baseExcel + 8);
-                String dmg2 = "RAW!$A$" + (baseExcel + 9);
-                String dmg3 = "RAW!$A$" + (baseExcel + 10);
-
-                int rowExcel = rr.getRowNum() + 1;
-
-                String dgTotKwCell = colLetter(dgTotKwColIdx + 1) + rowExcel;
-                String dg1KwCell = colLetter(dg1KwColIdx + 1) + rowExcel;
-                String wtKwCell = colLetter(wtKwColIdx + 1) + rowExcel;
-                String btKwhCell = colLetter(btKwhColIdx + 1) + rowExcel;
-
-                String ensMean = colLetter(ensMeanColIdx + 1) + rowExcel;
-                String ens1 = colLetter(ens1ColIdx + 1) + rowExcel;
-                String ens2 = colLetter(ens2ColIdx + 1) + rowExcel;
-
-                String fuelMlCell = colLetter(fuelMlColIdx + 1) + rowExcel;
-                String motoKhCell = colLetter(motoKhColIdx + 1) + rowExcel;
-
-                String btReplCell = colLetter(btReplColIdx + 1) + rowExcel;
-
-                // Total cost formula:
-                // - Battery CAPEX multiplied by (1 + BtRepl)
-                // - WT/BT yearly maintenance multiplied by 20 years
-                // - DG "моточасные" затраты: (₽/(кВт·тыс.мчт)) * (кВт одной ДГУ) * (тыс.мчт)
-                String f = "("
-                        + ruPrice
-                        + "+(" + dgPricePerKw + "*" + dgTotKwCell + ")"
-                        + "+(" + wtPricePerKw + "*" + wtKwCell + ")"
-                        + "+(" + btPricePerKwh + "*" + btKwhCell + "*(1+" + btReplCell + "))"
-                        + "+((" + wtMaint + "*" + wtKwCell + "+" + btMaint + "*" + btKwhCell + ")*20)"
-                        + "+(" + fuelPrice + "*" + fuelMlCell + ")"
-                        + "+(" + dgMotoCostPerKwPerKh + "*" + dg1KwCell + "*" + motoKhCell + ")"
-                        + "+(" + dmg1 + "*" + ens1 + ")"
-                        + "+(" + dmg2 + "*" + ens2 + ")"
-                        + "+(" + dmg3 + "*(" + ensMean + "-(" + ens1 + "+" + ens2 + "))" + ")"
-                        + ")/1000000";
-
-                econCell.setCellFormula(f);
             }
-
-            // ===== Economics inputs table (RAW, below results) =====
-            r++; // one blank row
-            r = writeEconomicsInputsBlock(raw, r, baseParams, econMoneyStyle, headerStyle);
 
             // Autosize RAW columns except A (keep narrow A)
             int rawCols = hdr.getLastCellNum();
@@ -350,49 +291,45 @@ public final class SweepResultsExcelWriter {
                 final int firstDataExcelRow = 3; // header is row 2, first data is row 3
                 final int lastDataExcelRow = 2 + estimates.size();
 
-                String p1Range = "RAW!$A$" + firstDataExcelRow + ":$A$" + lastDataExcelRow;
-                String p2Range = "RAW!$B$" + firstDataExcelRow + ":$B$" + lastDataExcelRow;
+                int colP1 = findHeaderColIdx(hdr, "param1");
+                int colP2 = findHeaderColIdx(hdr, "param2");
 
-                // Columns:
-                // param1(A), param2(B), DG_kW(C), DG1_kW(D), WT_kW(E), BT_kWh(F), LCOE(G), Econ(H), ENS_mean(I), ...
-                String lcoeRange = "RAW!$G$" + firstDataExcelRow + ":$G$" + lastDataExcelRow;
-                String econRange = "RAW!$H$" + firstDataExcelRow + ":$H$" + lastDataExcelRow;
-                String ensMeanRange = "RAW!$I$" + firstDataExcelRow + ":$I$" + lastDataExcelRow;
-                String fuelRange = "RAW!$O$" + firstDataExcelRow + ":$O$" + lastDataExcelRow;
-                String motoRange = "RAW!$P$" + firstDataExcelRow + ":$P$" + lastDataExcelRow;
-                String ens1Range = "RAW!$M$" + firstDataExcelRow + ":$M$" + lastDataExcelRow;
-                String ens2Range = "RAW!$N$" + firstDataExcelRow + ":$N$" + lastDataExcelRow;
+                String p1Range = rangeInSheet("RAW", colP1, firstDataExcelRow, lastDataExcelRow);
+                String p2Range = rangeInSheet("RAW", colP2, firstDataExcelRow, lastDataExcelRow);
 
-                String failRoomRange = "RAW!$U$"  + firstDataExcelRow + ":$U$"  + lastDataExcelRow;
-                String failBusRange  = "RAW!$V$"  + firstDataExcelRow + ":$V$"  + lastDataExcelRow;
-                String failDgRange   = "RAW!$W$"  + firstDataExcelRow + ":$W$"  + lastDataExcelRow;
-                String failWtRange   = "RAW!$X$"  + firstDataExcelRow + ":$X$"  + lastDataExcelRow;
-                String failBtRange   = "RAW!$Y$"  + firstDataExcelRow + ":$Y$"  + lastDataExcelRow;
-                String btReplRange   = "RAW!$Z$"  + firstDataExcelRow + ":$Z$"  + lastDataExcelRow;
-                String failBrkRange  = "RAW!$AA$" + firstDataExcelRow + ":$AA$" + lastDataExcelRow;
+                String lcoeRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "LCOE, руб/кВт∙ч"), firstDataExcelRow, lastDataExcelRow);
+                String ensMeanRange = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS,кВт∙ч"), firstDataExcelRow, lastDataExcelRow);
+                String fuelRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "Расход топлива"), firstDataExcelRow, lastDataExcelRow);
+                String motoRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "Моточасы"), firstDataExcelRow, lastDataExcelRow);
+                String ens1Range    = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS1_mean"), firstDataExcelRow, lastDataExcelRow);
+                String ens2Range    = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS2_mean"), firstDataExcelRow, lastDataExcelRow);
 
-                // ENS event statistics ranges (RAW!AB..AI)
-                String ensEvtNRange          = "RAW!$AB$" + firstDataExcelRow + ":$AB$" + lastDataExcelRow;
-                String ensEvtStartLt1hRange  = "RAW!$AC$" + firstDataExcelRow + ":$AC$" + lastDataExcelRow;
-                String ensEvt1hRange         = "RAW!$AD$" + firstDataExcelRow + ":$AD$" + lastDataExcelRow;
-                String ensEvt2_4hRange       = "RAW!$AE$" + firstDataExcelRow + ":$AE$" + lastDataExcelRow;
-                String ensEvt5_12hRange      = "RAW!$AF$" + firstDataExcelRow + ":$AF$" + lastDataExcelRow;
-                String ensEvt13_24hRange     = "RAW!$AG$" + firstDataExcelRow + ":$AG$" + lastDataExcelRow;
-                String ensEvtGt24hRange      = "RAW!$AH$" + firstDataExcelRow + ":$AH$" + lastDataExcelRow;
-                String ensEvtMaxHRange       = "RAW!$AI$" + firstDataExcelRow + ":$AI$" + lastDataExcelRow;
+                String loleHRange   = rangeInSheet("RAW", findHeaderColIdx(hdr, "LOLE_h"), firstDataExcelRow, lastDataExcelRow);
+                String lolpRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "LOLP"), firstDataExcelRow, lastDataExcelRow);
+                String lpspRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "LPSP"), firstDataExcelRow, lastDataExcelRow);
 
-                // Reliability-of-supply metrics ranges (RAW!AJ..AL)
-                String loleHRange            = "RAW!$AJ$" + firstDataExcelRow + ":$AJ$" + lastDataExcelRow;
-                String lolpRange             = "RAW!$AK$" + firstDataExcelRow + ":$AK$" + lastDataExcelRow;
-                String lpspRange             = "RAW!$AL$" + firstDataExcelRow + ":$AL$" + lastDataExcelRow;
+                String ensEvtNRange         = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evtN"), firstDataExcelRow, lastDataExcelRow);
+                String ensEvtStartLt1hRange = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evtStart_lt1h"), firstDataExcelRow, lastDataExcelRow);
+                String ensEvt1hRange        = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evt1h"), firstDataExcelRow, lastDataExcelRow);
+                String ensEvt2_4hRange      = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evt2_4h"), firstDataExcelRow, lastDataExcelRow);
+                String ensEvt5_12hRange     = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evt5_12h"), firstDataExcelRow, lastDataExcelRow);
+                String ensEvt13_24hRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evt13_24h"), firstDataExcelRow, lastDataExcelRow);
+                String ensEvtGt24hRange     = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evtGt24h"), firstDataExcelRow, lastDataExcelRow);
+                String ensEvtMaxHRange      = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evtMaxH"), firstDataExcelRow, lastDataExcelRow);
+
+                String failRoomRange = rangeInSheet("RAW", findHeaderColIdx(hdr, "FailRoom"), firstDataExcelRow, lastDataExcelRow);
+                String failBusRange  = rangeInSheet("RAW", findHeaderColIdx(hdr, "FailBus"), firstDataExcelRow, lastDataExcelRow);
+                String failDgRange   = rangeInSheet("RAW", findHeaderColIdx(hdr, "FailDg"), firstDataExcelRow, lastDataExcelRow);
+                String failWtRange   = rangeInSheet("RAW", findHeaderColIdx(hdr, "FailWt"), firstDataExcelRow, lastDataExcelRow);
+                String failBtRange   = rangeInSheet("RAW", findHeaderColIdx(hdr, "FailBt"), firstDataExcelRow, lastDataExcelRow);
+                String btReplRange   = rangeInSheet("RAW", findHeaderColIdx(hdr, "BtRepl"), firstDataExcelRow, lastDataExcelRow);
+                String failBrkRange  = rangeInSheet("RAW", findHeaderColIdx(hdr, "FailBrk"), firstDataExcelRow, lastDataExcelRow);
 
                 int top = 0;
 
                 if (isTriangular) {
                     top = writeTriangularGridBlock(grid, "LCOE, руб/кВт∙ч", top, param1, param2,
                             lcoeRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "Затраты млн.руб", top + 2, param1, param2,
-                            econRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
                             ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "Расход топлива, тыс.тонн", top + 2, param1, param2,
@@ -403,20 +340,12 @@ public final class SweepResultsExcelWriter {
                             ens1Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS2_mean", top + 2, param1, param2,
                             ens2Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "FailRoom", top + 2, param1, param2,
-                            failRoomRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "FailBus", top + 2, param1, param2,
-                            failBusRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "FailDg", top + 2, param1, param2,
-                            failDgRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "FailWt", top + 2, param1, param2,
-                            failWtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "FailBt", top + 2, param1, param2,
-                            failBtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "BtRepl", top + 2, param1, param2,
-                            btReplRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "FailBrk", top + 2, param1, param2,
-                            failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "LOLE_h", top + 2, param1, param2,
+                            loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "LOLP", top + 2, param1, param2,
+                            lolpRange, p1Range, p2Range, centeredSciStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "LPSP", top + 2, param1, param2,
+                            lpspRange, p1Range, p2Range, centeredSciStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS_evtN", top + 2, param1, param2,
                             ensEvtNRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS_evtStart_lt1h", top + 2, param1, param2,
@@ -433,17 +362,23 @@ public final class SweepResultsExcelWriter {
                             ensEvtGt24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
                             ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "LOLE_h", top + 2, param1, param2,
-                            loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "LOLP", top + 2, param1, param2,
-                            lolpRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "LPSP", top + 2, param1, param2,
-                            lpspRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "FailRoom", top + 2, param1, param2,
+                            failRoomRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "FailBus", top + 2, param1, param2,
+                            failBusRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "FailDg", top + 2, param1, param2,
+                            failDgRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "FailWt", top + 2, param1, param2,
+                            failWtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "FailBt", top + 2, param1, param2,
+                            failBtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "BtRepl", top + 2, param1, param2,
+                            btReplRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "FailBrk", top + 2, param1, param2,
+                            failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                 } else {
                     top = writeGridBlock(grid, "LCOE, руб/кВт∙ч", top, param1, param2,
                             lcoeRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "Затраты млн.руб.", top + 2, param1, param2,
-                            econRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
                             ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "Расход топлива, тыс.тонн", top + 2, param1, param2,
@@ -454,20 +389,12 @@ public final class SweepResultsExcelWriter {
                             ens1Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS2_mean", top + 2, param1, param2,
                             ens2Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "FailRoom", top + 2, param1, param2,
-                            failRoomRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "FailBus", top + 2, param1, param2,
-                            failBusRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "FailDg", top + 2, param1, param2,
-                            failDgRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "FailWt", top + 2, param1, param2,
-                            failWtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "FailBt", top + 2, param1, param2,
-                            failBtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "BtRepl", top + 2, param1, param2,
-                            btReplRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "FailBrk", top + 2, param1, param2,
-                            failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "LOLE_h", top + 2, param1, param2,
+                            loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "LOLP", top + 2, param1, param2,
+                            lolpRange, p1Range, p2Range, centeredSciStyle, headerStyle);
+                    top = writeGridBlock(grid, "LPSP", top + 2, param1, param2,
+                            lpspRange, p1Range, p2Range, centeredSciStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS_evtN", top + 2, param1, param2,
                             ensEvtNRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS_evtStart_lt1h", top + 2, param1, param2,
@@ -484,12 +411,20 @@ public final class SweepResultsExcelWriter {
                             ensEvtGt24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
                             ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "LOLE_h", top + 2, param1, param2,
-                            loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "LOLP", top + 2, param1, param2,
-                            lolpRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "LPSP", top + 2, param1, param2,
-                            lpspRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "FailRoom", top + 2, param1, param2,
+                            failRoomRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "FailBus", top + 2, param1, param2,
+                            failBusRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "FailDg", top + 2, param1, param2,
+                            failDgRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "FailWt", top + 2, param1, param2,
+                            failWtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "FailBt", top + 2, param1, param2,
+                            failBtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "BtRepl", top + 2, param1, param2,
+                            btReplRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "FailBrk", top + 2, param1, param2,
+                            failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                 }
 
                 autosizeFrom(grid, Math.max(2, (param2 != null ? param2.length : 0) + 1), 0);
@@ -510,9 +445,27 @@ public final class SweepResultsExcelWriter {
         return col + 1;
     }
 
+
+    private static int findHeaderColIdx(Row hdr, String headerText) {
+        for (int i = 0; i < hdr.getLastCellNum(); i++) {
+            Cell c = hdr.getCell(i);
+            if (c == null) continue;
+            if (headerText.equals(c.getStringCellValue())) {
+                return i;
+            }
+        }
+        throw new IllegalArgumentException("Header not found in RAW: " + headerText);
+    }
+
+    private static String rangeInSheet(String sheetName, int col0, int firstRow1Based, int lastRow1Based) {
+        String col = colLetter(col0 + 1);
+        return sheetName + "!$" + col + "$" + firstRow1Based + ":$" + col + "$" + lastRow1Based;
+    }
+
     private static void writeNumber(Row row, int col, double value, CellStyle numStyle) {
         Cell cell = row.createCell(col);
-        cell.setCellValue(r2(value));
+        // Store full value; display is controlled by Excel format (0.00, 0, 0.000E+00, etc.)
+        cell.setCellValue(value);
         cell.setCellStyle(numStyle);
     }
 
@@ -522,52 +475,6 @@ public final class SweepResultsExcelWriter {
         cell.setCellStyle(intStyle);
     }
 
-    private static int writeEconomicsInputsBlock(Sheet raw,
-                                                 int startRow0,
-                                                 SystemParameters baseParams,
-                                                 CellStyle moneyStyle,
-                                                 CellStyle headerStyle) {
-
-        // базовые стоимости (берём из baseParams, чтобы совпадало с Defaults/SystemParameters)
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostRuRub(),               "РУ", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostDgRubPerKw(),          "ДГУ 1кВт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostDgRubPerKwPerKmh(),    "ДГУ 1 тыс.мчт/1 кВт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostFuelRubPerKt(),        "топливо 1 кт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostWtRubPerKw(),          "ВЭУ 1 кВт", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostWtRubPerKwPerYear(),   "ВЭУ 1 кВт/год", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostBtRubPerKwh(),         "АКБ 1 кВт*ч", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getCostBtRubPerKwhPerYear(),  "АКБ 1 кВт*ч/год", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getDamageRubPerKwhCat1(),     "ущерб 1 кат за 1 кВт*ч", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getDamageRubPerKwhCat2(),     "ущерб 2 кат за 1 кВт*ч", moneyStyle, headerStyle);
-        startRow0 = writeEconRow(raw, startRow0, baseParams.getDamageRubPerKwhCat3(),     "ущерб 3 кат за 1 кВт*ч", moneyStyle, headerStyle);
-
-        raw.setColumnWidth(1, Math.max(raw.getColumnWidth(1), 42 * 256)); // label
-        raw.setColumnWidth(0, Math.max(raw.getColumnWidth(0), 16 * 256)); // price/value
-
-        return startRow0;
-    }
-
-    private static int writeEconRow(Sheet raw,
-                                    int row0,
-                                    double unitValue,
-                                    String label,
-                                    CellStyle moneyStyle,
-                                    CellStyle headerStyle) {
-
-        Row r = raw.createRow(row0);
-
-        // A: unit value (integer)
-        Cell a = r.createCell(0);
-        a.setCellValue(unitValue);
-        a.setCellStyle(moneyStyle);
-
-        // B: label
-        Cell b = r.createCell(1);
-        b.setCellValue(label);
-        b.setCellStyle(headerStyle);
-
-        return row0 + 1;
-    }
 
     private static int writeGridBlock(Sheet sh,
                                       String title,

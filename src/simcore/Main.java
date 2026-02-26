@@ -15,24 +15,27 @@ import java.util.concurrent.Executors;
 
 public class Main {
 
+    //TODO:
+//    1. старт считается неправильно походу
+//    2. учитывается ли что в некоторые часы недоотпуск только 0,1 часа?
+
+
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
-
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
-
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
     public static double MAX_LOAD;
 
     private static final class Cli {
 
-        Task task = Task.RUN;
-        RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 50;
+        Task task = Task.SOBOL_HARD;
+        RunMode runMode = RunMode.SINGLE;
+        int mcIterations = 5;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 128;
+        int sobolN = 16;
 
         //                 String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
