@@ -228,6 +228,8 @@ final class PerBusDispatcher {
         double btNetKw = 0.0; // + discharge, - charge (average over the hour)
         double wreKw = 0.0;
 
+        double startEnsRawKwh = 0.0; // raw ENS energy during DG start delay (tau), attributed later
+
         // ===== CASE A: WT >= load =====
         if (windPotKw >= dispatchLoadKw - SimulationConstants.EPSILON) {
 
@@ -462,12 +464,11 @@ final class PerBusDispatcher {
                 }
             }
 
-            // Remaining deficit on tau contributes to ENS (scheme may further re-route before per-bus, but here it is local).
+            // Remaining deficit on tau (DG start delay) is tracked separately.
+            // IMPORTANT: do NOT add it to totals.ensKwh here, because the final hour deficit accounting
+            // below already includes the energy missing due to tau (and applies UFLS rounding).
             if (tau > SimulationConstants.EPSILON && deficitTauKw > SimulationConstants.EPSILON) {
-                double ensTau = deficitTauKw * tau;
-                ctx.totals.ensKwh += ensTau;
-                ctx.totals.startEnsKwh += ensTau;
-                EnsAllocator.addEnsByCategoryProportional(ctx.totals, dispatchLoadKw, ensTau, ctx.cat1, ctx.cat2);
+                startEnsRawKwh = deficitTauKw * tau;
                 ctx.status.set(HourContext.StatusCollector.PRI_BLACKOUT, "DG_START_DELAY_ENS");
             }
 
@@ -557,9 +558,30 @@ final class PerBusDispatcher {
         // Conservative safety net: normally pre-UFLS should make dispatch feasible.
         // If any remaining deficit exists, record it as ENS with the same UFLS rounding.
         if (deficitKw > SimulationConstants.EPSILON) {
-            double shedKw = uflsEnsRounded(dispatchLoadKw, deficitKw);
+            double rawDeficitKw = deficitKw;
+            double shedKw = uflsEnsRounded(dispatchLoadKw, rawDeficitKw);
             if (shedKw > SimulationConstants.EPSILON) {
-                ctx.totals.ensKwh += shedKw;
+                // Attribute part (or all) of ENS to DG start delay for ENS event bucketing.
+                // If the entire remaining deficit is explainable by tau, attribute the whole (rounded) ENS to start.
+                double rawDeficitKwh = deficitKw; // deficitKw тут — среднее за час, а в totals трактуется как kWh за 1h
+                double shedKwh = uflsEnsRounded(dispatchLoadKw, rawDeficitKwh);
+                if (shedKwh > SimulationConstants.EPSILON) {
+
+                    if (startEnsRawKwh > SimulationConstants.EPSILON) {
+                        // Если весь дефицит этого часа можно объяснить стартовой задержкой — относим весь (округлённый) ENS к старту
+                        double startPartKwh = (rawDeficitKwh <= startEnsRawKwh + SimulationConstants.EPSILON)
+                                ? shedKwh
+                                : Math.min(shedKwh, startEnsRawKwh);
+
+                        ctx.totals.startEnsKwh += startPartKwh;
+                    }
+
+                    ctx.totals.ensKwh += shedKwh;
+                    EnsAllocator.addEnsByCategoryPriority321(ctx.totals, originalLoadKw, shedKwh, ctx.cat1, ctx.cat2);
+                    int pct = (int) Math.round(100.0 * (shedKwh / Math.max(originalLoadKw, SimulationConstants.EPSILON)));
+                    ctx.status.set(HourContext.StatusCollector.PRI_UFLS, "UFLS_SHED_" + pct + "%");
+                    deficitKw = shedKwh;
+                }
                 EnsAllocator.addEnsByCategoryPriority321(ctx.totals, originalLoadKw, shedKw, ctx.cat1, ctx.cat2);
                 int pct = (int) Math.round(100.0 * (shedKw / Math.max(originalLoadKw, SimulationConstants.EPSILON)));
                 ctx.status.set(HourContext.StatusCollector.PRI_UFLS, "UFLS_SHED_" + pct + "%");
