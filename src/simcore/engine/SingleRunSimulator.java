@@ -12,6 +12,7 @@ import simcore.engine.trace.ArrayTraceSession;
 import simcore.engine.trace.NoTraceSession;
 import simcore.engine.trace.TraceSession;
 import simcore.economy.*;
+import simcore.engine.bus.CatLoads2;
 
 
 import static simcore.economy.RuCostAdjuster.effectiveRuCost;
@@ -34,7 +35,7 @@ public final class SingleRunSimulator {
      * "Есть grid-forming оборудование" == на шине физически присутствует (и доступно) хотя бы одно из:
      * - любой ДГУ (available)
      * - АКБ (available)
-     *
+     * <p>
      * ВАЖНО: это НЕ зависит от того, работал ли ДГУ в прошлом часу. Если оборудование доступно,
      * то оно может быть запущено/использовано в текущем часу.
      */
@@ -244,9 +245,6 @@ public final class SingleRunSimulator {
 
         for (int t = 0; t < hours; t++) {
 
-            if (t == 3) {
-                System.out.println();
-            }
             final double windV = windMs[t];
             final boolean doTrace = trace.enabled();
             trace.startHour(busCount);
@@ -351,7 +349,10 @@ public final class SingleRunSimulator {
             // ===== Trace status (failures / repairs) =====
             boolean anyBusFailed = false;
             for (int b = 0; b < busCount; b++) {
-                if (busFailedThisHour[b]) { anyBusFailed = true; break; }
+                if (busFailedThisHour[b]) {
+                    anyBusFailed = true;
+                    break;
+                }
             }
             if (anyBusFailed) {
                 ctx.status.set(HourContext.StatusCollector.PRI_FAILURE, "BUS_FAILED");
@@ -407,6 +408,10 @@ public final class SingleRunSimulator {
                     cat2,
                     rawLoadThisHourKw,
                     outageHours
+            );
+
+            final CatLoads2 catLoads = BusLoadAllocator.computeCatLoadsOnOutage(
+                    sp, buses, t, cat1, cat2, rawLoadThisHourKw, outageHours
             );
 
 
@@ -498,12 +503,15 @@ public final class SingleRunSimulator {
                 for (int b = 0; b < busCount; b++) {
                     double startEns = (r.startEnsByBus != null) ? r.startEnsByBus[b] : 0.0;
                     double totalEnsBus = r.defByBus[b];
+                    double p1b = (catLoads != null) ? catLoads.p1[b] : (loads[b] * cat1);
+                    double p2b = (catLoads != null) ? catLoads.p2[b] : (loads[b] * cat2);
+                    double p3b = (catLoads != null) ? catLoads.p3[b] : Math.max(0.0, loads[b] - p1b - p2b);
                     if (startEns > SimulationConstants.EPSILON) {
-                        EnsAllocator.addEnsByCategoryProportional(totals, loads[b], startEns, cat1, cat2);
+                        EnsAllocator.addEnsByBucketsProportional(totals, startEns, p1b, p2b, p3b);
                     }
                     double restEns = Math.max(0.0, totalEnsBus - startEns);
                     if (restEns > SimulationConstants.EPSILON) {
-                        EnsAllocator.addEnsByCategory(totals, loads[b], restEns, cat1, cat2);
+                        EnsAllocator.addEnsByBucketsPriority321(totals, restEns, p1b, p2b, p3b);
                     }
                 }
 
@@ -846,6 +854,10 @@ public final class SingleRunSimulator {
                 final PowerBus bus = buses.get(b);
                 final double loadKw = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
 
+                final double p1 = (catLoads != null) ? catLoads.p1[b] : (loadKw * cat1);
+                final double p2 = (catLoads != null) ? catLoads.p2[b] : (loadKw * cat2);
+                final double p3 = (catLoads != null) ? catLoads.p3[b] : Math.max(0.0, loadKw - p1 - p2);
+
                 if (!busEnergised[b]) {
                     // If gen transfer is active, do not stop diesels on the dead bus:
                     // these diesels are being used on the live bus.
@@ -863,14 +875,14 @@ public final class SingleRunSimulator {
                             trace.fillBatteryState(b, bus.getBattery());
                         }
                     } else {
-                        PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, false, b, loadKw);
+                        PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, false, b, loadKw, p1, p2, p3);
                     }
                 } else {
                     if (doubleBusTransferGen) {
                         PowerBus extra = (b == doubleBusLive) ? buses.get(doubleBusDead) : null;
-                        PerBusDispatcher.dispatchOneBusOneHourWithExtraSources(ctx, bus, extra, true, b, loadKw);
+                        PerBusDispatcher.dispatchOneBusOneHourWithExtraSources(ctx, bus, extra, true, b, loadKw, p1, p2, p3);
                     } else {
-                        PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, true, b, loadKw);
+                        PerBusDispatcher.dispatchOneBusOneHour(ctx, bus, true, b, loadKw, p1, p2, p3);
                     }
                 }
             }

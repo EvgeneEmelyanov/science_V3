@@ -5,7 +5,6 @@ import simcore.config.SimulationConstants;
 
 /**
  * Разложение недоотпуска (ENS) по категориям надёжности.
- * Вынесено из SingleRunSimulator.
  */
 public final class EnsAllocator {
 
@@ -15,7 +14,6 @@ public final class EnsAllocator {
         if (ensKw <= SimulationConstants.EPSILON) return;
 
         // Приоритет отключения: III -> II -> I.
-        // В totals храним только ENS по I и II, поэтому III идет "по остаточному принципу".
         double p1 = loadKw * cat1;
         double p2 = loadKw * cat2;
         double p3 = Math.max(0.0, loadKw - p1 - p2);
@@ -73,5 +71,43 @@ public final class EnsAllocator {
 
         totals.ensCat1Kwh += ens1;
         totals.ensCat2Kwh += ens2;
+    }
+
+    /**
+     * ENS allocation using explicit per-category loads (kW) on the bus for the current hour.
+     * Priority of shedding: III -> II -> I.
+     *
+     * Use this when category composition on the bus changes due to transfers (SS/D logic).
+     */
+    public static void addEnsByBucketsPriority321(Totals totals, double ensKw, double p1, double p2, double p3) {
+        if (ensKw <= SimulationConstants.EPSILON) return;
+
+        double ens3 = Math.min(ensKw, Math.max(0.0, p3));
+        double rest = Math.max(0.0, ensKw - ens3);
+
+        double ens2 = Math.min(rest, Math.max(0.0, p2));
+        rest = Math.max(0.0, rest - ens2);
+
+        double ens1 = Math.min(rest, Math.max(0.0, p1));
+
+        totals.ensCat1Kwh += ens1;
+        totals.ensCat2Kwh += ens2;
+    }
+
+    /**
+     * ENS allocation proportional to per-category loads (kW) on the bus for the current hour.
+     * Use for "start ENS" (DG start delay) when you want to split it proportionally to the
+     * actual category composition after transfers.
+     */
+    public static void addEnsByBucketsProportional(Totals totals, double ensKw, double p1, double p2, double p3) {
+        if (ensKw <= SimulationConstants.EPSILON) return;
+        double a1 = Math.max(0.0, p1);
+        double a2 = Math.max(0.0, p2);
+        double a3 = Math.max(0.0, p3);
+        double sum = a1 + a2 + a3;
+        if (sum <= SimulationConstants.EPSILON) return;
+
+        totals.ensCat1Kwh += ensKw * (a1 / sum);
+        totals.ensCat2Kwh += ensKw * (a2 / sum);
     }
 }

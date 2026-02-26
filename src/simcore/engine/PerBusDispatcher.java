@@ -128,9 +128,12 @@ final class PerBusDispatcher {
             PowerBus bus,
             boolean busEnergised,
             int b,
-            double loadKw
+            double loadKw,
+            double p1LoadKw,
+            double p2LoadKw,
+            double p3LoadKw
     ) {
-        dispatchOneBusOneHourWithExtraSources(ctx, bus, null, busEnergised, b, loadKw);
+        dispatchOneBusOneHourWithExtraSources(ctx, bus, null, busEnergised, b, loadKw, p1LoadKw, p2LoadKw, p3LoadKw);
     }
 
     static void dispatchOneBusOneHourWithExtraSources(
@@ -139,7 +142,10 @@ final class PerBusDispatcher {
             PowerBus extraSourceBus,
             boolean busEnergised,
             int b,
-            double loadKw
+            double loadKw,
+            double p1LoadKw,
+            double p2LoadKw,
+            double p3LoadKw
     ) {
         final double originalLoadKw = loadKw;
         ctx.totals.loadKwh += originalLoadKw;
@@ -160,13 +166,18 @@ final class PerBusDispatcher {
 
         final int availableDg = countAvailable(dgs);
 
+        // Effective category shares for reserve heuristics on this bus this hour.
+        double tot = Math.max(0.0, p1LoadKw) + Math.max(0.0, p2LoadKw) + Math.max(0.0, p3LoadKw);
+        double effCat1 = (tot > SimulationConstants.EPSILON) ? (Math.max(0.0, p1LoadKw) / tot) : ctx.cat1;
+        double effCat2 = (tot > SimulationConstants.EPSILON) ? (Math.max(0.0, p2LoadKw) / tot) : ctx.cat2;
+
         // Hard outage: bus not energised -> 100% ENS (scheme rules handle transfers before this call).
-        if (!busEnergised || !hasAnyGridFormingEquipmentOnBus(bus) && (extraSourceBus == null || !hasAnyGridFormingEquipmentOnBus(extraSourceBus))) {
+        if (!busEnergised || (!hasAnyGridFormingEquipmentOnBus(bus) && (extraSourceBus == null || !hasAnyGridFormingEquipmentOnBus(extraSourceBus)))) {
             DieselGenerator.stopAllDieselsOnBus(bus);
             if (extraSourceBus != null) DieselGenerator.stopAllDieselsOnBus(extraSourceBus);
 
             ctx.totals.ensKwh += loadKw;
-            EnsAllocator.addEnsByCategoryProportional(ctx.totals, loadKw, loadKw, ctx.cat1, ctx.cat2);
+            EnsAllocator.addEnsByBucketsProportional(ctx.totals, loadKw, p1LoadKw, p2LoadKw, p3LoadKw);
             ctx.status.set(HourContext.StatusCollector.PRI_BLACKOUT, "OUTAGE_FULL_ENS");
 
             if (ctx.trace.enabled()) {
@@ -184,8 +195,6 @@ final class PerBusDispatcher {
         if (extraSourceBus != null) windPotKw += SingleRunSimulator.computeWindPotential(extraSourceBus, ctx.windV);
 
         // ===== UFLS should be decided BEFORE dispatch =====
-        // After UFLS rounds required shedding up to a 10% step, we must dispatch sources to the reduced (served) load,
-        // not keep the old dispatch and then "rebalance" (curtail/charge/reduce DG).
         double preShedKw = 0.0;
         double dispatchLoadKw = originalLoadKw;
         if (dispatchLoadKw > SimulationConstants.EPSILON
@@ -216,7 +225,7 @@ final class PerBusDispatcher {
                 if (preShedKw > SimulationConstants.EPSILON) {
                     dispatchLoadKw = Math.max(0.0, dispatchLoadKw - preShedKw);
                     ctx.totals.ensKwh += preShedKw;
-                    EnsAllocator.addEnsByCategoryPriority321(ctx.totals, originalLoadKw, preShedKw, ctx.cat1, ctx.cat2);
+                    EnsAllocator.addEnsByBucketsPriority321(ctx.totals, preShedKw, p1LoadKw, p2LoadKw, p3LoadKw);
                     int pct = (int) Math.round(100.0 * (preShedKw / Math.max(originalLoadKw, SimulationConstants.EPSILON)));
                     ctx.status.set(HourContext.StatusCollector.PRI_UFLS, "UFLS_SHED_" + pct + "%");
                 }
@@ -250,19 +259,16 @@ final class PerBusDispatcher {
 
             } else {
                 // Spec: no BESS -> keep DG online for grid-forming.
-                // If rotation reserve is enabled and at least one DG must run, keep N+1 units online.
                 if (availableDg > 0) {
 
-                    // Decide and set reserve DG loads (may keep 1x30% or 2x15% (+ burn every 4h) depending on settings).
-                    // In WT>=load mode, the "windToLoad" before curtailment equals the full dispatch load.
                     SingleRunSimulator.applyIdleReserveInWindSurplus(
                             bus,
                             ctx.sp,
                             ctx.hourIndex,
                             dispatchLoadKw,
                             dispatchLoadKw,
-                            ctx.cat1,
-                            ctx.cat2,
+                            effCat1,
+                            effCat2,
                             false,
                             bt,
                             ctx.dgRatedKw,
@@ -270,8 +276,6 @@ final class PerBusDispatcher {
                             0.0
                     );
 
-                    // After reserve decision, recompute supply split:
-                    // DG takes its reserve setpoint, wind supplies the rest, remaining wind is curtailed (WRE).
                     double dgSumKw = 0.0;
                     for (DieselGenerator dg : dgs) {
                         if (!dg.isAvailable()) continue;
@@ -285,13 +289,11 @@ final class PerBusDispatcher {
                     wreKw = Math.max(0.0, windPotKw - windToLoadKw);
                     ctx.status.set(HourContext.StatusCollector.PRI_NORMAL, "WT_GE_LOAD_NO_BESS_DG_RESERVE");
                 } else {
-                    // No DG and no BESS (should have been caught by busEnergised), but stay safe.
                     windToLoadKw = dispatchLoadKw;
                     wreKw = Math.max(0.0, windPotKw - windToLoadKw);
                 }
             }
 
-            // Fuel/moto accounting for DG.
             SingleRunSimulator.finalizeIdleAndBurn(ctx, dgs, ctx.dgMinKw);
             SingleRunSimulator.finalizeStoppedDgs(dgs);
 
@@ -301,7 +303,6 @@ final class PerBusDispatcher {
             double deficitAfterWindKw = Math.max(0.0, dispatchLoadKw - windToLoadKw);
 
             // ===== 0) Special case: BESS can cover the entire deficit for the whole hour (fuel-saving) =====
-            // Non-reserve floor is an ABSOLUTE SOC floor (>= max(SOC_MIN, nonReserveLevel)).
             if (btAvail && deficitAfterWindKw > SimulationConstants.EPSILON) {
                 double nonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
                 double btCapKw0 = batteryMaxDischargeKw(bt, ctx);
@@ -322,7 +323,6 @@ final class PerBusDispatcher {
 
                     ctx.status.set(HourContext.StatusCollector.PRI_NORMAL, "BESS_SUPPLIES_DEFICIT_NO_DG");
 
-                    // totals / ENS at the end will see zero deficit
                     ctx.totals.wtToLoadKwh += windToLoadKw;
                     ctx.totals.dgToLoadKwh += 0.0;
                     ctx.totals.btToLoadKwh += Math.max(0.0, btNetKw);
@@ -339,7 +339,6 @@ final class PerBusDispatcher {
             }
 
             final double tauRaw = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : ctx.dgStartDelayHours;
-            // tau only applies when new DG start this hour
             double tau = tauRaw;
 
             // ===== 1) DG count by max power =====
@@ -350,9 +349,6 @@ final class PerBusDispatcher {
             int nPlanned = Math.min(Math.max(0, nNeededByMax), Math.max(0, nAvail));
 
             // ===== 2) Non-reserve BESS use: reduce DG count if possible =====
-            // Threshold: SOC >= SOC_MIN + nonReserveAdd (from system parameters).
-            // This applies ONLY to the part of discharge that is used to *reduce* DG count.
-            // Non-reserve floor is ABSOLUTE (>= max(SOC_MIN, nonReserveLevel)).
             double socNonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
 
             int nPlannedReduced = nPlanned;
@@ -379,14 +375,13 @@ final class PerBusDispatcher {
             // ===== 3) Rotation reserve (N-1) =====
             int nOn = nPlanned;
             if (ctx.considerRotationReserve && nOn < nAvail) {
-                double criticalRatio = ctx.cat1 + ctx.cat2;
+                double criticalRatio = effCat1 + effCat2;
                 if (ctx.reserveThirdCategory) criticalRatio = 1.0;
                 criticalRatio = Math.max(0.0, Math.min(1.0, criticalRatio));
 
                 double criticalLoadKw = dispatchLoadKw * criticalRatio;
                 double criticalDefAfterWind = Math.max(0.0, criticalLoadKw - windToLoadKw);
 
-                // If one DG is lost: remaining DG max.
                 double remainingDgMaxKw = Math.max(0.0, (nOn - 1) * ctx.dgMaxKw);
                 double gapKw;
                 if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
@@ -422,7 +417,6 @@ final class PerBusDispatcher {
                 if (target <= optimal) {
                     perDgSteadyKw = target;
                 } else {
-                    // prefer optimal load unless it causes deficit
                     if (optimal * nOn >= deficitAfterWindKw) {
                         perDgSteadyKw = optimal;
                     } else {
@@ -444,11 +438,9 @@ final class PerBusDispatcher {
             if (tau > SimulationConstants.EPSILON && nNew > 0) {
                 deficitTauKw = Math.max(0.0, deficitAfterWindKw - dgStartTotalKw);
                 if (deficitTauKw > SimulationConstants.EPSILON) {
-                    // Reserve discharge: SOC floor is BATTERY_MIN_SOC (no non-reserve add)
                     double btCapKw = batteryMaxDischargeKw(bt, ctx);
                     double btDisKw = Math.min(deficitTauKw, btCapKw);
 
-                    // Ensure energy is available above SOC_MIN for tau.
                     double availKwh = btAvail
                             ? bt.getAvailableDischargeEnergyKwhAbove(SimulationConstants.BATTERY_MIN_SOC)
                             : 0.0;
@@ -456,37 +448,26 @@ final class PerBusDispatcher {
                     double needKwh = btDisKw * tau;
                     if (btAvail && availKwh + SimulationConstants.EPSILON >= needKwh) {
                         double actualDisKw = dischargeBattery(bt, ctx, btDisKw, tau, true);
-                        // btNetKw is stored as "hour-equivalent" contribution (kWh for 1h step).
-                        // For partial-hour discharge we scale by the duration.
                         btNetKw += actualDisKw * tau;
                         deficitTauKw = Math.max(0.0, deficitTauKw - actualDisKw);
                     }
                 }
             }
 
-            // Remaining deficit on tau (DG start delay) is tracked separately.
-            // IMPORTANT: do NOT add it to totals.ensKwh here, because the final hour deficit accounting
-            // below already includes the energy missing due to tau (and applies UFLS rounding).
             if (tau > SimulationConstants.EPSILON && deficitTauKw > SimulationConstants.EPSILON) {
                 startEnsRawKwh = deficitTauKw * tau;
                 ctx.status.set(HourContext.StatusCollector.PRI_BLACKOUT, "DG_START_DELAY_ENS");
             }
 
             // ===== 7) Steady interval: discharge BESS if still deficit remains =====
-            // Steady deficit after DG at steady power.
             double steadyNeedFromBtKw = Math.max(0.0, deficitAfterWindKw - dgSteadyTotalKw);
 
-            // But if we reduced DG count for fuel saving, the missing power is also a BESS steady need.
-            // (Already included in steadyNeedFromBtKw because dgSteadyTotalKw uses nOn.)
-
-            // Decide how much can be treated as non-reserve (SOC floor with add) and how much as reserve.
             if (steadyNeedFromBtKw > SimulationConstants.EPSILON && btAvail) {
                 double btCapKw = batteryMaxDischargeKw(bt, ctx);
                 double reqKw = Math.min(steadyNeedFromBtKw, btCapKw);
 
-                // Non-reserve allowance energy (above SOC_MIN+add).
                 double nonResAvailKwh = bt.getAvailableDischargeEnergyKwhAbove(socNonReserveFloor);
-                double nonResMaxKw = Math.min(reqKw, nonResAvailKwh); // because duration=1h for this phase
+                double nonResMaxKw = Math.min(reqKw, nonResAvailKwh); // duration ~ 1h
 
                 double disNonResKw = 0.0;
                 if (nonResMaxKw > SimulationConstants.EPSILON) {
@@ -495,7 +476,6 @@ final class PerBusDispatcher {
                     reqKw = Math.max(0.0, reqKw - disNonResKw);
                 }
 
-                // Reserve part down to SOC_MIN.
                 if (reqKw > SimulationConstants.EPSILON) {
                     double resAvailKwh = bt.getAvailableDischargeEnergyKwhAbove(SimulationConstants.BATTERY_MIN_SOC);
                     double resMaxKw = Math.min(reqKw, resAvailKwh / Math.max(1e-9, (1.0 - tau)));
@@ -542,7 +522,6 @@ final class PerBusDispatcher {
             SingleRunSimulator.finalizeIdleAndBurn(ctx, dgs, ctx.dgMinKw);
             SingleRunSimulator.finalizeStoppedDgs(dgs);
 
-            // Total diesel to load is the part not used to charge (we do not charge from diesel in this dispatcher).
             double sumDieselKw = 0.0;
             for (DieselGenerator dg : dgs) {
                 if (!dg.isAvailable()) continue;
@@ -555,20 +534,16 @@ final class PerBusDispatcher {
         double genForLoadKw = windToLoadKw + dgToLoadKw + Math.max(0.0, btNetKw);
         double deficitKw = Math.max(0.0, dispatchLoadKw - genForLoadKw);
 
-        // Conservative safety net: normally pre-UFLS should make dispatch feasible.
-        // If any remaining deficit exists, record it as ENS with the same UFLS rounding.
         if (deficitKw > SimulationConstants.EPSILON) {
             double rawDeficitKw = deficitKw;
             double shedKw = uflsEnsRounded(dispatchLoadKw, rawDeficitKw);
             if (shedKw > SimulationConstants.EPSILON) {
-                // Attribute part (or all) of ENS to DG start delay for ENS event bucketing.
-                // If the entire remaining deficit is explainable by tau, attribute the whole (rounded) ENS to start.
-                double rawDeficitKwh = deficitKw; // deficitKw тут — среднее за час, а в totals трактуется как kWh за 1h
+
+                double rawDeficitKwh = deficitKw;
                 double shedKwh = uflsEnsRounded(dispatchLoadKw, rawDeficitKwh);
                 if (shedKwh > SimulationConstants.EPSILON) {
 
                     if (startEnsRawKwh > SimulationConstants.EPSILON) {
-                        // Если весь дефицит этого часа можно объяснить стартовой задержкой — относим весь (округлённый) ENS к старту
                         double startPartKwh = (rawDeficitKwh <= startEnsRawKwh + SimulationConstants.EPSILON)
                                 ? shedKwh
                                 : Math.min(shedKwh, startEnsRawKwh);
@@ -577,30 +552,29 @@ final class PerBusDispatcher {
                     }
 
                     ctx.totals.ensKwh += shedKwh;
-                    EnsAllocator.addEnsByCategoryPriority321(ctx.totals, originalLoadKw, shedKwh, ctx.cat1, ctx.cat2);
+                    EnsAllocator.addEnsByBucketsPriority321(ctx.totals, shedKwh, p1LoadKw, p2LoadKw, p3LoadKw);
                     int pct = (int) Math.round(100.0 * (shedKwh / Math.max(originalLoadKw, SimulationConstants.EPSILON)));
                     ctx.status.set(HourContext.StatusCollector.PRI_UFLS, "UFLS_SHED_" + pct + "%");
                     deficitKw = shedKwh;
                 }
-                EnsAllocator.addEnsByCategoryPriority321(ctx.totals, originalLoadKw, shedKw, ctx.cat1, ctx.cat2);
+
+                EnsAllocator.addEnsByBucketsPriority321(ctx.totals, shedKw, p1LoadKw, p2LoadKw, p3LoadKw);
                 int pct = (int) Math.round(100.0 * (shedKw / Math.max(originalLoadKw, SimulationConstants.EPSILON)));
                 ctx.status.set(HourContext.StatusCollector.PRI_UFLS, "UFLS_SHED_" + pct + "%");
                 deficitKw = shedKw;
             }
         }
 
-        // ===== Totals / ENS / UFLS (use FINAL, post-rebalancing values) =====
+        // ===== Totals / ENS / UFLS =====
         ctx.totals.wtToLoadKwh += windToLoadKw;
         ctx.totals.dgToLoadKwh += dgToLoadKw;
         ctx.totals.btToLoadKwh += Math.max(0.0, btNetKw);
         ctx.totals.wreKwh += wreKw;
         if (ctx.hourWreRef != null) ctx.hourWreRef[0] += wreKw;
 
-        // Fuel is counted after dispatch.
         ctx.totals.fuelLiters += SingleRunSimulator.computeFuelLitersOneHour(bus.getDieselGenerators(), ctx.dgRatedKw);
 
         if (ctx.trace.enabled()) {
-            // Keep original load in trace; supply components correspond to the served (post-UFLS) load.
             ctx.trace.setBusValues(b, true, originalLoadKw, windToLoadKw, dgToLoadKw, btNetKw, preShedKw + deficitKw);
             ctx.trace.fillDgState(b, bus);
             ctx.trace.fillBatteryState(b, bt);
