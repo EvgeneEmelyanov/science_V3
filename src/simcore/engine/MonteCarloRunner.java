@@ -160,14 +160,14 @@ public final class MonteCarloRunner {
                     (double) m.ensEventsTotal,
                     (double) m.ensEventsStartOnly,
                     (double) m.ensEvents1H,
-                    (double) m.ensEvents2H,
-                    (double) m.ensEvents3H,
-                    (double) m.ensEvents4H,
-                    (double) m.ensEvents5to8H,
-                    (double) m.ensEvents9to12H,
+                    (double) m.ensEvents2to4H,
+                    (double) m.ensEvents5to12H,
                     (double) m.ensEvents13to24H,
                     (double) m.ensEventsGt24H,
-                    (double) m.ensEventsMaxHours
+                    (double) m.ensEventsMaxHours,
+                    (double) m.loleHours,
+                    m.lolp,
+                    m.lpsp
             );
         }
 
@@ -220,14 +220,15 @@ public final class MonteCarloRunner {
         double ensEvtTotalSum = 0.0;
         double ensEvtStartOnlySum = 0.0;
         double ensEvt1HSum = 0.0;
-        double ensEvt2HSum = 0.0;
-        double ensEvt3HSum = 0.0;
-        double ensEvt4HSum = 0.0;
-        double ensEvt5to8HSum = 0.0;
-        double ensEvt9to12HSum = 0.0;
+        double ensEvt2to4HSum = 0.0;
+        double ensEvt5to12HSum = 0.0;
         double ensEvt13to24HSum = 0.0;
         double ensEvtGt24HSum = 0.0;
         double ensEvtMaxHoursSum = 0.0;
+
+        double loleHoursSum = 0.0;
+        double lolpSum = 0.0;
+        double lpspSum = 0.0;
 
         for (Future<ChunkAgg> f : futures) {
             ChunkAgg a = f.get();
@@ -277,14 +278,15 @@ public final class MonteCarloRunner {
             ensEvtTotalSum += a.ensEvtTotalSum;
             ensEvtStartOnlySum += a.ensEvtStartOnlySum;
             ensEvt1HSum += a.ensEvt1HSum;
-            ensEvt2HSum += a.ensEvt2HSum;
-            ensEvt3HSum += a.ensEvt3HSum;
-            ensEvt4HSum += a.ensEvt4HSum;
-            ensEvt5to8HSum += a.ensEvt5to8HSum;
-            ensEvt9to12HSum += a.ensEvt9to12HSum;
+            ensEvt2to4HSum += a.ensEvt2to4HSum;
+            ensEvt5to12HSum += a.ensEvt5to12HSum;
             ensEvt13to24HSum += a.ensEvt13to24HSum;
             ensEvtGt24HSum += a.ensEvtGt24HSum;
             ensEvtMaxHoursSum += a.ensEvtMaxHoursSum;
+
+            loleHoursSum += a.loleHoursSum;
+            lolpSum += a.lolpSum;
+            lpspSum += a.lpspSum;
 
 
             System.arraycopy(a.ens, 0, ens, a.ensOffset, a.ens.length);
@@ -347,14 +349,14 @@ public final class MonteCarloRunner {
                 ensEvtTotalSum * inv,
                 ensEvtStartOnlySum * inv,
                 ensEvt1HSum * inv,
-                ensEvt2HSum * inv,
-                ensEvt3HSum * inv,
-                ensEvt4HSum * inv,
-                ensEvt5to8HSum * inv,
-                ensEvt9to12HSum * inv,
+                ensEvt2to4HSum * inv,
+                ensEvt5to12HSum * inv,
                 ensEvt13to24HSum * inv,
                 ensEvtGt24HSum * inv,
-                ensEvtMaxHoursSum * inv
+                ensEvtMaxHoursSum * inv,
+                loleHoursSum * inv,
+                lolpSum * inv,
+                lpspSum * inv
         );
 
     }
@@ -449,14 +451,14 @@ public final class MonteCarloRunner {
                 a.ensEvtTotalSum * inv,
                 a.ensEvtStartOnlySum * inv,
                 a.ensEvt1HSum * inv,
-                a.ensEvt2HSum * inv,
-                a.ensEvt3HSum * inv,
-                a.ensEvt4HSum * inv,
-                a.ensEvt5to8HSum * inv,
-                a.ensEvt9to12HSum * inv,
+                a.ensEvt2to4HSum * inv,
+                a.ensEvt5to12HSum * inv,
                 a.ensEvt13to24HSum * inv,
                 a.ensEvtGt24HSum * inv,
-                a.ensEvtMaxHoursSum * inv
+                a.ensEvtMaxHoursSum * inv,
+                a.loleHoursSum * inv,
+                a.lolpSum * inv,
+                a.lpspSum * inv
         );
     }
 
@@ -496,14 +498,16 @@ public final class MonteCarloRunner {
         double ensEvtTotalSum = 0.0;
         double ensEvtStartOnlySum = 0.0;
         double ensEvt1HSum = 0.0;
-        double ensEvt2HSum = 0.0;
-        double ensEvt3HSum = 0.0;
-        double ensEvt4HSum = 0.0;
-        double ensEvt5to8HSum = 0.0;
-        double ensEvt9to12HSum = 0.0;
+        double ensEvt2to4HSum = 0.0;
+        double ensEvt5to12HSum = 0.0;
         double ensEvt13to24HSum = 0.0;
         double ensEvtGt24HSum = 0.0;
         double ensEvtMaxHoursSum = 0.0;
+
+        // Reliability-of-supply metrics derived from ENS
+        double loleHoursSum = 0.0;
+        double lolpSum = 0.0;
+        double lpspSum = 0.0;
 
         // ===== Economy drivers aggregation (IMPORTANT) =====
         EconomyDrivers firstDriversLocal = null;
@@ -570,14 +574,15 @@ public final class MonteCarloRunner {
             ensEvtTotalSum      += m.ensEventsTotal;
             ensEvtStartOnlySum  += m.ensEventsStartOnly;
             ensEvt1HSum         += m.ensEvents1H;
-            ensEvt2HSum         += m.ensEvents2H;
-            ensEvt3HSum         += m.ensEvents3H;
-            ensEvt4HSum         += m.ensEvents4H;
-            ensEvt5to8HSum      += m.ensEvents5to8H;
-            ensEvt9to12HSum     += m.ensEvents9to12H;
+            ensEvt2to4HSum      += m.ensEvents2to4H;
+            ensEvt5to12HSum     += m.ensEvents5to12H;
             ensEvt13to24HSum    += m.ensEvents13to24H;
             ensEvtGt24HSum      += m.ensEventsGt24H;
             ensEvtMaxHoursSum   += m.ensEventsMaxHours;
+
+            loleHoursSum += (double) m.loleHours;
+            lolpSum += m.lolp;
+            lpspSum += m.lpsp;
         }
 
         // ===== IMPORTANT: return FULL ChunkAgg with drivers =====
@@ -603,14 +608,14 @@ public final class MonteCarloRunner {
                 ensEvtTotalSum,
                 ensEvtStartOnlySum,
                 ensEvt1HSum,
-                ensEvt2HSum,
-                ensEvt3HSum,
-                ensEvt4HSum,
-                ensEvt5to8HSum,
-                ensEvt9to12HSum,
+                ensEvt2to4HSum,
+                ensEvt5to12HSum,
                 ensEvt13to24HSum,
                 ensEvtGt24HSum,
                 ensEvtMaxHoursSum,
+                loleHoursSum,
+                lolpSum,
+                lpspSum,
                 firstDriversLocal,
                 servedSumByYearLocal,
                 fuelSumByYearLocal,
@@ -656,14 +661,15 @@ public final class MonteCarloRunner {
         final double ensEvtTotalSum;
         final double ensEvtStartOnlySum;
         final double ensEvt1HSum;
-        final double ensEvt2HSum;
-        final double ensEvt3HSum;
-        final double ensEvt4HSum;
-        final double ensEvt5to8HSum;
-        final double ensEvt9to12HSum;
+        final double ensEvt2to4HSum;
+        final double ensEvt5to12HSum;
         final double ensEvt13to24HSum;
         final double ensEvtGt24HSum;
         final double ensEvtMaxHoursSum;
+
+        final double loleHoursSum;
+        final double lolpSum;
+        final double lpspSum;
 
         ChunkAgg(int ensOffset,
                  double[] ens,
@@ -686,14 +692,14 @@ public final class MonteCarloRunner {
                  double ensEvtTotalSum,
                  double ensEvtStartOnlySum,
                  double ensEvt1HSum,
-                 double ensEvt2HSum,
-                 double ensEvt3HSum,
-                 double ensEvt4HSum,
-                 double ensEvt5to8HSum,
-                 double ensEvt9to12HSum,
+                 double ensEvt2to4HSum,
+                 double ensEvt5to12HSum,
                  double ensEvt13to24HSum,
                  double ensEvtGt24HSum,
                  double ensEvtMaxHoursSum,
+                 double loleHoursSum,
+                 double lolpSum,
+                 double lpspSum,
                  EconomyDrivers firstDrivers,
                  double[] servedSumByYear,
                  double[] fuelSumByYear,
@@ -734,14 +740,15 @@ public final class MonteCarloRunner {
             this.ensEvtTotalSum = ensEvtTotalSum;
             this.ensEvtStartOnlySum = ensEvtStartOnlySum;
             this.ensEvt1HSum = ensEvt1HSum;
-            this.ensEvt2HSum = ensEvt2HSum;
-            this.ensEvt3HSum = ensEvt3HSum;
-            this.ensEvt4HSum = ensEvt4HSum;
-            this.ensEvt5to8HSum = ensEvt5to8HSum;
-            this.ensEvt9to12HSum = ensEvt9to12HSum;
+            this.ensEvt2to4HSum = ensEvt2to4HSum;
+            this.ensEvt5to12HSum = ensEvt5to12HSum;
             this.ensEvt13to24HSum = ensEvt13to24HSum;
             this.ensEvtGt24HSum = ensEvtGt24HSum;
             this.ensEvtMaxHoursSum = ensEvtMaxHoursSum;
+
+            this.loleHoursSum = loleHoursSum;
+            this.lolpSum = lolpSum;
+            this.lpspSum = lpspSum;
         }
     }
 

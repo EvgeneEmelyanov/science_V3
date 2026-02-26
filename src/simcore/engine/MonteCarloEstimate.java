@@ -64,14 +64,16 @@ public final class MonteCarloEstimate {
     public final double meanEnsEventsTotal;
     public final double meanEnsEventsStartOnly;
     public final double meanEnsEvents1H;
-    public final double meanEnsEvents2H;
-    public final double meanEnsEvents3H;
-    public final double meanEnsEvents4H;
-    public final double meanEnsEvents5to8H;
-    public final double meanEnsEvents9to12H;
+    public final double meanEnsEvents2to4H;
+    public final double meanEnsEvents5to12H;
     public final double meanEnsEvents13to24H;
     public final double meanEnsEventsGt24H;
     public final double meanEnsEventsMaxHours;
+
+    // ===== Reliability-of-supply metrics derived from ENS (MC means) =====
+    public final double meanLoleHours;
+    public final double meanLolp;
+    public final double meanLpsp;
 
 
     public MonteCarloEstimate(ParameterSet theta,
@@ -97,14 +99,14 @@ public final class MonteCarloEstimate {
                               double meanEnsEventsTotal,
                               double meanEnsEventsStartOnly,
                               double meanEnsEvents1H,
-                              double meanEnsEvents2H,
-                              double meanEnsEvents3H,
-                              double meanEnsEvents4H,
-                              double meanEnsEvents5to8H,
-                              double meanEnsEvents9to12H,
+                              double meanEnsEvents2to4H,
+                              double meanEnsEvents5to12H,
                               double meanEnsEvents13to24H,
                               double meanEnsEventsGt24H,
-                              double meanEnsEventsMaxHours
+                              double meanEnsEventsMaxHours,
+                              double meanLoleHours,
+                              double meanLolp,
+                              double meanLpsp
     ) {
         this.theta = theta;
         this.economyDrivers = economyDrivers;
@@ -130,13 +132,14 @@ public final class MonteCarloEstimate {
         this.meanEnsEventsTotal = meanEnsEventsTotal;
         this.meanEnsEventsStartOnly = meanEnsEventsStartOnly;
         this.meanEnsEvents1H = meanEnsEvents1H;
-        this.meanEnsEvents2H = meanEnsEvents2H;
-        this.meanEnsEvents3H = meanEnsEvents3H;
-        this.meanEnsEvents4H = meanEnsEvents4H;
-        this.meanEnsEvents5to8H = meanEnsEvents5to8H;
-        this.meanEnsEvents9to12H = meanEnsEvents9to12H;
+        this.meanEnsEvents2to4H = meanEnsEvents2to4H;
+        this.meanEnsEvents5to12H = meanEnsEvents5to12H;
         this.meanEnsEvents13to24H = meanEnsEvents13to24H;
         this.meanEnsEventsGt24H = meanEnsEventsGt24H;
         this.meanEnsEventsMaxHours = meanEnsEventsMaxHours;
+
+        this.meanLoleHours = meanLoleHours;
+        this.meanLolp = meanLolp;
+        this.meanLpsp = meanLpsp;
     }
 }

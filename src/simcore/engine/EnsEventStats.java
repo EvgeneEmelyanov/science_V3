@@ -11,23 +11,21 @@ import simcore.config.SimulationConstants;
  * Buckets (hours):
  *  B0: <1h ("start-only" ENS inside one hour)
  *  B1: 1
- *  B2: 2
- *  B3: 3
- *  B4: 4
- *  B5: 5..8
- *  B6: 9..12
- *  B7: 13..24
- *  B8: >=25
+ *  B2: 2..4
+ *  B3: 5..12
+ *  B4: 13..24
+ *  B5: >24
  */
 public final class EnsEventStats {
 
-    public static final int BUCKETS = 9;
+    public static final int BUCKETS = 6;
 
     private final long[] bucketCounts = new long[BUCKETS];
 
     private long eventsTotal;
     private long eventsStartOnly;
     private long maxRunHours;
+    private long lolHours;
 
     // In-progress state
     private int currentRunHours;
@@ -43,6 +41,7 @@ public final class EnsEventStats {
         boolean hasEns = ensKwhThisHour > SimulationConstants.EPSILON;
 
         if (hasEns) {
+            lolHours++;
             currentRunHours++;
 
             // Decide whether this run is a pure "start-only" run:
@@ -86,13 +85,10 @@ public final class EnsEventStats {
 
     private static int bucketForHours(int h) {
         if (h <= 1) return 1;
-        if (h == 2) return 2;
-        if (h == 3) return 3;
-        if (h == 4) return 4;
-        if (h <= 8) return 5;
-        if (h <= 12) return 6;
-        if (h <= 24) return 7;
-        return 8;
+        if (h <= 4) return 2;
+        if (h <= 12) return 3;
+        if (h <= 24) return 4;
+        return 5;
     }
 
     public long getEventsTotal() {
@@ -105,6 +101,11 @@ public final class EnsEventStats {
 
     public long getMaxRunHours() {
         return maxRunHours;
+    }
+
+    /** LOLE in hours for this run: number of hours with ENS(t) > EPS. */
+    public long getLolHours() {
+        return lolHours;
     }
 
     /** Returns a copy of bucket counts array (length = BUCKETS). */

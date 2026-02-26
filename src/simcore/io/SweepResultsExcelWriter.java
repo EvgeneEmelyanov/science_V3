@@ -138,14 +138,16 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "ENS_evtN", headerStyle);
             c = writeHeader(hdr, c, "ENS_evtStart_lt1h", headerStyle);
             c = writeHeader(hdr, c, "ENS_evt1h", headerStyle);
-            c = writeHeader(hdr, c, "ENS_evt2h", headerStyle);
-            c = writeHeader(hdr, c, "ENS_evt3h", headerStyle);
-            c = writeHeader(hdr, c, "ENS_evt4h", headerStyle);
-            c = writeHeader(hdr, c, "ENS_evt5_8h", headerStyle);
-            c = writeHeader(hdr, c, "ENS_evt9_12h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt2_4h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evt5_12h", headerStyle);
             c = writeHeader(hdr, c, "ENS_evt13_24h", headerStyle);
             c = writeHeader(hdr, c, "ENS_evtGt24h", headerStyle);
             c = writeHeader(hdr, c, "ENS_evtMaxH", headerStyle);
+
+            // Reliability-of-supply metrics derived from ENS (mean over MC)
+            c = writeHeader(hdr, c, "LOLE_h", headerStyle);
+            c = writeHeader(hdr, c, "LOLP", headerStyle);
+            c = writeHeader(hdr, c, "LPSP", headerStyle);
 
             // ===== RAW rows =====
             // Economics inputs block is written BELOW the results (prices only).
@@ -262,14 +264,16 @@ public final class SweepResultsExcelWriter {
                 writeNumber(rr, cc++, e.meanEnsEventsTotal, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEventsStartOnly, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEvents1H, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanEnsEvents2H, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanEnsEvents3H, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanEnsEvents4H, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanEnsEvents5to8H, centeredNumberStyle);
-                writeNumber(rr, cc++, e.meanEnsEvents9to12H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents2to4H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEvents5to12H, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEvents13to24H, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEventsGt24H, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEventsMaxHours, centeredNumberStyle);
+
+                // Reliability-of-supply metrics derived from ENS
+                writeNumber(rr, cc++, e.meanLoleHours, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanLolp, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanLpsp, centeredNumberStyle);
 
                 // ---- Econ formula ----
                 int baseExcel = econBlockStartRow0 + 1; // 1-based
@@ -367,18 +371,20 @@ public final class SweepResultsExcelWriter {
                 String btReplRange   = "RAW!$Z$"  + firstDataExcelRow + ":$Z$"  + lastDataExcelRow;
                 String failBrkRange  = "RAW!$AA$" + firstDataExcelRow + ":$AA$" + lastDataExcelRow;
 
-                // ENS event statistics ranges (RAW!AB..AL)
+                // ENS event statistics ranges (RAW!AB..AI)
                 String ensEvtNRange          = "RAW!$AB$" + firstDataExcelRow + ":$AB$" + lastDataExcelRow;
                 String ensEvtStartLt1hRange  = "RAW!$AC$" + firstDataExcelRow + ":$AC$" + lastDataExcelRow;
                 String ensEvt1hRange         = "RAW!$AD$" + firstDataExcelRow + ":$AD$" + lastDataExcelRow;
-                String ensEvt2hRange         = "RAW!$AE$" + firstDataExcelRow + ":$AE$" + lastDataExcelRow;
-                String ensEvt3hRange         = "RAW!$AF$" + firstDataExcelRow + ":$AF$" + lastDataExcelRow;
-                String ensEvt4hRange         = "RAW!$AG$" + firstDataExcelRow + ":$AG$" + lastDataExcelRow;
-                String ensEvt5_8hRange       = "RAW!$AH$" + firstDataExcelRow + ":$AH$" + lastDataExcelRow;
-                String ensEvt9_12hRange      = "RAW!$AI$" + firstDataExcelRow + ":$AI$" + lastDataExcelRow;
-                String ensEvt13_24hRange     = "RAW!$AJ$" + firstDataExcelRow + ":$AJ$" + lastDataExcelRow;
-                String ensEvtGt24hRange      = "RAW!$AK$" + firstDataExcelRow + ":$AK$" + lastDataExcelRow;
-                String ensEvtMaxHRange       = "RAW!$AL$" + firstDataExcelRow + ":$AL$" + lastDataExcelRow;
+                String ensEvt2_4hRange       = "RAW!$AE$" + firstDataExcelRow + ":$AE$" + lastDataExcelRow;
+                String ensEvt5_12hRange      = "RAW!$AF$" + firstDataExcelRow + ":$AF$" + lastDataExcelRow;
+                String ensEvt13_24hRange     = "RAW!$AG$" + firstDataExcelRow + ":$AG$" + lastDataExcelRow;
+                String ensEvtGt24hRange      = "RAW!$AH$" + firstDataExcelRow + ":$AH$" + lastDataExcelRow;
+                String ensEvtMaxHRange       = "RAW!$AI$" + firstDataExcelRow + ":$AI$" + lastDataExcelRow;
+
+                // Reliability-of-supply metrics ranges (RAW!AJ..AL)
+                String loleHRange            = "RAW!$AJ$" + firstDataExcelRow + ":$AJ$" + lastDataExcelRow;
+                String lolpRange             = "RAW!$AK$" + firstDataExcelRow + ":$AK$" + lastDataExcelRow;
+                String lpspRange             = "RAW!$AL$" + firstDataExcelRow + ":$AL$" + lastDataExcelRow;
 
                 int top = 0;
 
@@ -417,22 +423,22 @@ public final class SweepResultsExcelWriter {
                             ensEvtStartLt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS_evt1h", top + 2, param1, param2,
                             ensEvt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "ENS_evt2h", top + 2, param1, param2,
-                            ensEvt2hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "ENS_evt3h", top + 2, param1, param2,
-                            ensEvt3hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "ENS_evt4h", top + 2, param1, param2,
-                            ensEvt4hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "ENS_evt5_8h", top + 2, param1, param2,
-                            ensEvt5_8hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeTriangularGridBlock(grid, "ENS_evt9_12h", top + 2, param1, param2,
-                            ensEvt9_12hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "ENS_evt2_4h", top + 2, param1, param2,
+                            ensEvt2_4hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "ENS_evt5_12h", top + 2, param1, param2,
+                            ensEvt5_12hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS_evt13_24h", top + 2, param1, param2,
                             ensEvt13_24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS_evtGt24h", top + 2, param1, param2,
                             ensEvtGt24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeTriangularGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
                             ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "LOLE_h", top + 2, param1, param2,
+                            loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "LOLP", top + 2, param1, param2,
+                            lolpRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeTriangularGridBlock(grid, "LPSP", top + 2, param1, param2,
+                            lpspRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                 } else {
                     top = writeGridBlock(grid, "LCOE, руб/кВт∙ч", top, param1, param2,
                             lcoeRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
@@ -468,22 +474,22 @@ public final class SweepResultsExcelWriter {
                             ensEvtStartLt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS_evt1h", top + 2, param1, param2,
                             ensEvt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "ENS_evt2h", top + 2, param1, param2,
-                            ensEvt2hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "ENS_evt3h", top + 2, param1, param2,
-                            ensEvt3hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "ENS_evt4h", top + 2, param1, param2,
-                            ensEvt4hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "ENS_evt5_8h", top + 2, param1, param2,
-                            ensEvt5_8hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                    top = writeGridBlock(grid, "ENS_evt9_12h", top + 2, param1, param2,
-                            ensEvt9_12hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "ENS_evt2_4h", top + 2, param1, param2,
+                            ensEvt2_4hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "ENS_evt5_12h", top + 2, param1, param2,
+                            ensEvt5_12hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS_evt13_24h", top + 2, param1, param2,
                             ensEvt13_24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS_evtGt24h", top + 2, param1, param2,
                             ensEvtGt24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                     top = writeGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
                             ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "LOLE_h", top + 2, param1, param2,
+                            loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "LOLP", top + 2, param1, param2,
+                            lolpRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                    top = writeGridBlock(grid, "LPSP", top + 2, param1, param2,
+                            lpspRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                 }
 
                 autosizeFrom(grid, Math.max(2, (param2 != null ? param2.length : 0) + 1), 0);

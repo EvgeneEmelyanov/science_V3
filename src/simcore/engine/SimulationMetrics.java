@@ -39,14 +39,19 @@ public final class SimulationMetrics {
     /** Events classified as "<1h" (start-only ENS inside one hour). */
     public final long ensEventsStartOnly;
     public final long ensEvents1H;
-    public final long ensEvents2H;
-    public final long ensEvents3H;
-    public final long ensEvents4H;
-    public final long ensEvents5to8H;
-    public final long ensEvents9to12H;
+    public final long ensEvents2to4H;
+    public final long ensEvents5to12H;
     public final long ensEvents13to24H;
     public final long ensEventsGt24H;
     public final long ensEventsMaxHours;
+
+    // ===== Reliability-of-supply metrics derived from ENS =====
+    /** LOLE, hours: number of hours with ENS(t) > 0 over the horizon. */
+    public final long loleHours;
+    /** LOLP, probability: LOLE_h / horizonHours. */
+    public final double lolp;
+    /** LPSP, energy-based: ENS / Load. */
+    public final double lpsp;
 
     public SimulationMetrics(double loadKwh,
                              double ensKwh,
@@ -70,15 +75,15 @@ public final class SimulationMetrics {
                              long ensEventsTotal,
                              long ensEventsStartOnly,
                              long ensEvents1H,
-                             long ensEvents2H,
-                             long ensEvents3H,
-                             long ensEvents4H,
-                             long ensEvents5to8H,
-                             long ensEvents9to12H,
+                             long ensEvents2to4H,
+                             long ensEvents5to12H,
                              long ensEvents13to24H,
                              long ensEventsGt24H,
-                             long ensEventsMaxHours
-            , EconomyDrivers economyDrivers) {
+                             long ensEventsMaxHours,
+                             long loleHours,
+                             double lolp,
+                             double lpsp,
+                             EconomyDrivers economyDrivers) {
         this.loadKwh = loadKwh;
         this.ensKwh = ensKwh;
         this.ensCat1Kwh = ensCat1Kwh;
@@ -103,13 +108,14 @@ public final class SimulationMetrics {
         this.ensEventsTotal = ensEventsTotal;
         this.ensEventsStartOnly = ensEventsStartOnly;
         this.ensEvents1H = ensEvents1H;
-        this.ensEvents2H = ensEvents2H;
-        this.ensEvents3H = ensEvents3H;
-        this.ensEvents4H = ensEvents4H;
-        this.ensEvents5to8H = ensEvents5to8H;
-        this.ensEvents9to12H = ensEvents9to12H;
+        this.ensEvents2to4H = ensEvents2to4H;
+        this.ensEvents5to12H = ensEvents5to12H;
         this.ensEvents13to24H = ensEvents13to24H;
         this.ensEventsGt24H = ensEventsGt24H;
         this.ensEventsMaxHours = ensEventsMaxHours;
+
+        this.loleHours = loleHours;
+        this.lolp = lolp;
+        this.lpsp = lpsp;
     }
 }

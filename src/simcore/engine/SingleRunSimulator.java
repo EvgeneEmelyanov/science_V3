@@ -996,6 +996,13 @@ public final class SingleRunSimulator {
         long ensEventsTotal = totals.ensEventStats.getEventsTotal();
         long ensEventsStartOnly = totals.ensEventStats.getEventsStartOnly();
         long ensEventsMaxHours = totals.ensEventStats.getMaxRunHours();
+        long loleHours = totals.ensEventStats.getLolHours();
+
+        // Reliability-of-supply metrics derived from ENS.
+        // LOLP is the fraction of hours with ENS>0.
+        final long horizonHours = (long) hours; // loop bound (hours)
+        final double lolp = (horizonHours <= 0L) ? 0.0 : ((double) loleHours) / (double) horizonHours;
+        final double lpsp = (totals.loadKwh <= 0.0) ? 0.0 : (totals.ensKwh / totals.loadKwh);
 
         // ===== LCOE (discounted), based on delivered energy (served = load - ENS) =====
         EconomyDrivers econDrivers = null;
@@ -1045,11 +1052,10 @@ public final class SingleRunSimulator {
                 bc[3],
                 bc[4],
                 bc[5],
-                bc[6],
-                bc[7],
-                bc[8],
-                ensEventsMaxHours
-                ,
+                ensEventsMaxHours,
+                loleHours,
+                lolp,
+                lpsp,
                 econDrivers
         );
     }
