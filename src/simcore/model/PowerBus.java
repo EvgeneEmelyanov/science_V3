@@ -46,7 +46,6 @@ public class PowerBus extends Equipment {
 
     public void addDieselGenerator(DieselGenerator dg) {
         dieselGenerators.add(dg);
-        // connectivity marker (для дебага/трейса)
         dg.setBusId(getId());
     }
 

@@ -14,31 +14,24 @@ public final class TunableParameterPool {
 
     private static final Map<TunableParamId, TunableParameter> PARAMS;
 
-    /**
-     * Optional coupled constraint between DG_COUNT and DG_POWER:
-     * total installed DG power must be >= this threshold.
-     *
-     * If 0 -> disabled.
-     */
     private static volatile double MIN_TOTAL_DG_POWER_KW = 1346;
 
     // Precomputed bounds (also used by coupled constraints)
     private static final double DG_COUNT_MIN = minFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 0.666666666667, 4);
     private static final double DG_COUNT_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 1.33333333333, 8);
-    private static final double DG_POWER_MIN = minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.5, 168.25);
-    private static final double DG_POWER_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.5, 505);
+    private static final double DG_POWER_MIN = minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.5, 225);
+    private static final double DG_POWER_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.5, 675);
 
     static {
         Map<TunableParamId, TunableParameter> m = new EnumMap<>(TunableParamId.class);
 
         // ----- Доли категорий надежности (k1, k2), k3 = 1 - k1 - k2 -----
-
         m.put(TunableParamId.FIRST_CAT,
                 new TunableParameter(
                         TunableParamId.FIRST_CAT,
                         "FIRST_CAT",
                         0,
-                        0.5,
+                        0.3,
                         (b, v) -> {
                             double k1 = clamp(v, 0.0, 1.0);
                             double k2 = clamp01(b.getSecondCat());
@@ -54,7 +47,7 @@ public final class TunableParameterPool {
                         TunableParamId.SECOND_CAT,
                         "SECOND_CAT",
                         0,
-                        0.5,
+                        0.7,
                         (b, v) -> {
                             double k1 = clamp01(b.getFirstCat());
                             double k2 = clamp(v, 0.0, 1.0);
@@ -67,7 +60,6 @@ public final class TunableParameterPool {
 
 
         // ----- Частоты отказов (интенсивности), 1/год -----
-
         m.put(TunableParamId.WT_FAILURE_RATE,
                 new TunableParameter(
                         TunableParamId.WT_FAILURE_RATE,
@@ -219,8 +211,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_CAPACITY_PER_BUS,
                         "BT_CAPACITY_PER_BUS",
-                        minFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 0.5, 0),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 1.5, 1009.5),
+                        minFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 0.5, 168.25),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 1.5, 504.75),
                         SystemParametersBuilder::setBatteryCapacityKwhPerBus
                 ));
         m.put(TunableParamId.BT_MAX_CHARGE_CURRENT,
@@ -228,7 +220,7 @@ public final class TunableParameterPool {
                         TunableParamId.BT_MAX_CHARGE_CURRENT,
                         "BT_MAX_CHARGE_CURRENT",
                         minFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 0.5, 0.3),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 1.7, 1.0),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 1.5, 0.9),
                         SystemParametersBuilder::setMaxChargeCurrent
                 ));
         m.put(TunableParamId.BT_MAX_DISCHARGE_CURRENT,
@@ -243,8 +235,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
                         "BT_NON_RESERVE_DISCHARGE_LVL",
-                        minFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 0, 0.0),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 2, 0.8),
+                        minFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 0.5, 0.3),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 1.5, 0.9),
                         SystemParametersBuilder::setNonReserveDischargeLevel
                 ));
 
@@ -254,7 +246,7 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DISCOUNT_RATE,
                         "DISCOUNT_RATE",
-                        minFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 0.7, 0.07),
+                        minFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 0.5, 0.05),
                         maxFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 1.5, 0.15),
                         SystemParametersBuilder::setDiscountRatePerYear
                 ));
@@ -331,32 +323,40 @@ public final class TunableParameterPool {
                         SystemParametersBuilder::setCostBtRubPerKwhPerYear
                 ));
 
-        m.put(TunableParamId.DAMAGE_RUB_PER_KWH_CAT1,
-                new TunableParameter(
-                        TunableParamId.DAMAGE_RUB_PER_KWH_CAT1,
-                        "DAMAGE_RUB_PER_KWH_CAT1",
-                        minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT1, 0.5, 3500),
-                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT1, 2, 14000),
-                        SystemParametersBuilder::setDamageRubPerKwhCat1
-                ));
-
-        m.put(TunableParamId.DAMAGE_RUB_PER_KWH_CAT2,
-                new TunableParameter(
-                        TunableParamId.DAMAGE_RUB_PER_KWH_CAT2,
-                        "DAMAGE_RUB_PER_KWH_CAT2",
-                        minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT2, 0.3, 1050),
-                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT2, 1.2, 4200),
-                        SystemParametersBuilder::setDamageRubPerKwhCat2
-                ));
-
         m.put(TunableParamId.DAMAGE_RUB_PER_KWH_CAT3,
                 new TunableParameter(
                         TunableParamId.DAMAGE_RUB_PER_KWH_CAT3,
                         "DAMAGE_RUB_PER_KWH_CAT3",
                         minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 0.5, 250),
-                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 1.5, 750),
-                        SystemParametersBuilder::setDamageRubPerKwhCat3
+                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 2, 1000),
+                        (b, v) -> {
+                            double cat3 = clamp(v, 0.0, Double.POSITIVE_INFINITY);
+                            b.setDamageRubPerKwhCat3(cat3);
+                            // пересчёт от 3-й категории
+                            b.setDamageRubPerKwhCat2(cat3 * 5.0);
+                            b.setDamageRubPerKwhCat1(cat3 * 10.0);
+                        }
                 ));
+
+//        m.put(TunableParamId.DAMAGE_RUB_PER_KWH_CAT1,
+//                new TunableParameter(
+//                        TunableParamId.DAMAGE_RUB_PER_KWH_CAT1,
+//                        "DAMAGE_RUB_PER_KWH_CAT1",
+//                        minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT1, 0.5, 3500),
+//                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT1, 2, 14000),
+//                        SystemParametersBuilder::setDamageRubPerKwhCat1
+//                ));
+//
+//        m.put(TunableParamId.DAMAGE_RUB_PER_KWH_CAT2,
+//                new TunableParameter(
+//                        TunableParamId.DAMAGE_RUB_PER_KWH_CAT2,
+//                        "DAMAGE_RUB_PER_KWH_CAT2",
+//                        minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT2, 0.3, 1050),
+//                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT2, 1.2, 4200),
+//                        SystemParametersBuilder::setDamageRubPerKwhCat2
+//                ));
+
+
         PARAMS = Collections.unmodifiableMap(m);
     }
 
