@@ -641,9 +641,16 @@ public final class SingleRunSimulator {
                 if (pendingDoubleBusTransferFrom != -1) {
                     int from = pendingDoubleBusTransferFrom;
                     int to = 1 - from;
-                    double transfer = loadsMutable[from] * (1.0 - cat1);
+                    double transfer = loadsMutable[from]; // remaining load (II+III) after previous Cat I transfer
                     loadsMutable[from] = Math.max(0.0, loadsMutable[from] - transfer);
                     loadsMutable[to] += transfer;
+                    // keep category composition consistent
+                    if (catLoads != null) {
+                        catLoads.p2[to] += catLoads.p2[from];
+                        catLoads.p3[to] += catLoads.p3[from];
+                        catLoads.p2[from] = 0.0;
+                        catLoads.p3[from] = 0.0;
+                    }
                     // keep raw in sync for trace and any code that still reads raw
                     if (loadsMutable != rawLoadThisHourKw) {
                         rawLoadThisHourKw[from] = loadsMutable[from];
@@ -677,9 +684,13 @@ public final class SingleRunSimulator {
                         int pct = (int) Math.round(100.0 * (deficit0 / Math.max(load0, SimulationConstants.EPSILON)));
                         ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_COUPLE_ALL_NOW_" + pct + "%");
                     } else {
-                        double transferI = loadsMutable[0] * cat1;
+                        double transferI = (catLoads != null) ? catLoads.p1[0] : (loadsMutable[0] * cat1);
                         loadsMutable[0] = Math.max(0.0, loadsMutable[0] - transferI);
                         loadsMutable[1] += transferI;
+                        if (catLoads != null) {
+                            catLoads.p1[0] = Math.max(0.0, catLoads.p1[0] - transferI);
+                            catLoads.p1[1] += transferI;
+                        }
                         if (loadsMutable != rawLoadThisHourKw) {
                             rawLoadThisHourKw[0] = loadsMutable[0];
                             rawLoadThisHourKw[1] = loadsMutable[1];
@@ -694,9 +705,13 @@ public final class SingleRunSimulator {
                         int pct = (int) Math.round(100.0 * (deficit1 / Math.max(load1, SimulationConstants.EPSILON)));
                         ctx.status.set(HourContext.StatusCollector.PRI_TRANSFER, "DOUBLEBUS_COUPLE_ALL_NOW_" + pct + "%");
                     } else {
-                        double transferI = loadsMutable[1] * cat1;
+                        double transferI = (catLoads != null) ? catLoads.p1[1] : (loadsMutable[1] * cat1);
                         loadsMutable[1] = Math.max(0.0, loadsMutable[1] - transferI);
                         loadsMutable[0] += transferI;
+                        if (catLoads != null) {
+                            catLoads.p1[1] = Math.max(0.0, catLoads.p1[1] - transferI);
+                            catLoads.p1[0] += transferI;
+                        }
                         if (loadsMutable != rawLoadThisHourKw) {
                             rawLoadThisHourKw[0] = loadsMutable[0];
                             rawLoadThisHourKw[1] = loadsMutable[1];
@@ -731,12 +746,17 @@ public final class SingleRunSimulator {
                     for (int b = 0; b < busCount; b++) {
                         double startEns = (r.startEnsByBus != null) ? r.startEnsByBus[b] : 0.0;
                         double totalEnsBus = r.defByBus[b];
+
+                        double p1b = (catLoads != null) ? catLoads.p1[b] : (loads[b] * cat1);
+                        double p2b = (catLoads != null) ? catLoads.p2[b] : (loads[b] * cat2);
+                        double p3b = (catLoads != null) ? catLoads.p3[b] : Math.max(0.0, loads[b] - p1b - p2b);
+
                         if (startEns > SimulationConstants.EPSILON) {
-                            EnsAllocator.addEnsByCategoryProportional(totals, loads[b], startEns, cat1, cat2);
+                            EnsAllocator.addEnsByBucketsProportional(totals, startEns, p1b, p2b, p3b);
                         }
                         double restEns = Math.max(0.0, totalEnsBus - startEns);
                         if (restEns > SimulationConstants.EPSILON) {
-                            EnsAllocator.addEnsByCategory(totals, loads[b], restEns, cat1, cat2);
+                            EnsAllocator.addEnsByBucketsPriority321(totals, restEns, p1b, p2b, p3b);
                         }
                     }
 
@@ -866,7 +886,7 @@ public final class SingleRunSimulator {
 
                         final double defKw = loadKw;
                         ctx.totals.ensKwh += defKw;
-                        EnsAllocator.addEnsByCategoryProportional(ctx.totals, loadKw, defKw, cat1, cat2);
+                        EnsAllocator.addEnsByBucketsProportional(ctx.totals, defKw, p1, p2, p3);
 
                         if (trace.enabled()) {
                             trace.setBusDown(b, loadKw, defKw);

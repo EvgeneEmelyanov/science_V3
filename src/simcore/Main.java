@@ -26,11 +26,11 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.SOBOL_HARD;
+        Task task = Task.RUN;
         RunMode runMode = RunMode.SINGLE;
         int mcIterations = 50;
 
-        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
