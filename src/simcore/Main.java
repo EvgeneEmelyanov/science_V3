@@ -27,8 +27,8 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 50;
+        RunMode runMode = RunMode.SWEEP_1;
+        int mcIterations = 100;
 
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 

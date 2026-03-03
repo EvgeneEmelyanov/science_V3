@@ -341,12 +341,20 @@ final class PerBusDispatcher {
             final double tauRaw = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : ctx.dgStartDelayHours;
             double tau = tauRaw;
 
-            // ===== 1) DG count by max power =====
+            // ===== 1) DG count by max power AND by optimal power =====
             int nAvail = availableDg;
+
             int nNeededByMax = (ctx.dgMaxKw > SimulationConstants.EPSILON)
                     ? (int) Math.ceil(deficitAfterWindKw / ctx.dgMaxKw)
                     : nAvail;
-            int nPlanned = Math.min(Math.max(0, nNeededByMax), Math.max(0, nAvail));
+
+            int nNeededByOptimal = (ctx.perDgOptimalKw > SimulationConstants.EPSILON)
+                    ? (int) Math.ceil(deficitAfterWindKw / ctx.perDgOptimalKw)
+                    : nNeededByMax;
+
+            // если есть возможность не превышать оптимум — включаем больше ДГУ
+            int nPlannedRaw = Math.max(nNeededByMax, nNeededByOptimal);
+            int nPlanned = Math.min(Math.max(0, nPlannedRaw), Math.max(0, nAvail));
 
             // ===== 2) Non-reserve BESS use: reduce DG count if possible =====
             double socNonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
@@ -355,7 +363,8 @@ final class PerBusDispatcher {
             if (btAvail && nAvail > 0) {
                 while (nPlannedReduced > 1) {
                     int cand = nPlannedReduced - 1;
-                    double needFromBtKw = Math.max(0.0, deficitAfterWindKw - cand * ctx.dgMaxKw);
+//                    double needFromBtKw = Math.max(0.0, deficitAfterWindKw - cand * ctx.dgMaxKw);
+                    double needFromBtKw = Math.max(0.0, deficitAfterWindKw - cand * ctx.perDgOptimalKw);
                     if (needFromBtKw <= SimulationConstants.EPSILON) {
                         nPlannedReduced = cand;
                         continue;
