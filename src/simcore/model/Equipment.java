@@ -16,28 +16,28 @@ public abstract class Equipment {
     /** Частота отказов, 1/год. */
     private double failureRatePerYear;
 
-    /** Среднее время ремонта (MTTR), ч. */
+    /** Средняя длительность ремонта после отказа, ч. */
     private int repairTimeHours;
 
-    /** Текущее состояние: true = исправен, false = отказ. */
+    /** Текущее состояние: true = исправен (может работать), false = отключен/в отказе. */
     protected boolean status = true;
 
     /** Наработка с момента последнего определения nextFailureTimeHours, ч. */
     protected int timeWorked = 0;
 
-    /** Время наработки до следующего отказа. */
+    /** Время (наработки), через которое произойдёт следующий случайный отказ, ч. */
     protected double nextFailureTimeHours = Double.POSITIVE_INFINITY;
 
-    /** Сгенерированное время ремонта для следующего отказа. */
+    /** Предварительно сгенерированная длительность ремонта для следующего отказа, ч. */
     protected int nextRepairTimeHours = 0;
 
-    /** Сколько часов ремонта осталось. */
+    /** Сколько часов ремонта осталось (если в ремонте/отказе). */
     protected int repairDurationHours = 0;
 
-    /** Количество отказов. */
+    /** Количество отказов (счётчик). */
     protected int failureCount = 0;
 
-    /** RNG для отказов. */
+    /** Генератор случайных чисел для отказов. */
     protected transient Random failureRandom;
 
     protected Equipment(String typeCode, int id) {
@@ -91,17 +91,19 @@ public abstract class Equipment {
     }
 
     /**
-     * Оборудование доступно, если не в ремонте.
+     * Оборудование считается доступным к работе, если оно не в ремонте и status = true.
      */
     public boolean isAvailable() {
         return status && repairDurationHours == 0;
     }
 
     /**
-     * Инициализация модели отказов перед Monte Carlo.
+     * Инициализация модели отказов перед одним прогоном Monte Carlo.
+     *
+     * @param rnd              генератор случайных чисел для этого типа оборудования
+     * @param considerFailures учитывать ли отказы
      */
     public void initFailureModel(Random rnd, boolean considerFailures) {
-
         this.failureRandom = rnd;
         this.timeWorked = 0;
         this.repairDurationHours = 0;
@@ -109,139 +111,123 @@ public abstract class Equipment {
         this.status = true;
 
         if (considerFailures && failureRatePerYear > 0.0 && failureRandom != null) {
-
-            this.nextFailureTimeHours =
-                    generateNextFailureTime(failureRatePerYear, failureRandom);
-
-            this.nextRepairTimeHours =
-                    generateRepairTime(repairTimeHours, failureRandom);
-
+            // Генерируем сразу пару: время до отказа + длительность ремонта для этого отказа.
+            this.nextFailureTimeHours = generateNextFailureTime(failureRatePerYear, failureRandom);
+            this.nextRepairTimeHours = generateRepairTime(repairTimeHours, failureRandom);
         } else {
-
             this.nextFailureTimeHours = Double.POSITIVE_INFINITY;
             this.nextRepairTimeHours = 0;
         }
     }
 
     /**
-     * Обновление состояния отказов на 1 час.
+     * Базовое обновление состояния отказа/ремонта на один час.
+     * Используется для оборудования без особых правил (например, ВЭУ, шины, автомат).
+     * ДГУ и АКБ переопределяют этот метод.
      */
     public void updateFailureOneHour(boolean considerFailures) {
-
         if (!considerFailures) {
             return;
         }
 
-        // идёт ремонт
+        // Если идёт ремонт — уменьшаем оставшееся время.
         if (repairDurationHours > 0) {
-
             repairDurationHours--;
-
             if (repairDurationHours <= 0) {
-
                 repairDurationHours = 0;
                 status = true;
                 timeWorked = 0;
 
                 if (failureRatePerYear > 0.0 && failureRandom != null) {
-
-                    nextFailureTimeHours =
-                            generateNextFailureTime(failureRatePerYear, failureRandom);
-
-                    nextRepairTimeHours =
-                            generateRepairTime(repairTimeHours, failureRandom);
-
+                    // Следующий отказ: снова генерируем пару (T_fail, T_repair).
+                    nextFailureTimeHours = generateNextFailureTime(failureRatePerYear, failureRandom);
+                    nextRepairTimeHours = generateRepairTime(repairTimeHours, failureRandom);
                 } else {
-
                     nextFailureTimeHours = Double.POSITIVE_INFINITY;
+                    nextRepairTimeHours = 0;
                 }
-
                 onRepairFinished();
             }
-
             return;
         }
 
+        // Если отключен внешне (но не в ремонте) — не проверяем случайный отказ
         if (!status) {
             return;
         }
 
-        // проверка случайного отказа
-        if (failureRatePerYear > 0.0 &&
-                timeWorked >= nextFailureTimeHours) {
-
+        // Проверка на случайный отказ по наработке
+        if (failureRatePerYear > 0.0
+                && timeWorked >= nextFailureTimeHours) {
             status = false;
             failureCount++;
-
             repairDurationHours = nextRepairTimeHours;
         }
     }
 
     /**
-     * Добавление наработки.
+     * Увеличение наработки оборудования на заданное количество часов.
+     * Вызывается только когда оборудование реально работало этот интервал.
      */
     public void addWorkTime(int hours) {
-
         if (hours <= 0) {
             return;
         }
-
         if (status && repairDurationHours == 0) {
             timeWorked += hours;
         }
     }
 
     /**
-     * Принудительный отказ.
+     * Принудительный вывод оборудования в отказ с назначением ремонта.
      */
     public void forceFailNow() {
-
         this.status = false;
         this.timeWorked = 0;
-        this.repairDurationHours =
-                generateRepairTime(repairTimeHours, failureRandom);
-
+        this.repairDurationHours = (failureRandom != null)
+                ? generateRepairTime(repairTimeHours, failureRandom)
+                : repairTimeHours;
         this.failureCount++;
     }
 
     /**
-     * Хук после окончания ремонта.
+     * Хук, вызываемый после завершения ремонта.
+     * По умолчанию — ничего не делает.
      */
     protected void onRepairFinished() {
-        // по умолчанию ничего
+        // по умолчанию — ничего
     }
 
     /**
-     * Генерация времени до отказа.
+     * Генерация времени до отказа по экспоненциальному распределению.
+     *
+     * @param failureRatePerYear интенсивность отказов, 1/год
+     * @param rnd                генератор случайных чисел
+     * @return время до отказа в часах
      */
-    protected static double generateNextFailureTime(double failureRatePerYear,
-                                                    Random rnd) {
-
+    protected static double generateNextFailureTime(double failureRatePerYear, Random rnd) {
         if (failureRatePerYear <= 0.0) {
             return Double.POSITIVE_INFINITY;
         }
-
         double u = rnd.nextDouble();
-
         double lambdaPerHour = failureRatePerYear / 8760.0;
-
         return -Math.log(1.0 - u) / lambdaPerHour;
     }
 
     /**
-     * Генерация времени ремонта (экспоненциальное распределение).
+     * Генерация длительности ремонта по экспоненциальному распределению.
+     *
+     * @param meanRepairHours средняя длительность ремонта, ч
+     * @param rnd             генератор случайных чисел
+     * @return длительность ремонта, ч (минимум 1 час, если meanRepairHours > 0)
      */
-    protected static int generateRepairTime(double meanRepairHours,
-                                            Random rnd) {
-
+    protected static int generateRepairTime(int meanRepairHours, Random rnd) {
         if (meanRepairHours <= 0) {
             return 0;
         }
-
         double u = rnd.nextDouble();
-
-        return (int) Math.ceil(
-                -Math.log(1.0 - u) * meanRepairHours
-        );
+        double lambda = 1.0 / (double) meanRepairHours;
+        int t = (int) Math.ceil(-Math.log(1.0 - u) / lambda);
+        return Math.max(1, t);
     }
 }

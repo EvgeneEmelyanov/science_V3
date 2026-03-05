@@ -186,8 +186,10 @@ public class DieselGenerator extends Equipment {
                     double lambdaYear = getFailureRatePerYear();
                     if (lambdaYear > 0.0 && failureRandom != null) {
                         nextFailureTimeHours = generateNextFailureTime(lambdaYear, failureRandom);
+                        nextRepairTimeHours = generateRepairTime(getRepairTimeHours(), failureRandom);
                     } else {
                         nextFailureTimeHours = Double.POSITIVE_INFINITY;
+                        nextRepairTimeHours = 0;
                     }
                 }
 
@@ -215,7 +217,7 @@ public class DieselGenerator extends Equipment {
             status = false;
             inMaintenance = false;
             failureCount++;
-            repairDurationHours = getRepairTimeHours();
+            repairDurationHours = nextRepairTimeHours;
 
             isWorking = false;
             currentLoad = 0.0;

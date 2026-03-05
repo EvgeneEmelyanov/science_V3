@@ -26,7 +26,7 @@ public final class EnsEventStats {
     private long eventsStartOnly;
     private long maxRunHours;
 
-    // LOLE in hours (can be fractional due to DG start delay bucket <1h)
+    // LOLH in hours (integer-like, but stored as double for backward compatibility)
     private double loleHours;
 
     // In-progress state
@@ -43,11 +43,15 @@ public final class EnsEventStats {
         boolean hasEns = ensKwhThisHour > SimulationConstants.EPSILON;
 
         if (hasEns) {
+            // LOLH logic: any ENS in an hour counts as 1 full hour of loss of load,
+            // even if ENS is only due to DG start delay and lasts less than 1 hour.
+            loleHours += 1.0;
+
             final boolean firstHourOfRun = (currentRunHours == 0);
             currentRunHours++;
 
             if (firstHourOfRun) {
-                // First hour: may be a pure "start-only" ENS hour.
+                // First hour: may be a pure "start-only" ENS hour (used only for event bucketing).
                 double rest = ensKwhThisHour - startEnsKwhThisHour;
                 boolean startOnlyThisHour =
                         startEnsKwhThisHour > SimulationConstants.EPSILON
@@ -55,17 +59,9 @@ public final class EnsEventStats {
 
                 currentRunStartOnly = startOnlyThisHour;
 
-                // LOLE contribution:
-                // - start-only hour counts as tau (DG start delay)
-                // - otherwise counts as full 1h
-                loleHours += startOnlyThisHour
-                        ? SimulationConstants.DG_START_DELAY_HOURS
-                        : 1.0;
-
             } else {
-                // Any continuation makes the event NOT start-only and counts as a full hour.
+                // Any continuation makes the event NOT start-only.
                 currentRunStartOnly = false;
-                loleHours += 1.0;
             }
             return;
         }
@@ -116,7 +112,7 @@ public final class EnsEventStats {
         return maxRunHours;
     }
 
-    /** LOLE in hours for this run: sum of LOLE contributions per hour (may be fractional). */
+    /** LOLH in hours for this run: number of hours with ENS(t) > EPS. */
     public double getLolHours() {
         return loleHours;
     }

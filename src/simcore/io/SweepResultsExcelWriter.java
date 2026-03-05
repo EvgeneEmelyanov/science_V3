@@ -28,6 +28,18 @@ public final class SweepResultsExcelWriter {
                                  List<MonteCarloEstimate> estimates,
                                  double[] param1,
                                  double[] param2) throws IOException {
+        writeXlsx(path, mode, cfg, baseParams, paramSets, estimates, param1, param2, false);
+    }
+
+    public static void writeXlsx(String path,
+                                 simcore.Main.RunMode mode,
+                                 SimulationConfig cfg,
+                                 SystemParameters baseParams,
+                                 List<SystemParameters> paramSets,
+                                 List<MonteCarloEstimate> estimates,
+                                 double[] param1,
+                                 double[] param2,
+                                 boolean fullOutput) throws IOException {
 
         if (paramSets.size() != estimates.size()) {
             throw new IllegalArgumentException("paramSets.size != estimates.size");
@@ -125,7 +137,7 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "BT_%", headerStyle);
 
             // Reliability-of-supply metrics derived from ENS (mean over MC)
-            c = writeHeader(hdr, c, "LOLE_h", headerStyle);
+            c = writeHeader(hdr, c, "LOLH", headerStyle);
             c = writeHeader(hdr, c, "LOLP", headerStyle);
             c = writeHeader(hdr, c, "LPSP", headerStyle);
 
@@ -276,7 +288,7 @@ public final class SweepResultsExcelWriter {
                 String ens1Range    = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS1_mean"), firstDataExcelRow, lastDataExcelRow);
                 String ens2Range    = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS2_mean"), firstDataExcelRow, lastDataExcelRow);
 
-                String loleHRange   = rangeInSheet("RAW", findHeaderColIdx(hdr, "LOLE_h"), firstDataExcelRow, lastDataExcelRow);
+                String loleHRange   = rangeInSheet("RAW", findHeaderColIdx(hdr, "LOLH"), firstDataExcelRow, lastDataExcelRow);
                 String lolpRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "LOLP"), firstDataExcelRow, lastDataExcelRow);
                 String lpspRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "LPSP"), firstDataExcelRow, lastDataExcelRow);
 
@@ -311,106 +323,128 @@ public final class SweepResultsExcelWriter {
                     if (isTriangular) {
                         top = writeTriangularGridBlock(grid, "LCOE, руб/кВт∙ч", top, param1, param2,
                                 lcoeRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
-                                ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "LOLE_h", top + 2, param1, param2,
-                                loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                         top = writeTriangularGridBlock(grid, "Расход топлива, тыс.тонн", top + 2, param1, param2,
                                 fuelRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                         top = writeTriangularGridBlock(grid, "Моточасы, тыс.мч", top + 2, param1, param2,
                                 motoRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS1_mean", top + 2, param1, param2,
-                                ens1Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS2_mean", top + 2, param1, param2,
-                                ens2Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeTriangularGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
+                                ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeTriangularGridBlock(grid, "LOLH", top + 2, param1, param2,
+                                loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+
+                        top = writeTriangularGridBlock(grid, "ENS_evtN", top + 2, param1, param2,
+                                ensEvtNRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeTriangularGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
+                                ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+
                         top = writeTriangularGridBlock(grid, "LOLP", top + 2, param1, param2,
                                 lolpRange, p1Range, p2Range, centeredSciStyle, headerStyle);
                         top = writeTriangularGridBlock(grid, "LPSP", top + 2, param1, param2,
                                 lpspRange, p1Range, p2Range, centeredSciStyle, headerStyle);
 
-                        top = writeTriangularGridBlock(grid, "ENS_evtN", top + 2, param1, param2,
-                                ensEvtNRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS_evtStart_lt1h", top + 2, param1, param2,
-                                ensEvtStartLt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS_evt1h", top + 2, param1, param2,
-                                ensEvt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS_evt2_4h", top + 2, param1, param2,
-                                ensEvt2_4hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS_evt5_12h", top + 2, param1, param2,
-                                ensEvt5_12hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS_evt13_24h", top + 2, param1, param2,
-                                ensEvt13_24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS_evtGt24h", top + 2, param1, param2,
-                                ensEvtGt24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
-                                ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeTriangularGridBlock(grid, "ENS1_mean", top + 2, param1, param2,
+                                ens1Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeTriangularGridBlock(grid, "ENS2_mean", top + 2, param1, param2,
+                                ens2Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
 
-                        top = writeTriangularGridBlock(grid, "FailRoom", top + 2, param1, param2,
-                                failRoomRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "FailBus", top + 2, param1, param2,
-                                failBusRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeTriangularGridBlock(grid, "ENS_evtStart_lt1h", top + 2, param1, param2,
+                                    ensEvtStartLt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeTriangularGridBlock(grid, "ENS_evt1h", top + 2, param1, param2,
+                                    ensEvt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeTriangularGridBlock(grid, "ENS_evt2_4h", top + 2, param1, param2,
+                                    ensEvt2_4hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeTriangularGridBlock(grid, "ENS_evt5_12h", top + 2, param1, param2,
+                                    ensEvt5_12hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeTriangularGridBlock(grid, "ENS_evt13_24h", top + 2, param1, param2,
+                                    ensEvt13_24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeTriangularGridBlock(grid, "ENS_evtGt24h", top + 2, param1, param2,
+                                    ensEvtGt24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        }
+
+                        if (fullOutput) {
+                            top = writeTriangularGridBlock(grid, "FailRoom", top + 2, param1, param2,
+                                    failRoomRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeTriangularGridBlock(grid, "FailBus", top + 2, param1, param2,
+                                    failBusRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        }
                         top = writeTriangularGridBlock(grid, "FailDg", top + 2, param1, param2,
                                 failDgRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "FailWt", top + 2, param1, param2,
-                                failWtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeTriangularGridBlock(grid, "FailWt", top + 2, param1, param2,
+                                    failWtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        }
                         top = writeTriangularGridBlock(grid, "FailBt", top + 2, param1, param2,
                                 failBtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                         top = writeTriangularGridBlock(grid, "BtRepl", top + 2, param1, param2,
                                 btReplRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeTriangularGridBlock(grid, "FailBrk", top + 2, param1, param2,
-                                failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeTriangularGridBlock(grid, "FailBrk", top + 2, param1, param2,
+                                    failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        }
 
                     } else {
                         top = writeGridBlock(grid, "LCOE, руб/кВт∙ч", top, param1, param2,
                                 lcoeRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
-                                ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "LOLE_h", top + 2, param1, param2,
-                                loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                         top = writeGridBlock(grid, "Расход топлива, тыс.тонн", top + 2, param1, param2,
                                 fuelRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                         top = writeGridBlock(grid, "Моточасы, тыс.мч", top + 2, param1, param2,
                                 motoRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS1_mean", top + 2, param1, param2,
-                                ens1Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS2_mean", top + 2, param1, param2,
-                                ens2Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeGridBlock(grid, "ENS,кВт∙ч", top + 2, param1, param2,
+                                ensMeanRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeGridBlock(grid, "LOLH", top + 2, param1, param2,
+                                loleHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+
+                        top = writeGridBlock(grid, "ENS_evtN", top + 2, param1, param2,
+                                ensEvtNRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
+                                ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+
                         top = writeGridBlock(grid, "LOLP", top + 2, param1, param2,
                                 lolpRange, p1Range, p2Range, centeredSciStyle, headerStyle);
                         top = writeGridBlock(grid, "LPSP", top + 2, param1, param2,
                                 lpspRange, p1Range, p2Range, centeredSciStyle, headerStyle);
 
-                        top = writeGridBlock(grid, "ENS_evtN", top + 2, param1, param2,
-                                ensEvtNRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS_evtStart_lt1h", top + 2, param1, param2,
-                                ensEvtStartLt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS_evt1h", top + 2, param1, param2,
-                                ensEvt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS_evt2_4h", top + 2, param1, param2,
-                                ensEvt2_4hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS_evt5_12h", top + 2, param1, param2,
-                                ensEvt5_12hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS_evt13_24h", top + 2, param1, param2,
-                                ensEvt13_24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS_evtGt24h", top + 2, param1, param2,
-                                ensEvtGt24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
-                                ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeGridBlock(grid, "ENS1_mean", top + 2, param1, param2,
+                                ens1Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeGridBlock(grid, "ENS2_mean", top + 2, param1, param2,
+                                ens2Range, p1Range, p2Range, centeredNumberStyle, headerStyle);
 
-                        top = writeGridBlock(grid, "FailRoom", top + 2, param1, param2,
-                                failRoomRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "FailBus", top + 2, param1, param2,
-                                failBusRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeGridBlock(grid, "ENS_evtStart_lt1h", top + 2, param1, param2,
+                                    ensEvtStartLt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeGridBlock(grid, "ENS_evt1h", top + 2, param1, param2,
+                                    ensEvt1hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeGridBlock(grid, "ENS_evt2_4h", top + 2, param1, param2,
+                                    ensEvt2_4hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeGridBlock(grid, "ENS_evt5_12h", top + 2, param1, param2,
+                                    ensEvt5_12hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeGridBlock(grid, "ENS_evt13_24h", top + 2, param1, param2,
+                                    ensEvt13_24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeGridBlock(grid, "ENS_evtGt24h", top + 2, param1, param2,
+                                    ensEvtGt24hRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        }
+
+                        if (fullOutput) {
+                            top = writeGridBlock(grid, "FailRoom", top + 2, param1, param2,
+                                    failRoomRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                            top = writeGridBlock(grid, "FailBus", top + 2, param1, param2,
+                                    failBusRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        }
                         top = writeGridBlock(grid, "FailDg", top + 2, param1, param2,
                                 failDgRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "FailWt", top + 2, param1, param2,
-                                failWtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeGridBlock(grid, "FailWt", top + 2, param1, param2,
+                                    failWtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        }
                         top = writeGridBlock(grid, "FailBt", top + 2, param1, param2,
                                 failBtRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                         top = writeGridBlock(grid, "BtRepl", top + 2, param1, param2,
                                 btReplRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
-                        top = writeGridBlock(grid, "FailBrk", top + 2, param1, param2,
-                                failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeGridBlock(grid, "FailBrk", top + 2, param1, param2,
+                                    failBrkRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        }
                     }
 
                     autosizeFrom(grid, Math.max(2, (param2 != null ? param2.length : 0) + 1), 0);
@@ -420,54 +454,65 @@ public final class SweepResultsExcelWriter {
                     if (param1 != null && param1.length > 0) {
                         top = writeRowBlock1D(grid, "LCOE, руб/кВт∙ч", top, param1,
                                 lcoeRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS,кВт∙ч", top + 2, param1,
-                                ensMeanRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "LOLE_h", top + 2, param1,
-                                loleHRange, p1Range, centeredNumberStyle, headerStyle);
                         top = writeRowBlock1D(grid, "Расход топлива, тыс.тонн", top + 2, param1,
                                 fuelRange, p1Range, centeredNumberStyle, headerStyle);
                         top = writeRowBlock1D(grid, "Моточасы, тыс.мч", top + 2, param1,
                                 motoRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS1_mean", top + 2, param1,
-                                ens1Range, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS2_mean", top + 2, param1,
-                                ens2Range, p1Range, centeredNumberStyle, headerStyle);
+                        top = writeRowBlock1D(grid, "ENS,кВт∙ч", top + 2, param1,
+                                ensMeanRange, p1Range, centeredNumberStyle, headerStyle);
+                        top = writeRowBlock1D(grid, "LOLH", top + 2, param1,
+                                loleHRange, p1Range, centeredNumberStyle, headerStyle);
+
+                        top = writeRowBlock1D(grid, "ENS_evtN", top + 2, param1,
+                                ensEvtNRange, p1Range, centeredNumberStyle, headerStyle);
+                        top = writeRowBlock1D(grid, "ENS_evtMaxH", top + 2, param1,
+                                ensEvtMaxHRange, p1Range, centeredNumberStyle, headerStyle);
+
                         top = writeRowBlock1D(grid, "LOLP", top + 2, param1,
                                 lolpRange, p1Range, centeredSciStyle, headerStyle);
                         top = writeRowBlock1D(grid, "LPSP", top + 2, param1,
                                 lpspRange, p1Range, centeredSciStyle, headerStyle);
 
-                        top = writeRowBlock1D(grid, "ENS_evtN", top + 2, param1,
-                                ensEvtNRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS_evtStart_lt1h", top + 2, param1,
-                                ensEvtStartLt1hRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS_evt1h", top + 2, param1,
-                                ensEvt1hRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS_evt2_4h", top + 2, param1,
-                                ensEvt2_4hRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS_evt5_12h", top + 2, param1,
-                                ensEvt5_12hRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS_evt13_24h", top + 2, param1,
-                                ensEvt13_24hRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS_evtGt24h", top + 2, param1,
-                                ensEvtGt24hRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "ENS_evtMaxH", top + 2, param1,
-                                ensEvtMaxHRange, p1Range, centeredNumberStyle, headerStyle);
+                        top = writeRowBlock1D(grid, "ENS1_mean", top + 2, param1,
+                                ens1Range, p1Range, centeredNumberStyle, headerStyle);
+                        top = writeRowBlock1D(grid, "ENS2_mean", top + 2, param1,
+                                ens2Range, p1Range, centeredNumberStyle, headerStyle);
 
-                        top = writeRowBlock1D(grid, "FailRoom", top + 2, param1,
-                                failRoomRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "FailBus", top + 2, param1,
-                                failBusRange, p1Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeRowBlock1D(grid, "ENS_evtStart_lt1h", top + 2, param1,
+                                    ensEvtStartLt1hRange, p1Range, centeredNumberStyle, headerStyle);
+                            top = writeRowBlock1D(grid, "ENS_evt1h", top + 2, param1,
+                                    ensEvt1hRange, p1Range, centeredNumberStyle, headerStyle);
+                            top = writeRowBlock1D(grid, "ENS_evt2_4h", top + 2, param1,
+                                    ensEvt2_4hRange, p1Range, centeredNumberStyle, headerStyle);
+                            top = writeRowBlock1D(grid, "ENS_evt5_12h", top + 2, param1,
+                                    ensEvt5_12hRange, p1Range, centeredNumberStyle, headerStyle);
+                            top = writeRowBlock1D(grid, "ENS_evt13_24h", top + 2, param1,
+                                    ensEvt13_24hRange, p1Range, centeredNumberStyle, headerStyle);
+                            top = writeRowBlock1D(grid, "ENS_evtGt24h", top + 2, param1,
+                                    ensEvtGt24hRange, p1Range, centeredNumberStyle, headerStyle);
+                        }
+
+                        if (fullOutput) {
+                            top = writeRowBlock1D(grid, "FailRoom", top + 2, param1,
+                                    failRoomRange, p1Range, centeredNumberStyle, headerStyle);
+                            top = writeRowBlock1D(grid, "FailBus", top + 2, param1,
+                                    failBusRange, p1Range, centeredNumberStyle, headerStyle);
+                        }
                         top = writeRowBlock1D(grid, "FailDg", top + 2, param1,
                                 failDgRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "FailWt", top + 2, param1,
-                                failWtRange, p1Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeRowBlock1D(grid, "FailWt", top + 2, param1,
+                                    failWtRange, p1Range, centeredNumberStyle, headerStyle);
+                        }
                         top = writeRowBlock1D(grid, "FailBt", top + 2, param1,
                                 failBtRange, p1Range, centeredNumberStyle, headerStyle);
                         top = writeRowBlock1D(grid, "BtRepl", top + 2, param1,
                                 btReplRange, p1Range, centeredNumberStyle, headerStyle);
-                        top = writeRowBlock1D(grid, "FailBrk", top + 2, param1,
-                                failBrkRange, p1Range, centeredNumberStyle, headerStyle);
+                        if (fullOutput) {
+                            top = writeRowBlock1D(grid, "FailBrk", top + 2, param1,
+                                    failBrkRange, p1Range, centeredNumberStyle, headerStyle);
+                        }
 
                         autosizeFrom(grid, Math.max(2, param1.length + 1), 0);
                     } else {
