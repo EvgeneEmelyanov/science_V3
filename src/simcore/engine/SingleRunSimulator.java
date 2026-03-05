@@ -588,8 +588,10 @@ public final class SingleRunSimulator {
                         final double fuelKt = fuelLitersYear / 1_000_000.0;
                         final double fuelRub = fuelKt * unitCostsForLcoe.costFuelRubPerKt;
 
-                        // moto: rub per (kW * 1000 moto-hours)
-                        final double motoRub = (motoHoursYear / 1000.0) * dgTotalKw * unitCostsForLcoe.costDgRubPerKwPerKmh;
+                        // moto: RUB per (kW * 1000 moto-hours)
+                        // NOTE: motoHoursYear is the SUM of moto-hours across all DG units (Σ Hi).
+                        // Therefore the correct kW multiplier is per-unit DG power (Pi), not ΣPi.
+                        final double motoRub = (motoHoursYear / 1000.0) * sp.getDieselGeneratorPowerKw() * unitCostsForLcoe.costDgRubPerKwPerKmh;
 
                         // annual opex
                         final double wtOpexRub = wtTotalKw * unitCostsForLcoe.costWtRubPerKwPerYear;
@@ -831,7 +833,10 @@ public final class SingleRunSimulator {
 
                             final double fuelKt = fuelLitersYear / 1_000_000.0;
                             final double fuelRub = fuelKt * unitCostsForLcoe.costFuelRubPerKt;
-                            final double motoRub = (motoHoursYear / 1000.0) * dgTotalKw * unitCostsForLcoe.costDgRubPerKwPerKmh;
+                            // moto: RUB per (kW * 1000 moto-hours)
+                            // NOTE: motoHoursYear is the SUM of moto-hours across all DG units (Σ Hi).
+                            // Therefore the correct kW multiplier is per-unit DG power (Pi), not ΣPi.
+                            final double motoRub = (motoHoursYear / 1000.0) * sp.getDieselGeneratorPowerKw() * unitCostsForLcoe.costDgRubPerKwPerKmh;
                             final double wtOpexRub = wtTotalKw * unitCostsForLcoe.costWtRubPerKwPerYear;
                             final double btOpexRub = btTotalKwh * unitCostsForLcoe.costBtRubPerKwhPerYear;
                             final double btReplRub = (double) replYear * (unitCostsForLcoe.costBtRubPerKwh * btTotalKwh);
@@ -969,7 +974,10 @@ public final class SingleRunSimulator {
 
                     final double fuelKt = fuelLitersYear / 1_000_000.0;
                     final double fuelRub = fuelKt * unitCostsForLcoe.costFuelRubPerKt;
-                    final double motoRub = (motoHoursYear / 1000.0) * dgTotalKw * unitCostsForLcoe.costDgRubPerKwPerKmh;
+                    // moto: RUB per (kW * 1000 moto-hours)
+                    // NOTE: motoHoursYear is the SUM of moto-hours across all DG units (Σ Hi).
+                    // Therefore the correct kW multiplier is per-unit DG power (Pi), not ΣPi.
+                    final double motoRub = (motoHoursYear / 1000.0) * sp.getDieselGeneratorPowerKw() * unitCostsForLcoe.costDgRubPerKwPerKmh;
                     final double wtOpexRub = wtTotalKw * unitCostsForLcoe.costWtRubPerKwPerYear;
                     final double btOpexRub = btTotalKwh * unitCostsForLcoe.costBtRubPerKwhPerYear;
                     final double btReplRub = (double) replYear * (unitCostsForLcoe.costBtRubPerKwh * btTotalKwh);
@@ -1531,6 +1539,7 @@ public final class SingleRunSimulator {
     ) {
         // installed amounts (from actual built system)
         double dgTotalKw = 0.0;
+        double dgUnitKw = sp.getDieselGeneratorPowerKw();
         double wtTotalKw = 0.0;
         double btTotalKwh = 0.0;
 
@@ -1550,6 +1559,7 @@ public final class SingleRunSimulator {
                 ensCat2KwhByYear,
                 ensCat3KwhByYear,
                 dgTotalKw,
+                dgUnitKw,
                 wtTotalKw,
                 btTotalKwh,
                 sp.getDiscountRatePerYear()

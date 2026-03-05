@@ -322,7 +322,7 @@ public final class MonteCarloRunner {
             meanEconomyDrivers = new EconomyDrivers(
                     servedMean, fuelMean, motoMean, replMean,
                     ensCat1Mean, ensCat2Mean, ensCat3Mean,
-                    firstDrivers.dgTotalKw, firstDrivers.wtTotalKw, firstDrivers.btTotalKwh,
+                    firstDrivers.dgTotalKw, firstDrivers.dgUnitKw, firstDrivers.wtTotalKw, firstDrivers.btTotalKwh,
                     firstDrivers.discountRatePerYear
             );
         }
@@ -425,7 +425,7 @@ public final class MonteCarloRunner {
             meanEconomyDrivers = new EconomyDrivers(
                     servedMean, fuelMean, motoMean, replMean,
                     ensCat1Mean, ensCat2Mean, ensCat3Mean,
-                    a.firstDrivers.dgTotalKw, a.firstDrivers.wtTotalKw, a.firstDrivers.btTotalKwh,
+                    a.firstDrivers.dgTotalKw, a.firstDrivers.dgUnitKw, a.firstDrivers.wtTotalKw, a.firstDrivers.btTotalKwh,
                     a.firstDrivers.discountRatePerYear
             );
         }

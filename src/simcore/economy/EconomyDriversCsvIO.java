@@ -8,7 +8,11 @@ import java.util.*;
  * Simple CSV (actually TSV-ish with compact array encoding) IO for EconomyDrivers.
  * One line per case:
  *
- * caseId\tyears\tdgTotalKw\twtTotalKw\tbtTotalKwh\tdiscountRate\tserved[]\tfuel[]\tmoto[]\trepl[]
+ * New (v2) format:
+ * caseId\tyears\tdgUnitKw\tdgTotalKw\twtTotalKw\tbtTotalKwh\tdiscountRate\tserved[]\tfuel[]\tmoto[]\trepl[]\tens1[]\tens2[]\tens3[]
+ *
+ * Old (v1) format (backward-compatible):
+ * caseId\tyears\tdgTotalKw\twtTotalKw\tbtTotalKwh\tdiscountRate\tserved[]\tfuel[]\tmoto[]\trepl[]\t[ens arrays optional]
  *
  * Arrays are encoded as comma-separated values.
  */
@@ -40,6 +44,7 @@ public final class EconomyDriversCsvIO {
     private static String encodeLine(String caseId, EconomyDrivers d) {
         return caseId
                 + "\t" + d.years()
+                + "\t" + d.dgUnitKw
                 + "\t" + d.dgTotalKw
                 + "\t" + d.wtTotalKw
                 + "\t" + d.btTotalKwh
@@ -55,28 +60,58 @@ public final class EconomyDriversCsvIO {
 
     private static Parsed parseLine(String line) {
         String[] parts = line.split("\\t");
-        if (parts.length < 10) {
-            throw new IllegalArgumentException("Bad drivers line, expected >=10 columns: " + line);
-        }
         String caseId = parts[0];
         int years = Integer.parseInt(parts[1]);
 
-        double dg = Double.parseDouble(parts[2]);
-        double wt = Double.parseDouble(parts[3]);
-        double bt = Double.parseDouble(parts[4]);
-        double r = Double.parseDouble(parts[5]);
+        // Detect format.
+        // v1: 10 columns base, optional ENS arrays -> 13.
+        // v2: adds dgUnitKw column => 11 base, optional ENS arrays -> 14.
+        final boolean v2;
+        if (parts.length == 10 || parts.length == 13) {
+            v2 = false;
+        } else if (parts.length >= 11) {
+            v2 = true;
+        } else {
+            throw new IllegalArgumentException("Bad drivers line, expected v1>=10 or v2>=11 columns: " + line);
+        }
 
-        double[] served = parseDoubles(parts[6], years);
-        double[] fuel = parseDoubles(parts[7], years);
-        double[] moto = parseDoubles(parts[8], years);
-        long[] repl = parseLongs(parts[9], years);
+        final int idxDgUnit = v2 ? 2 : -1;
+        final int idxDgTotal = v2 ? 3 : 2;
+        final int idxWtTotal = v2 ? 4 : 3;
+        final int idxBtTotal = v2 ? 5 : 4;
+        final int idxRate = v2 ? 6 : 5;
+        final int idxServed = v2 ? 7 : 6;
+        final int idxFuel = v2 ? 8 : 7;
+        final int idxMoto = v2 ? 9 : 8;
+        final int idxRepl = v2 ? 10 : 9;
+        final int idxEns1 = v2 ? 11 : 10;
+        final int idxEns2 = v2 ? 12 : 11;
+        final int idxEns3 = v2 ? 13 : 12;
 
-        // Backward compatible: old format had only 10 columns (no ENS-by-category arrays).
-        double[] ens1 = (parts.length >= 13) ? parseDoubles(parts[10], years) : new double[years];
-        double[] ens2 = (parts.length >= 13) ? parseDoubles(parts[11], years) : new double[years];
-        double[] ens3 = (parts.length >= 13) ? parseDoubles(parts[12], years) : new double[years];
+        double dgTotal = Double.parseDouble(parts[idxDgTotal]);
+        double dgUnit = v2 ? Double.parseDouble(parts[idxDgUnit]) : 0.0;
+        double wt = Double.parseDouble(parts[idxWtTotal]);
+        double bt = Double.parseDouble(parts[idxBtTotal]);
+        double r = Double.parseDouble(parts[idxRate]);
 
-        EconomyDrivers d = new EconomyDrivers(served, fuel, moto, repl, ens1, ens2, ens3, dg, wt, bt, r);
+        double[] served = parseDoubles(parts[idxServed], years);
+        double[] fuel = parseDoubles(parts[idxFuel], years);
+        double[] moto = parseDoubles(parts[idxMoto], years);
+        long[] repl = parseLongs(parts[idxRepl], years);
+
+        // Backward compatible: ENS arrays may be absent.
+        double[] ens1 = (parts.length > idxEns3) ? parseDoubles(parts[idxEns1], years) : new double[years];
+        double[] ens2 = (parts.length > idxEns3) ? parseDoubles(parts[idxEns2], years) : new double[years];
+        double[] ens3 = (parts.length > idxEns3) ? parseDoubles(parts[idxEns3], years) : new double[years];
+
+        // If reading v1 (no dgUnitKw), infer it if possible assuming identical DG units.
+        if (!v2) {
+            // If total DG power is known and the model used identical units, dgUnit is unknown here.
+            // Keep 0.0; callers that depend on dgUnit should fill it from SystemParameters.
+            dgUnit = 0.0;
+        }
+
+        EconomyDrivers d = new EconomyDrivers(served, fuel, moto, repl, ens1, ens2, ens3, dgTotal, dgUnit, wt, bt, r);
         return new Parsed(caseId, d);
     }
 

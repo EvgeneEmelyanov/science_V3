@@ -18,6 +18,14 @@ public final class EconomyDrivers {
     public final double[] ensCat3KwhByYear;
 
     public final double dgTotalKw;
+    /**
+     * Rated power of ONE DG unit (kW).
+     *
+     * Important for maintenance cost models expressed as RUB / (1000 moto-hours * kW).
+     * If {@link #motoHoursByYear} is a SUM of moto-hours across all DG units (Σ Hi),
+     * then the correct power multiplier is per-unit kW (Pi), not ΣPi.
+     */
+    public final double dgUnitKw;
     public final double wtTotalKw;
     public final double btTotalKwh;
 
@@ -31,6 +39,7 @@ public final class EconomyDrivers {
                           double[] ensCat2KwhByYear,
                           double[] ensCat3KwhByYear,
                           double dgTotalKw,
+                          double dgUnitKw,
                           double wtTotalKw,
                           double btTotalKwh,
                           double discountRatePerYear) {
@@ -42,6 +51,7 @@ public final class EconomyDrivers {
         this.ensCat2KwhByYear = ensCat2KwhByYear;
         this.ensCat3KwhByYear = ensCat3KwhByYear;
         this.dgTotalKw = dgTotalKw;
+        this.dgUnitKw = dgUnitKw;
         this.wtTotalKw = wtTotalKw;
         this.btTotalKwh = btTotalKwh;
         this.discountRatePerYear = discountRatePerYear;
@@ -60,7 +70,7 @@ public final class EconomyDrivers {
                 Arrays.copyOf(ensCat1KwhByYear, ensCat1KwhByYear.length),
                 Arrays.copyOf(ensCat2KwhByYear, ensCat2KwhByYear.length),
                 Arrays.copyOf(ensCat3KwhByYear, ensCat3KwhByYear.length),
-                dgTotalKw, wtTotalKw, btTotalKwh, discountRatePerYear
+                dgTotalKw, dgUnitKw, wtTotalKw, btTotalKwh, discountRatePerYear
         );
     }
 }

@@ -31,7 +31,7 @@ public final class TunableParameterPool {
                         TunableParamId.FIRST_CAT,
                         "FIRST_CAT",
                         0,
-                        0.3,
+                        0.5,
                         (b, v) -> {
                             double k1 = clamp(v, 0.0, 1.0);
                             double k2 = clamp01(b.getSecondCat());
@@ -47,7 +47,7 @@ public final class TunableParameterPool {
                         TunableParamId.SECOND_CAT,
                         "SECOND_CAT",
                         0,
-                        0.7,
+                        0.5,
                         (b, v) -> {
                             double k1 = clamp01(b.getFirstCat());
                             double k2 = clamp(v, 0.0, 1.0);
@@ -264,8 +264,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_DG_RUB_PER_KW,
                         "COST_DG_RUB_PER_KW",
-                        minFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW, 0.5, 20000),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW, 1.5, 60000),
+                        minFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW, 0.5, 30_000),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW, 1.5, 90_000),
                         SystemParametersBuilder::setCostDgRubPerKw
                 ));
 
@@ -274,7 +274,7 @@ public final class TunableParameterPool {
                         TunableParamId.COST_DG_RUB_PER_KW_PER_KMH,
                         "COST_DG_RUB_PER_KW_PER_KMH",
                         minFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 0.5, 800),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 1.5, 2400),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 1.5, 2_400),
                         SystemParametersBuilder::setCostDgRubPerKwPerKmh
                 ));
 
@@ -282,8 +282,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_FUEL_RUB_PER_KT,
                         "COST_FUEL_RUB_PER_KT",
-                        minFromBase(ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT, 0.5, 45000000),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT, 1.5, 135000000),
+                        minFromBase(ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT, 0.5, 45_000_000),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_FUEL_RUB_PER_KT, 1.5, 135_000_000),
                         SystemParametersBuilder::setCostFuelRubPerKt
                 ));
 
@@ -291,8 +291,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_WT_RUB_PER_KW,
                         "COST_WT_RUB_PER_KW",
-                        minFromBase(ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW, 0.5, 75000),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW, 1.5, 225000),
+                        minFromBase(ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW, 0.5, 100_000),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW, 1.5, 300_000),
                         SystemParametersBuilder::setCostWtRubPerKw
                 ));
 
@@ -300,8 +300,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_WT_RUB_PER_KW_PER_YEAR,
                         "COST_WT_RUB_PER_KW_PER_YEAR",
-                        minFromBase(ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR, 0.5, 1500),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR, 1.5, 4500),
+                        minFromBase(ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR, 0.5, 2_000),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR, 1.5, 6_000),
                         SystemParametersBuilder::setCostWtRubPerKwPerYear
                 ));
 
@@ -309,8 +309,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_BT_RUB_PER_KWH,
                         "COST_BT_RUB_PER_KWH",
-                        minFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH, 0.5, 44000),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH, 1.5, 132000),
+                        minFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH, 0.5, 45_000),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH, 1.5, 135_000),
                         SystemParametersBuilder::setCostBtRubPerKwh
                 ));
 
@@ -318,8 +318,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_BT_RUB_PER_KWH_PER_YEAR,
                         "COST_BT_RUB_PER_KWH_PER_YEAR",
-                        minFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR, 0.5, 1100),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR, 1.5, 3300),
+                        minFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR, 0.5, 1125),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR, 1.5, 3375),
                         SystemParametersBuilder::setCostBtRubPerKwhPerYear
                 ));
 
@@ -327,8 +327,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DAMAGE_RUB_PER_KWH_CAT3,
                         "DAMAGE_RUB_PER_KWH_CAT3",
-                        minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 0.5, 250),
-                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 2, 1000),
+                        minFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 0.5, 100),
+                        maxFromBase(ModelDefaults.DEFAULT_DAMAGE_RUB_PER_KWH_CAT3, 1.5, 300),
                         (b, v) -> {
                             double cat3 = clamp(v, 0.0, Double.POSITIVE_INFINITY);
                             b.setDamageRubPerKwhCat3(cat3);

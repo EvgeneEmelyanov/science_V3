@@ -37,8 +37,12 @@ public final class DiscountedLcoeCalculator {
             final double fuelKt = d.fuelLitersByYear[y] / 1_000_000.0;
             final double fuelRub = fuelKt * c.costFuelRubPerKt;
 
-            // moto: rub per (kW * 1000 moto-hours)
-            final double motoRub = (d.motoHoursByYear[y] / 1000.0) * d.dgTotalKw * c.costDgRubPerKwPerKmh;
+            // moto: RUB per (kW * 1000 moto-hours)
+            // NOTE: motoHoursByYear is the SUM of moto-hours across all DG units (Σ Hi).
+            // Therefore the correct kW multiplier is per-unit DG power (Pi), not ΣPi.
+            // If dgUnitKw is missing (e.g., old CSV), fall back to dgTotalKw (legacy behavior).
+            final double dgKwForMoto = (d.dgUnitKw > 0.0) ? d.dgUnitKw : d.dgTotalKw;
+            final double motoRub = (d.motoHoursByYear[y] / 1000.0) * dgKwForMoto * c.costDgRubPerKwPerKmh;
 
             // annual opex
             final double wtOpexRub = d.wtTotalKw * c.costWtRubPerKwPerYear;

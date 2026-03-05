@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 public class Main {
 
     // мб вернуть деградацию по току акб
+
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
 
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
@@ -27,15 +28,15 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SWEEP_1;
-        int mcIterations = 100;
+        RunMode runMode = RunMode.SINGLE;
+        int mcIterations = 50;
 
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
 
-        //String exportDriversPath = "D:/econ_drivers.csv";
+//        String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
         // Econ sobol
         String econDriversPath = "D:/econ_drivers.csv";
@@ -111,7 +112,8 @@ public class Main {
         if (mode == RunMode.SWEEP_1) {
             for (double p1 : param1) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+//                        .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+                        .setDieselGeneratorPowerKw(p1)
                         .build();
                 paramSets.add(p);
             }
@@ -136,15 +138,20 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
+                                .setTotalDieselGeneratorCount((int) p1)
+                                .setDieselGeneratorPowerKw(p2)
+
 //                                .setTotalWindTurbineCount((int) p1)
 //                                .setWindTurbinePowerKw(p1)
-//                                .setDieselGeneratorPowerKw(p2)
-//                                .setFirstCat(p1)
-                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+
+//                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+
 //                                 .setNonReserveDischargeLevel(p2)
-                                .setMaxDischargeCurrent(p2)
+//                                .setMaxDischargeCurrent(p2)
 //                                .setDieselGeneratorFailureRatePerYear(p2)
 //                                .setDieselGeneratorRepairTimeHours(p2)
+                                //                                .setFirstCat(p1)
+
                                 .build();
                         paramSets.add(p);
                     }
@@ -165,13 +172,24 @@ public class Main {
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
         // ===== Axes (edit here) =====
+        double[] param1 = new double[]{4, 6, 8, 10};
+        double[] param2 = new double[]{
+                150,160,170,180,190,
+                200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500, 525, 550, 575, 600,
+        };
+//        double[] param2 = new double[]{300, 325, 350, 375, 400, 425, 450, 475, 500};
+//        double[] param2 = new double[]{250, 260, 270, 280, 290, 300, 310, 320};
+//        double[] param1 = new double[]{168.25, 336.5, 504.75, 673, 841.25, 1009.5, 1177.75, 1346, 1682.5};
+//        double[] param1 = new double[]{0, 0.2, 0.4, 0.6, 0.8, 1};
+
 
 //        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 //        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
-        double[] param1 = new double[]{0, 0.2, 0.4, 0.6, 0.8, 1};
+
 
 //        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
-        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
 //        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};
@@ -260,12 +278,8 @@ public class Main {
                 cli.sobolSeedMode
         );
 
-        // Coupled constraint for DG: do not allow total installed DG power to drop below max load.
-        // (Can be overridden by --maxLoad=...)
         TunableParameterPool.setMinTotalDgPowerKw(MAX_LOAD);
 
-        // Для SOBOL_* драйверы по годам не нужны по умолчанию.
-        // Если вдруг нужен экспорт драйверов при Sobol, можно передать --exportDrivers=...
         SimulationConfig cfg = ScenarioFactory.defaultConfig(
                 li.windMs(),
                 sobolCfg.getMcIterations(),
@@ -283,7 +297,6 @@ public class Main {
             SobolResult res = analyzer.run(baseInput, sobolCfg);
 
             System.out.println("Sobol done. dim=" + sobolCfg.dim());
-            // Tables are printed by SobolAnalyzer (RAW + LOG1P) to avoid duplication.
         } finally {
             ex.shutdown();
         }
@@ -593,8 +606,6 @@ public class Main {
     }
 
     private static EconomyDrivers withDiscountRate(EconomyDrivers d, double discountRatePerYear) {
-        // EconomyDrivers arrays are not mutated by DiscountedLcoeCalculator,
-        // so it's safe to reuse references and only override the rate.
         return new EconomyDrivers(
                 d.servedKwhByYear,
                 d.fuelLitersByYear,
@@ -604,6 +615,7 @@ public class Main {
                 d.ensCat2KwhByYear,
                 d.ensCat3KwhByYear,
                 d.dgTotalKw,
+                d.dgUnitKw,
                 d.wtTotalKw,
                 d.btTotalKwh,
                 discountRatePerYear

@@ -5,18 +5,18 @@ public final class ModelDefaults {
     }
 
     // Categories share (k1, k2); k3 implied = 1 - k1 - k2
-    public static final double DEFAULT_FIRST_CAT = 0.1;
-    public static final double DEFAULT_SECOND_CAT = 0.3;
+    public static final double DEFAULT_FIRST_CAT = 0.25;
+    public static final double DEFAULT_SECOND_CAT = 0.25;
     // WT
     public static final int DEFAULT_WT_COUNT_TOTAL = 2;
-    public static final double DEFAULT_WT_POWER_KW = 673; //336.5   504.75  673
+    public static final double DEFAULT_WT_POWER_KW = 673; //168.25, 336.5, 504.75, 673, 841.25, 1009.5, 1177.75, 1346, 1682.5
     // DG
     public static final int DEFAULT_DG_COUNT_TOTAL = 6;
     public static final double DEFAULT_DG_POWER_KW = 340;//
     // Battery
     public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.5;
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1;
-    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
+    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 1.0;
     public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 1;
 
     // Reliability (rates are double, repair times are int)
@@ -43,13 +43,13 @@ public final class ModelDefaults {
     // ---- Economics defaults ----
     public static final double DEFAULT_DISCOUNT_RATE = 0.1;
     public static final double DEFAULT_COST_RU_RUB = 5_000_000;
-    public static final double DEFAULT_COST_DG_RUB_PER_KW = 40_000;
+    public static final double DEFAULT_COST_DG_RUB_PER_KW = 60_000;
     public static final double DEFAULT_COST_DG_RUB_PER_KW_PER_KMH = 1600.0;
     public static final double DEFAULT_COST_FUEL_RUB_PER_KT = 90_000_000.0;
-    public static final double DEFAULT_COST_WT_RUB_PER_KW = 150_000;
-    public static final double DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR = 3_000;
-    public static final double DEFAULT_COST_BT_RUB_PER_KWH = 88_000.0;
-    public static final double DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR = 2_200.0;
+    public static final double DEFAULT_COST_WT_RUB_PER_KW = 200_000;
+    public static final double DEFAULT_COST_WT_RUB_PER_KW_PER_YEAR = 4_000;
+    public static final double DEFAULT_COST_BT_RUB_PER_KWH = 90_000.0;
+    public static final double DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR = 2_250.0;
 
     public static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 = 200.0;
     public static final double DEFAULT_DAMAGE_RUB_PER_KWH_CAT2 = DEFAULT_DAMAGE_RUB_PER_KWH_CAT3 * 5;
