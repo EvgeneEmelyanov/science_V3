@@ -29,7 +29,7 @@ public class Main {
 
         Task task = Task.RUN;
         RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 50;
+        int mcIterations = 100;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
@@ -194,7 +194,7 @@ public class Main {
 
 //        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};
 
-        final boolean sweepCatsTriangle = false;
+        final boolean sweepCatsTriangle = true;
         final double catStep = 0.1;
 
         if (cli.runMode == RunMode.SWEEP_2 && sweepCatsTriangle) {
