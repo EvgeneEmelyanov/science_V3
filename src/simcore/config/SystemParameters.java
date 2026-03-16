@@ -137,6 +137,7 @@ public class SystemParameters {
 
     private final double idleReserveCoeff;
     private final double rotationReserveCoeff;
+    private final boolean keepOneDgInstantStartReadyAfterWtBessGridForming;
 
     // ---------- Экономические параметры (для LCOE) ----------
 
@@ -206,6 +207,7 @@ public class SystemParameters {
                             double busCcfBetaDouble,
                             double idleReserveCoeff,
                             double rotationReserveCoeff,
+                            boolean keepOneDgInstantStartReadyAfterWtBessGridForming,
 
                             double discountRatePerYear,
                             double costRuRub,
@@ -249,6 +251,7 @@ public class SystemParameters {
         this.busCcfBetaDouble = busCcfBetaDouble;
         this.idleReserveCoeff = idleReserveCoeff;
         this.rotationReserveCoeff = rotationReserveCoeff;
+        this.keepOneDgInstantStartReadyAfterWtBessGridForming = keepOneDgInstantStartReadyAfterWtBessGridForming;
 
         this.discountRatePerYear = discountRatePerYear;
         this.costRuRub = costRuRub;
@@ -296,6 +299,7 @@ public class SystemParameters {
                 busCcfBetaDouble,
                 idleReserveCoeff,
                 rotationReserveCoeff,
+                keepOneDgInstantStartReadyAfterWtBessGridForming,
                 discountRatePerYear,
                 costRuRub,
                 costDgRubPerKw,
@@ -419,6 +423,7 @@ public class SystemParameters {
 
     public double getIdleReserveCoeff() { return idleReserveCoeff; }
     public double getRotationReserveCoeff() { return rotationReserveCoeff; }
+    public boolean isKeepOneDgInstantStartReadyAfterWtBessGridForming() { return keepOneDgInstantStartReadyAfterWtBessGridForming; }
     // ---------- getters: economics ----------
 
     public double getDiscountRatePerYear() { return discountRatePerYear; }

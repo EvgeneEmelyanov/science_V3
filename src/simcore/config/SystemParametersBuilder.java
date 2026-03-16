@@ -46,6 +46,7 @@ public class SystemParametersBuilder {
 
     private double idleReserveCoeff;
     private double rotationReserveCoeff;
+    private boolean keepOneDgInstantStartReadyAfterWtBessGridForming;
 
     // ----- economics -----
     private double discountRatePerYear;
@@ -83,6 +84,7 @@ public class SystemParametersBuilder {
         b.nonReserveDischargeLevel = base.getNonReserveDischargeLevel();
         b.idleReserveCoeff = base.getIdleReserveCoeff();
         b.rotationReserveCoeff = base.getRotationReserveCoeff();
+        b.keepOneDgInstantStartReadyAfterWtBessGridForming = base.isKeepOneDgInstantStartReadyAfterWtBessGridForming();
 
         b.windTurbineFailureRatePerYear = base.getWindTurbineFailureRatePerYear();
         b.windTurbineRepairTimeHours = base.getWindTurbineRepairTimeHours();
@@ -144,6 +146,7 @@ public class SystemParametersBuilder {
                 busCcfBetaDouble,
                 idleReserveCoeff,
                 rotationReserveCoeff,
+                keepOneDgInstantStartReadyAfterWtBessGridForming,
 
                 discountRatePerYear,
                 costRuRub,
@@ -258,6 +261,15 @@ public class SystemParametersBuilder {
 
     public SystemParametersBuilder setNonReserveDischargeLevel(double nonReserveDischargeLevel) {
         this.nonReserveDischargeLevel = nonReserveDischargeLevel;
+        return this;
+    }
+
+    public boolean isKeepOneDgInstantStartReadyAfterWtBessGridForming() {
+        return keepOneDgInstantStartReadyAfterWtBessGridForming;
+    }
+
+    public SystemParametersBuilder setKeepOneDgInstantStartReadyAfterWtBessGridForming(boolean v) {
+        this.keepOneDgInstantStartReadyAfterWtBessGridForming = v;
         return this;
     }
 

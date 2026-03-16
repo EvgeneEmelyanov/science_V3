@@ -30,6 +30,10 @@ public class DieselGenerator extends Equipment {
 
     /** Snapshot of {@link #isWorking} taken at the beginning of the current simulation hour. */
     private boolean workingAtHourStart = true;
+    /** Marked at the end of the previous hour: this DG may start in the next hour without tau. */
+    private boolean instantStartReadyNextHour = false;
+    /** Snapshot of the instant-start flag for the current hour. */
+    private boolean instantStartReadyAtHourStart = false;
 
     // ===== Fuel model constants (из старого кода) =====
     private static final double K11 = 0.0185;
@@ -78,14 +82,39 @@ public class DieselGenerator extends Equipment {
         return isWorking;
     }
 
-    /** Capture {@link #isWorking} at the start of an hour (after failures, before dispatch). */
+    /** Capture {@link #isWorking} and instant-start readiness at the start of an hour (after failures, before dispatch). */
     public void snapshotWorkingAtHourStart() {
         this.workingAtHourStart = this.isWorking;
+        this.instantStartReadyAtHourStart = isAvailable() && !this.isWorking && this.instantStartReadyNextHour;
+        this.instantStartReadyNextHour = false;
     }
 
     /** @return {@code true} if the DG was working at the beginning of the current hour. */
     public boolean wasWorkingAtHourStart() {
         return workingAtHourStart;
+    }
+
+    public boolean wasInstantStartReadyAtHourStart() {
+        return instantStartReadyAtHourStart;
+    }
+
+    public boolean wasStartCapableAtHourStart() {
+        return workingAtHourStart || instantStartReadyAtHourStart;
+    }
+
+    public void markInstantStartReadyNextHour() {
+        if (isAvailable()) {
+            this.instantStartReadyNextHour = true;
+        }
+    }
+
+    public void clearInstantStartReadyNextHour() {
+        this.instantStartReadyNextHour = false;
+    }
+
+    public void clearInstantStartReadyState() {
+        this.instantStartReadyNextHour = false;
+        this.instantStartReadyAtHourStart = false;
     }
 
     public int getIdleTime() {
@@ -142,10 +171,15 @@ public class DieselGenerator extends Equipment {
         this.hoursSinceMaintenance = 0.0;
         this.maintenanceCount = 0;
         this.inMaintenance = false;
+        this.instantStartReadyNextHour = false;
+        this.instantStartReadyAtHourStart = false;
     }
 
     public void startWork() {
-        if (isAvailable()) isWorking = true;
+        if (isAvailable()) {
+            isWorking = true;
+            instantStartReadyNextHour = false;
+        }
     }
 
     public void stopWork() {
@@ -210,6 +244,7 @@ public class DieselGenerator extends Equipment {
 
             isWorking = false;
             currentLoad = 0.0;
+            clearInstantStartReadyState();
             return;
         }
 
@@ -221,6 +256,7 @@ public class DieselGenerator extends Equipment {
 
             isWorking = false;
             currentLoad = 0.0;
+            clearInstantStartReadyState();
         }
     }
 
@@ -265,6 +301,7 @@ public class DieselGenerator extends Equipment {
             }
 
             dg.stopWork();
+            dg.clearInstantStartReadyNextHour();
             dg.setCurrentLoad(0.0);
             dg.setIdle(false);
         }
@@ -280,6 +317,7 @@ public class DieselGenerator extends Equipment {
             }
 
             dg.startWork();
+            dg.clearInstantStartReadyNextHour();
             dg.setCurrentLoad(0.0);
             dg.setIdle(false);
         }
@@ -297,6 +335,7 @@ public class DieselGenerator extends Equipment {
 
     public static void hardStopDg(DieselGenerator dg) {
         dg.stopWork();
+        dg.clearInstantStartReadyState();
         dg.setCurrentLoad(0.0);
         dg.setIdle(false);
     }

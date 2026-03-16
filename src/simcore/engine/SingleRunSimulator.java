@@ -76,7 +76,7 @@ public final class SingleRunSimulator {
         for (DieselGenerator dg : dgs) {
             if (!dg.isAvailable()) continue;
             available++;
-            if (dg.wasWorkingAtHourStart()) workingAtStart++;
+            if (dg.wasStartCapableAtHourStart()) workingAtStart++;
         }
 
         double tauRaw = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : dgStartDelayHours;
@@ -319,13 +319,6 @@ public final class SingleRunSimulator {
 
             double ownUseTotalKwThisHour = 0.0;
             for (int b = 0; b < busCount; b++) ownUseTotalKwThisHour += ownUseKwByBus[b];
-
-            // Snapshot DG "working" states at the beginning of the hour (after failures, before dispatch).
-            for (PowerBus bus : buses) {
-                for (DieselGenerator dg : bus.getDieselGenerators()) {
-                    dg.snapshotWorkingAtHourStart();
-                }
-            }
 
             final HourContext ctx = new HourContext(
                     t,

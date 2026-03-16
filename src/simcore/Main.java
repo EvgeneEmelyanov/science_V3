@@ -18,9 +18,7 @@ public class Main {
     // мб вернуть деградацию по току акб
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
-
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
-
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
     public static double MAX_LOAD;
@@ -29,14 +27,14 @@ public class Main {
 
         Task task = Task.RUN;
         RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 100;
+        int mcIterations = 75;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
 
-//        String exportDriversPath = "D:/econ_drivers.csv";
+        //        String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
         // Econ sobol
         String econDriversPath = "D:/econ_drivers.csv";
@@ -138,13 +136,13 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
-                                .setTotalDieselGeneratorCount((int) p1)
-                                .setDieselGeneratorPowerKw(p2)
+//                                .setTotalDieselGeneratorCount((int) p1)
+//                                .setDieselGeneratorPowerKw(p2)
 
 //                                .setTotalWindTurbineCount((int) p1)
-//                                .setWindTurbinePowerKw(p1)
+                                .setWindTurbinePowerKw(p1)
 
-//                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+                                .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
 
 //                                 .setNonReserveDischargeLevel(p2)
 //                                .setMaxDischargeCurrent(p2)
@@ -171,19 +169,43 @@ public class Main {
         );
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
+        final boolean sweepCatsTriangle = false;
+        final double catStep = 0.1;
+
         // ===== Axes (edit here) =====
-        double[] param1 = new double[]{4, 6, 8, 10};
-        double[] param2 = new double[]{
-                150,160,170,180,190,
-                200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500, 525, 550, 575, 600,
+//        double[] param1 = new double[]{4, 6, 8, 10};
+//        double[] param2 = new double[]{
+//                150, 160, 170, 180, 190,
+//                200, 210, 220, 230, 240,
+//                250, 260, 270, 280, 290,
+//                300, 310, 320, 330, 340,
+//                350, 360, 370, 380, 390,
+//                400, 410, 420, 430, 440,
+//                450, 460, 470, 480, 490,
+//                500, 510, 520, 530, 540,
+//                550, 560, 570, 580, 590,
+//                600
+//
+//        };
+
+        double[] param1 = new double[]{
+                168.25, 336.5, 504.75, 673,
+                841.25, 1009.5, 1177.75, 1346,
+                1514.25, 1682.5, 1850.75, 2019,
+                2187.25, 2355.5, 2523.75, 2692,
+                2860.25, 3028.5, 3196.75, 3365
         };
+        double[] param2 = new double[]{0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4,
+                0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1
+        };
+
+
 //        double[] param2 = new double[]{300, 325, 350, 375, 400, 425, 450, 475, 500};
 //        double[] param2 = new double[]{250, 260, 270, 280, 290, 300, 310, 320};
 //        double[] param1 = new double[]{168.25, 336.5, 504.75, 673, 841.25, 1009.5, 1177.75, 1346, 1682.5};
+
 //        double[] param1 = new double[]{0, 0.2, 0.4, 0.6, 0.8, 1};
 
-
-//        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 //        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
 
 
@@ -193,9 +215,6 @@ public class Main {
 //        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
 //        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};
-
-        final boolean sweepCatsTriangle = true;
-        final double catStep = 0.1;
 
         if (cli.runMode == RunMode.SWEEP_2 && sweepCatsTriangle) {
             param1 = buildGrid01(catStep);
@@ -243,12 +262,13 @@ public class Main {
 
                 // Группа по параметрам:
 //                TunableParamId.DG_POWER,
+//                TunableParamId.DG_COUNT,
 //                TunableParamId.WT_POWER,
 //                TunableParamId.BT_CAPACITY_PER_BUS,
 //                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
 //                TunableParamId.BT_MAX_CHARGE_CURRENT,
 //                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
-//                TunableParamId.DG_COUNT,
+
 //                TunableParamId.WT_COUNT,
 
                 // Группа по надежности:
@@ -461,6 +481,8 @@ public class Main {
         static final boolean CFG_CONSIDER_BATTERY_DEGRADATION = ModelDefaults.CFG_CONSIDER_BATTERY_DEGRADATION;
         static final boolean CFG_RESERVE_THIRD_CATEGORY = ModelDefaults.CFG_RESERVE_THIRD_CATEGORY;
         static final boolean CFG_CONSIDER_ROTATION_RESERVE = ModelDefaults.CFG_CONSIDER_ROTATION_RESERVE;
+        static final boolean CFG_KEEP_ONE_DG_INSTANT_START_READY_AFTER_WT_BESS_GRID_FORMING =
+                ModelDefaults.CFG_KEEP_ONE_DG_INSTANT_START_READY_AFTER_WT_BESS_GRID_FORMING;
     }
 
     public static void main(String[] args) {
@@ -548,6 +570,7 @@ public class Main {
 
                     Defaults.DEFAULT_IDLE_RESERVE_COEFF,
                     Defaults.DEFAULT_ROTATION_RESERVE_COEFF,
+                    Defaults.CFG_KEEP_ONE_DG_INSTANT_START_READY_AFTER_WT_BESS_GRID_FORMING,
 
                     Defaults.DEFAULT_DISCOUNT_RATE,
                     Defaults.DEFAULT_COST_RU_RUB,

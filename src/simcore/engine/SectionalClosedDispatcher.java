@@ -12,6 +12,10 @@ import java.util.Arrays;
 final class SectionalClosedDispatcher {
     private SectionalClosedDispatcher() {}
 
+    private static boolean isStartCapableAtHourStart(DieselGenerator dg) {
+        return dg != null && dg.isAvailable() && dg.wasStartCapableAtHourStart();
+    }
+
 
     // Start-delay-aware DG maximum average power available in the current hour (kW).
 // Used to decide whether BESS discharge is needed at all in sectional-closed / coupled modes.
@@ -25,7 +29,7 @@ final class SectionalClosedDispatcher {
         for (DieselGenerator dg : dgs) {
             if (!dg.isAvailable()) continue;
             available++;
-            if (dg.wasWorkingAtHourStart()) workingAtStart++;
+            if (dg.wasStartCapableAtHourStart()) workingAtStart++;
         }
 
         double tauRaw = DieselGenerator.isMaintenanceStartedThisHour(dgs) ? 0.0 : dgStartDelayHours;
@@ -174,12 +178,19 @@ final class SectionalClosedDispatcher {
         for (int i = 0; i < n0; i++) dgs[p++] = b0.getDieselGenerators().get(i);
         for (int i = 0; i < n1; i++) dgs[p++] = b1.getDieselGenerators().get(i);
         Arrays.sort(dgs, DieselGenerator.DISPATCH_COMPARATOR);
+        Arrays.sort(dgs, (a, b) -> {
+            boolean aReady = isStartCapableAtHourStart(a);
+            boolean bReady = isStartCapableAtHourStart(b);
+            if (aReady != bReady) return aReady ? -1 : 1;
+            if (a.isWorking() != b.isWorking()) return a.isWorking() ? -1 : 1;
+            return Integer.compare(a.getTotalTimeWorked(), b.getTotalTimeWorked());
+        });
 
         int available = 0;
         int readyWorking = 0;
         for (DieselGenerator dg : dgs) {
             if (dg.isAvailable()) available++;
-            if (dg.isWorking()) readyWorking++;
+            if (dg.wasStartCapableAtHourStart()) readyWorking++;
         }
 
         double dgProducedKw = 0.0;
@@ -326,7 +337,7 @@ final class SectionalClosedDispatcher {
                         continue;
                     }
 
-                    boolean wasWorking = dg.isWorking();
+                    boolean wasWorking = dg.wasStartCapableAtHourStart();
                     double genKw = wasWorking
                             ? (perReadyStartKw * tauEff + perDgSteadyKw * (1.0 - tauEff))
                             : (perDgSteadyKw * (1.0 - tauEff));

@@ -37,24 +37,54 @@ final class PerBusDispatcher {
         int c = 0;
         for (DieselGenerator dg : dgs) {
             if (!dg.isAvailable()) continue;
-            if (dg.wasWorkingAtHourStart()) c++;
+            if (dg.wasStartCapableAtHourStart()) c++;
         }
         return c;
+    }
+
+    private static void clearInstantStartReadyNextHour(DieselGenerator[] dgs) {
+        for (DieselGenerator dg : dgs) {
+            dg.clearInstantStartReadyNextHour();
+        }
+    }
+
+    private static void markExactlyOneDgInstantStartReadyNextHour(DieselGenerator[] dgs) {
+        DieselGenerator chosen = null;
+
+        for (DieselGenerator dg : dgs) {
+            if (!dg.isAvailable()) continue;
+            if (dg.wasWorkingAtHourStart()) {
+                chosen = dg;
+                break;
+            }
+        }
+        if (chosen == null) {
+            for (DieselGenerator dg : dgs) {
+                if (!dg.isAvailable()) continue;
+                chosen = dg;
+                break;
+            }
+        }
+
+        clearInstantStartReadyNextHour(dgs);
+        if (chosen != null) {
+            chosen.markInstantStartReadyNextHour();
+        }
     }
 
     private static List<DieselGenerator> selectDgsToRun(DieselGenerator[] dgs, int nOn) {
         ArrayList<DieselGenerator> out = new ArrayList<>(nOn);
 
-        // Prefer those already working at hour start.
+        // Prefer those already working or explicitly ready for instant start at hour start.
         for (DieselGenerator dg : dgs) {
             if (out.size() >= nOn) break;
             if (!dg.isAvailable()) continue;
-            if (dg.wasWorkingAtHourStart()) out.add(dg);
+            if (dg.wasStartCapableAtHourStart()) out.add(dg);
         }
         for (DieselGenerator dg : dgs) {
             if (out.size() >= nOn) break;
             if (!dg.isAvailable()) continue;
-            if (!dg.wasWorkingAtHourStart()) out.add(dg);
+            if (!dg.wasStartCapableAtHourStart()) out.add(dg);
         }
         return out;
     }
@@ -257,6 +287,19 @@ final class PerBusDispatcher {
 
                 wreKw = Math.max(0.0, surplusKw);
 
+                boolean keepOneInstantReadyNextHour =
+                        ctx.sp.isKeepOneDgInstantStartReadyAfterWtBessGridForming()
+                                && windPotKw > dispatchLoadKw + SimulationConstants.EPSILON
+                                && availableDg > 0;
+
+                if (keepOneInstantReadyNextHour) {
+                    markExactlyOneDgInstantStartReadyNextHour(dgs);
+                    ctx.status.set(HourContext.StatusCollector.PRI_RESERVE,
+                            "WT_BESS_GRID_FORMING_KEEP_1_DG_INSTANT_READY_NEXT_HOUR");
+                } else {
+                    clearInstantStartReadyNextHour(dgs);
+                }
+
             } else {
                 // Spec: no BESS -> keep DG online for grid-forming.
                 if (availableDg > 0) {
@@ -394,7 +437,7 @@ final class PerBusDispatcher {
                 double remainingDgMaxKw = Math.max(0.0, (nOn - 1) * ctx.dgMaxKw);
                 double gapKw;
                 if (ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY) {
-                    gapKw = SingleRunSimulator.getAvgLoadPerBusKw() * ModelDefaults.CFG_ROTATION_RESERVE_COEFF;
+                    gapKw = SingleRunSimulator.getAvgLoadPerBusKw() * ctx.sp.getRotationReserveCoeff();
                 } else {
                     gapKw = Math.max(0.0, criticalDefAfterWind - remainingDgMaxKw);
                 }
@@ -503,12 +546,12 @@ final class PerBusDispatcher {
 
             int used = 0;
             for (DieselGenerator dg : toRun) {
-                boolean wasWorking = dg.wasWorkingAtHourStart();
+                boolean wasReadyAtStart = dg.wasStartCapableAtHourStart();
                 double avgKw;
                 if (tau <= SimulationConstants.EPSILON) {
                     avgKw = perDgSteadyKw;
                 } else {
-                    if (wasWorking) {
+                    if (wasReadyAtStart) {
                         double perReadyStartKw = (nAlready > 0)
                                 ? Math.min(ctx.dgMaxKw, deficitAfterWindKw / nAlready)
                                 : 0.0;
@@ -522,7 +565,7 @@ final class PerBusDispatcher {
                 if (avgKw < 0.0) avgKw = 0.0;
 
                 dg.setCurrentLoad(avgKw);
-                dg.addWorkTime(1, wasWorking ? 1 : 1 + SimulationConstants.DG_MAX_START_FACTOR);
+                dg.addWorkTime(1, wasReadyAtStart ? 1 : 1 + SimulationConstants.DG_MAX_START_FACTOR);
                 dg.startWork();
                 used++;
                 if (used >= nOn) break;
