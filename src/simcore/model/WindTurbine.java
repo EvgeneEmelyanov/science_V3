@@ -5,8 +5,8 @@ public class WindTurbine extends Equipment {
     /** Номинальная мощность одной ВЭУ, кВт. */
     private final double ratedPowerKw;
 
-    private static final double V_CUT_IN_MS = 4.0;
-    private static final double V_RATED_MS  = 14.0;
+    private static final double V_CUT_IN_MS = 3.0;
+    private static final double V_RATED_MS  = 12.5;
     private static final double V_CUT_OUT_MS = 25.0;
 
     /** КПД ВЭУ */

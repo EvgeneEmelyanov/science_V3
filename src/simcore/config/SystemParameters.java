@@ -134,6 +134,7 @@ public class SystemParameters {
      * Допустимый уровень разряда не в целях резервирования
      */
     private final double nonReserveDischargeLevel;
+    private final double btGridFormingReserveShare;
 
     private final double idleReserveCoeff;
     private final double rotationReserveCoeff;
@@ -190,6 +191,7 @@ public class SystemParameters {
                             double maxChargeCurrent,
                             double maxDischargeCurrent,
                             double nonReserveDischargeLevel,
+                            double btGridFormingReserveShare,
 
                             double windTurbineFailureRatePerYear,
                             int windTurbineRepairTimeHours,
@@ -234,6 +236,7 @@ public class SystemParameters {
         this.maxChargeCurrent = maxChargeCurrent;
         this.maxDischargeCurrent = maxDischargeCurrent;
         this.nonReserveDischargeLevel = nonReserveDischargeLevel;
+        this.btGridFormingReserveShare = btGridFormingReserveShare;
 
         this.windTurbineFailureRatePerYear = windTurbineFailureRatePerYear;
         this.windTurbineRepairTimeHours = windTurbineRepairTimeHours;
@@ -283,6 +286,7 @@ public class SystemParameters {
                 maxChargeCurrent,
                 maxDischargeCurrent,
                 nonReserveDischargeLevel,
+                btGridFormingReserveShare,
                 windTurbineFailureRatePerYear,
                 windTurbineRepairTimeHours,
                 dieselGeneratorFailureRatePerYear,
@@ -363,6 +367,10 @@ public class SystemParameters {
 
     public double getNonReserveDischargeLevel() {
         return nonReserveDischargeLevel;
+    }
+
+    public double getBtGridFormingReserveShare() {
+        return btGridFormingReserveShare;
     }
 
     public double getWindTurbineFailureRatePerYear() {

@@ -117,6 +117,26 @@ final class PerBusDispatcher {
         return p;
     }
 
+    private static boolean canBatteryGridFormWindSurplus(Battery bt, HourContext ctx, double dispatchLoadKw) {
+        if (bt == null || !bt.isAvailable()) return false;
+        if (dispatchLoadKw <= SimulationConstants.EPSILON) return true;
+
+        double reserveShare = Math.max(0.0, Math.min(1.0, ctx.sp.getBtGridFormingReserveShare()));
+        double requiredPowerKw = reserveShare * dispatchLoadKw;
+        if (requiredPowerKw <= SimulationConstants.EPSILON) return true;
+
+        double btCapKw = batteryMaxDischargeKw(bt, ctx);
+        if (btCapKw + SimulationConstants.EPSILON < requiredPowerKw) return false;
+
+        int requiredDgCount = (int) Math.ceil(requiredPowerKw / ctx.dgRatedKw - SimulationConstants.EPSILON);
+        if (requiredDgCount <= 0) requiredDgCount = 1;
+
+        double requiredEnergyKwh = requiredDgCount * ctx.dgRatedKw * ctx.dgStartDelayHours;
+        double availKwh = bt.getAvailableDischargeEnergyKwhAbove(SimulationConstants.BATTERY_MIN_SOC);
+
+        return availKwh + SimulationConstants.EPSILON >= requiredEnergyKwh;
+    }
+
     private static double chargeBattery(Battery bt, HourContext ctx, double powerKw, double durationHours) {
         if (bt == null || !bt.isAvailable()) return 0.0;
         if (powerKw <= SimulationConstants.EPSILON || durationHours <= 0.0) return 0.0;
@@ -272,8 +292,10 @@ final class PerBusDispatcher {
         // ===== CASE A: WT >= load =====
         if (windPotKw >= dispatchLoadKw - SimulationConstants.EPSILON) {
 
-            // Spec: if BESS exists and is available -> wind forms the bus using BESS inverter (regardless of SOC).
-            if (btAvail) {
+            // Wind may form the bus via BESS inverter only if the battery can cover
+            // the configured reserve share of load by power and by energy for DG start.
+            boolean btCanGridFormInWindSurplus = btAvail && canBatteryGridFormWindSurplus(bt, ctx, dispatchLoadKw);
+            if (btCanGridFormInWindSurplus) {
                 DieselGenerator.stopAllDieselsOnBus(bus);
                 if (extraSourceBus != null) DieselGenerator.stopAllDieselsOnBus(extraSourceBus);
 
@@ -334,6 +356,8 @@ final class PerBusDispatcher {
                 } else {
                     windToLoadKw = dispatchLoadKw;
                     wreKw = Math.max(0.0, windPotKw - windToLoadKw);
+                    ctx.status.set(HourContext.StatusCollector.PRI_RESERVE,
+                            "WT_GE_LOAD_BESS_NOT_ENOUGH_FOR_GRID_FORMING_RESERVE");
                 }
             }
 

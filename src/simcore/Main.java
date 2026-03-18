@@ -18,7 +18,9 @@ public class Main {
     // мб вернуть деградацию по току акб
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
+
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
+
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
     public static double MAX_LOAD;
@@ -26,10 +28,10 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 75;
+        RunMode runMode = RunMode.SINGLE;
+        int mcIterations = 1;
 
-        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
@@ -111,7 +113,10 @@ public class Main {
             for (double p1 : param1) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
 //                        .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
-                        .setDieselGeneratorPowerKw(p1)
+//                        .setDieselGeneratorPowerKw(p1)
+//                        .setRotationReserveCoeff(p1)
+//                        .setBtGridFormingReserveShare(p1)
+                        .setNonReserveDischargeLevel(p1)
                         .build();
                 paramSets.add(p);
             }
@@ -140,12 +145,18 @@ public class Main {
 //                                .setDieselGeneratorPowerKw(p2)
 
 //                                .setTotalWindTurbineCount((int) p1)
-                                .setWindTurbinePowerKw(p1)
-
-                                .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
-
-//                                 .setNonReserveDischargeLevel(p2)
+//                                .setWindTurbinePowerKw(p1)
+//
+                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
 //                                .setMaxDischargeCurrent(p2)
+
+                                .setNonReserveDischargeLevel(p2)
+
+//                                .setRotationReserveCoeff(p1)
+//                                .setBtGridFormingReserveShare(p1)
+
+//
+
 //                                .setDieselGeneratorFailureRatePerYear(p2)
 //                                .setDieselGeneratorRepairTimeHours(p2)
                                 //                                .setFirstCat(p1)
@@ -188,33 +199,22 @@ public class Main {
 //
 //        };
 
-        double[] param1 = new double[]{
-                168.25, 336.5, 504.75, 673,
-                841.25, 1009.5, 1177.75, 1346,
-                1514.25, 1682.5, 1850.75, 2019,
-                2187.25, 2355.5, 2523.75, 2692,
-                2860.25, 3028.5, 3196.75, 3365
-        };
-        double[] param2 = new double[]{0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4,
-                0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1
-        };
+//        double[] param1 = new double[]{
+//                168.25, 336.5, 504.75, 673,
+//                841.25, 1009.5, 1177.75, 1346,
+//                1514.25, 1682.5, 1850.75, 2019,
+////                2187.25, 2355.5, 2523.75, 2692,
+////                2860.25, 3028.5, 3196.75, 3365
+//        };
+//        double[] param2 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
+        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
-//        double[] param2 = new double[]{300, 325, 350, 375, 400, 425, 450, 475, 500};
-//        double[] param2 = new double[]{250, 260, 270, 280, 290, 300, 310, 320};
-//        double[] param1 = new double[]{168.25, 336.5, 504.75, 673, 841.25, 1009.5, 1177.75, 1346, 1682.5};
-
-//        double[] param1 = new double[]{0, 0.2, 0.4, 0.6, 0.8, 1};
-
-//        double[] param1 = new double[]{0, 2, 4, 6, 8, 10};
-
-
-//        double[] param2 = new double[]{0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0};
 //        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
-//        double[] param2 = new double[]{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
-//        double[] param2 = new double[]{2.37, 3.16, 4.75, 5.93, 7.125};
+
 
         if (cli.runMode == RunMode.SWEEP_2 && sweepCatsTriangle) {
             param1 = buildGrid01(catStep);
@@ -435,6 +435,7 @@ public class Main {
         static final double DEFAULT_BT_MAX_CHARGE_CURRENT = ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT;
         static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = ModelDefaults.DEFAULT_BT_MAX_DISCHARGE_CURRENT;
         static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
+        static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = ModelDefaults.DEFAULT_BT_GRID_FORMING_RESERVE_SHARE;
 
         // Reliability (rates are double, repair times are int)
         static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = ModelDefaults.DEFAULT_WT_FAILURE_RATE_PER_YEAR;
@@ -546,6 +547,7 @@ public class Main {
                     Defaults.DEFAULT_BT_MAX_CHARGE_CURRENT,
                     Defaults.DEFAULT_BT_MAX_DISCHARGE_CURRENT,
                     Defaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL,
+                    Defaults.DEFAULT_BT_GRID_FORMING_RESERVE_SHARE,
 
                     Defaults.DEFAULT_WT_FAILURE_RATE_PER_YEAR,
                     Defaults.DEFAULT_WT_REPAIR_TIME_HOURS,

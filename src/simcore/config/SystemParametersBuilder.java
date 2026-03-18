@@ -21,6 +21,7 @@ public class SystemParametersBuilder {
     private double maxChargeCurrent;
     private double maxDischargeCurrent;
     private double nonReserveDischargeLevel;
+    private double btGridFormingReserveShare;
 
 
     private double windTurbineFailureRatePerYear;
@@ -82,6 +83,7 @@ public class SystemParametersBuilder {
         b.maxChargeCurrent = base.getMaxChargeCurrent();
         b.maxDischargeCurrent = base.getMaxDischargeCurrent();
         b.nonReserveDischargeLevel = base.getNonReserveDischargeLevel();
+        b.btGridFormingReserveShare = base.getBtGridFormingReserveShare();
         b.idleReserveCoeff = base.getIdleReserveCoeff();
         b.rotationReserveCoeff = base.getRotationReserveCoeff();
         b.keepOneDgInstantStartReadyAfterWtBessGridForming = base.isKeepOneDgInstantStartReadyAfterWtBessGridForming();
@@ -129,6 +131,7 @@ public class SystemParametersBuilder {
                 maxChargeCurrent,
                 maxDischargeCurrent,
                 nonReserveDischargeLevel,
+                btGridFormingReserveShare,
 
                 windTurbineFailureRatePerYear,
                 windTurbineRepairTimeHours,
@@ -261,6 +264,15 @@ public class SystemParametersBuilder {
 
     public SystemParametersBuilder setNonReserveDischargeLevel(double nonReserveDischargeLevel) {
         this.nonReserveDischargeLevel = nonReserveDischargeLevel;
+        return this;
+    }
+
+    public double getBtGridFormingReserveShare() {
+        return btGridFormingReserveShare;
+    }
+
+    public SystemParametersBuilder setBtGridFormingReserveShare(double btGridFormingReserveShare) {
+        this.btGridFormingReserveShare = Math.max(0.0, Math.min(1.0, btGridFormingReserveShare));
         return this;
     }
 

@@ -9,15 +9,17 @@ public final class ModelDefaults {
     public static final double DEFAULT_SECOND_CAT = 0.4;
     // WT
     public static final int DEFAULT_WT_COUNT_TOTAL = 2;
-    public static final double DEFAULT_WT_POWER_KW = 673 * 5.0; //168.25, 336.5, 504.75, 673, 841.25, 1009.5, 1177.75, 1346, 1682.5 //
+    public static final double DEFAULT_WT_POWER_KW = 1000; //168.25, 336.5, 504.75, 673, 841.25, 1009.5, 1177.75, 1346, 1682.5 //
     // DG
     public static final int DEFAULT_DG_COUNT_TOTAL = 8;
     public static final double DEFAULT_DG_POWER_KW = 250;//
     // Battery
-    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.05;
+    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 1.0;
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1;
-    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 1.0;
-    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.6;
+    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
+    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.2;
+    public static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = 1;
+
     // Reliability (rates are double, repair times are int)
     public static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;
     public static final int DEFAULT_WT_REPAIR_TIME_HOURS = 46;
@@ -54,8 +56,9 @@ public final class ModelDefaults {
     public static final boolean CFG_CONSIDER_BATTERY_DEGRADATION = true;
     public static final boolean CFG_RESERVE_THIRD_CATEGORY = true;
     public static final boolean CFG_CONSIDER_ROTATION_RESERVE = true;
+
     public static final boolean CFG_USE_AVG_LOAD_RESERVE_POLICY = false;
-    public static final double CFG_IDLE_RESERVE_COEFF = 2.0;
-    public static final double CFG_ROTATION_RESERVE_COEFF = 2.0;
+    public static final double CFG_IDLE_RESERVE_COEFF = 1;
+    public static final double CFG_ROTATION_RESERVE_COEFF = 1.7;
     public static final boolean CFG_KEEP_ONE_DG_INSTANT_START_READY_AFTER_WT_BESS_GRID_FORMING = true;
 }
