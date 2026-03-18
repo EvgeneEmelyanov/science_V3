@@ -302,7 +302,7 @@ final class PerBusDispatcher {
                 windToLoadKw = dispatchLoadKw;
                 double surplusKw = Math.max(0.0, windPotKw - windToLoadKw);
 
-                // Charge BESS from surplus.
+                // Charge BESS from WT surplus.
                 double ch = chargeBattery(bt, ctx, surplusKw, 1.0);
                 btNetKw -= ch;
                 surplusKw -= ch;
@@ -323,7 +323,8 @@ final class PerBusDispatcher {
                 }
 
             } else {
-                // Spec: no BESS -> keep DG online for grid-forming.
+                // Battery may be insufficient for grid-forming reserve, but it still may be charged
+                // from WT surplus. The reserve check must not disable charging.
                 if (availableDg > 0) {
 
                     SingleRunSimulator.applyIdleReserveInWindSurplus(
@@ -351,11 +352,26 @@ final class PerBusDispatcher {
                     dgToLoadKw = Math.min(dispatchLoadKw, dgSumKw);
                     windToLoadKw = Math.max(0.0, dispatchLoadKw - dgToLoadKw);
 
-                    wreKw = Math.max(0.0, windPotKw - windToLoadKw);
+                    double surplusKw = Math.max(0.0, windPotKw - windToLoadKw);
+                    if (btAvail && surplusKw > SimulationConstants.EPSILON) {
+                        double ch = chargeBattery(bt, ctx, surplusKw, 1.0);
+                        btNetKw -= ch;
+                        surplusKw -= ch;
+                    }
+
+                    wreKw = Math.max(0.0, surplusKw);
                     ctx.status.set(HourContext.StatusCollector.PRI_NORMAL, "WT_GE_LOAD_NO_BESS_DG_RESERVE");
                 } else {
                     windToLoadKw = dispatchLoadKw;
-                    wreKw = Math.max(0.0, windPotKw - windToLoadKw);
+
+                    double surplusKw = Math.max(0.0, windPotKw - windToLoadKw);
+                    if (btAvail && surplusKw > SimulationConstants.EPSILON) {
+                        double ch = chargeBattery(bt, ctx, surplusKw, 1.0);
+                        btNetKw -= ch;
+                        surplusKw -= ch;
+                    }
+
+                    wreKw = Math.max(0.0, surplusKw);
                     ctx.status.set(HourContext.StatusCollector.PRI_RESERVE,
                             "WT_GE_LOAD_BESS_NOT_ENOUGH_FOR_GRID_FORMING_RESERVE");
                 }

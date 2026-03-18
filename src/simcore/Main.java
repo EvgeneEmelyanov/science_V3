@@ -28,8 +28,8 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 1;
+        RunMode runMode = RunMode.SWEEP_2;
+        int mcIterations = 500;
 
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
@@ -148,9 +148,9 @@ public class Main {
 //                                .setWindTurbinePowerKw(p1)
 //
                                 .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
-//                                .setMaxDischargeCurrent(p2)
+                                .setMaxDischargeCurrent(p2)
 
-                                .setNonReserveDischargeLevel(p2)
+//                                .setNonReserveDischargeLevel(p2)
 
 //                                .setRotationReserveCoeff(p1)
 //                                .setBtGridFormingReserveShare(p1)
@@ -210,8 +210,8 @@ public class Main {
 
         double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
-//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
-        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+//        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
 
 

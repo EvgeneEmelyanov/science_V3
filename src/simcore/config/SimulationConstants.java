@@ -25,7 +25,7 @@ public final class SimulationConstants {
 
     public static final double WIND_REFERENCE_HEIGHT_M = 50.0;
     public static final double Z_FACTOR = 0.03;
-    public static final double MAST_HEIGHT_M = 35.0;
+    public static final double MAST_HEIGHT_M = 60.0;
 
     // =========================================================================
     // ===========================   АККУМУЛЯТОР (Battery)  ====================
