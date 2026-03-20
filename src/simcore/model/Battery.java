@@ -11,28 +11,42 @@ import java.util.Random;
  *
  * Реализовано:
  *  1) Саморазряд: вычитаем фиксированную энергию (кВт·ч) от nominalCapacityKwh каждый час.
- *  2) Деградация: throughput/EFC модель (учёт только по энергии/количеству циклов).
- *     ВАЖНО: влияние тока (C-rate) на деградацию НЕ учитывается (3C считается нормальным током).
+ *  2) Деградация: throughput/EFC-модель с учётом:
+ *     - заряда и разряда;
+ *     - C-rate;
+ *     - глубины полуцикла (DoD).
+ *
+ * Калибровка базовой точки:
+ *  - 2000 EFC до 80% SOH;
+ *  - DoD_ref = 80%;
+ *  - C-rate_ref = 1C.
  */
 public class Battery extends Equipment {
 
     private final double nominalCapacityKwh; // паспортная ёмкость
     private double maxCapacityKwh;           // текущая доступная ёмкость (деградирует)
     private double soc;                      // SOC (0..1) относительно maxCapacityKwh
-    private double efcEff = 0.0; // накопленный эффективный EFC (0..)
+    private double efcEff = 0.0;             // накопленный эффективный EFC (с учётом штрафов)
     private boolean replaceOnRepair = false;
-    private long replacementCount = 0; // количество замен АКБ после деградации ниже указанного уровна
+    private long replacementCount = 0;       // количество замен АКБ после деградации ниже указанного уровня
 
     // Guard against counting battery work time multiple times within the same simulated hour.
     // PerBusDispatcher may adjust capacity in two phases (start + steady) during one hour.
     private boolean workedCountedThisHour = false;
+
+    // Упрощённый трекинг полуциклов для учёта DoD.
+    // +1 = заряд, -1 = разряд, 0 = нет активного направления.
+    private int activeDirection = 0;
+    private double halfCycleStartSoc;
 
     public Battery(int id, double capacityKwh, double failureRatePerYear, int repairTimeHours) {
         super("BT", id, failureRatePerYear, repairTimeHours);
         this.nominalCapacityKwh = capacityKwh;
         this.maxCapacityKwh = capacityKwh;
         this.soc = SimulationConstants.BATTERY_START_SOC;
+        this.halfCycleStartSoc = this.soc;
     }
+
     public long getReplacementCount() {
         return replacementCount;
     }
@@ -48,6 +62,8 @@ public class Battery extends Equipment {
     @Override
     public void initFailureModel(Random rnd, boolean considerFailures) {
         super.initFailureModel(rnd, considerFailures);
+        this.activeDirection = 0;
+        this.halfCycleStartSoc = this.soc;
     }
 
     /**
@@ -82,9 +98,7 @@ public class Battery extends Equipment {
             replacementCount++;
             repairDurationHours = getRepairTimeHours();
             replaceOnRepair = true;   // отметить, что это именно замена
-            return;
         }
-
     }
 
     @Override
@@ -93,10 +107,11 @@ public class Battery extends Equipment {
             maxCapacityKwh = nominalCapacityKwh;                // новая батарея
             efcEff = 0.0;
             soc = SimulationConstants.BATTERY_START_SOC;
+            activeDirection = 0;
+            halfCycleStartSoc = soc;
             replaceOnRepair = false;
         }
     }
-
 
     public double getChargeCapacity(SystemParameters systemParameters) {
         // Backward-compatible name: return CHARGE POWER CAP (kW).
@@ -160,8 +175,8 @@ public class Battery extends Equipment {
 
     /**
      * energyDelta: +заряд, -разряд (кВт·ч за шаг)
-     * current: мощность (кВт) (используется только для диспетчеризации, на деградацию не влияет)
-     * doubleTime: флаг "короткого мостика" (на деградацию не влияет)
+     * current: мощность (кВт)
+     * doubleTime: флаг "короткого мостика"
      */
     public void adjustCapacity(Battery battery,
                                double energyDelta,
@@ -173,7 +188,7 @@ public class Battery extends Equipment {
 
         double prevSoc = soc;
 
-// SOC update (with clamping)
+        // SOC update (with clamping)
         if (energyDelta > 0) {
             soc = Math.min(
                     SimulationConstants.BATTERY_MAX_SOC,
@@ -186,8 +201,8 @@ public class Battery extends Equipment {
             );
         }
 
-// Effective terminal energy actually moved after clamping.
-// This prevents counting "work" / degradation when the battery is full/empty.
+        // Effective terminal energy actually moved after clamping.
+        // This prevents counting "work" / degradation when the battery is full/empty.
         double socDelta = soc - prevSoc;
         double effEnergyDelta;
         if (Math.abs(socDelta) <= SimulationConstants.EPSILON || maxCapacityKwh <= SimulationConstants.EPSILON) {
@@ -200,7 +215,7 @@ public class Battery extends Equipment {
             effEnergyDelta = (socDelta * maxCapacityKwh) * SimulationConstants.BATTERY_EFFICIENCY;
         }
 
-// Наработка: только если реально прошла энергия (после учёта пределов SOC)
+        // Наработка: не более +1 за час и только если реально прошла энергия после учёта пределов SOC.
         if (!doubleTime && Math.abs(effEnergyDelta) > 0.0005 * nominalCapacityKwh) {
             if (!workedCountedThisHour) {
                 battery.timeWorked++;
@@ -208,26 +223,21 @@ public class Battery extends Equipment {
             }
         }
 
-        // Наработка как у тебя, но не более +1 за час
-        if (!doubleTime && Math.abs(energyDelta) > 0.0005 * nominalCapacityKwh) {
-            if (!workedCountedThisHour) {
-                battery.timeWorked++;
-                workedCountedThisHour = true;
-            }
-        }
+        // Деградация: throughput power-law по эффективному EFC (заряд + разряд + штрафы C-rate и DoD).
+        if (considerDegradation && Math.abs(effEnergyDelta) > SimulationConstants.EPSILON) {
+            int stepDirection = effEnergyDelta > 0.0 ? 1 : -1;
+            updateHalfCycleTracker(stepDirection, prevSoc);
 
+            double dod = computeCurrentHalfCycleDod();
+            double dEfcBase = Math.abs(effEnergyDelta) / (2.0 * nominalCapacityKwh);
+            double crate = Math.abs(current) / Math.max(nominalCapacityKwh, SimulationConstants.EPSILON);
 
-        // Деградация: throughput power-law по EFC (учёт только по энергии разряда).
-        if (considerDegradation && energyDelta < 0.0) {
+            double crateFactor = computeCrateFactor(crate, doubleTime);
+            double dodFactor = computeDodFactor(dod);
+            double dEfcEff = dEfcBase * crateFactor * dodFactor;
 
-            double eDis = -energyDelta; // кВт·ч
-
-            // dEFC по энергии разряда (один EFC = разряд на nominalCapacityKwh)
-            double dEfc = eDis / nominalCapacityKwh;
-
-            // Накопление EFC (без штрафов по току/C-rate).
             double efcPrev = efcEff;
-            double efcNew = efcPrev + dEfc;
+            double efcNew = efcPrev + dEfcEff;
             efcEff = efcNew;
 
             // Кумулятивная модель: lossFrac = K * (EFC_eff)^z
@@ -243,7 +253,44 @@ public class Battery extends Equipment {
             double lossKwh = nominalCapacityKwh * dLossFrac;
             applyCapacityLossKwh(lossKwh);
         }
+    }
 
+    private void updateHalfCycleTracker(int stepDirection, double prevSoc) {
+        if (stepDirection == 0) return;
+        if (activeDirection == 0) {
+            activeDirection = stepDirection;
+            halfCycleStartSoc = prevSoc;
+            return;
+        }
+        if (activeDirection != stepDirection) {
+            activeDirection = stepDirection;
+            halfCycleStartSoc = prevSoc;
+        }
+    }
+
+    private double computeCurrentHalfCycleDod() {
+        return clamp(
+                Math.abs(soc - halfCycleStartSoc),
+                SimulationConstants.EPSILON,
+                1.0
+        );
+    }
+
+    private double computeCrateFactor(double crate, boolean doubleTime) {
+        double crateSafe = clamp(crate, SimulationConstants.EPSILON, SimulationConstants.BATTERY_MAX_RELEVANT_CRATE);
+        double factor = Math.pow(crateSafe / SimulationConstants.BATTERY_DEG_CRATE_REF,
+                SimulationConstants.BATTERY_DEG_H);
+
+        if (doubleTime) {
+            factor = 1.0 + (factor - 1.0) * SimulationConstants.BATTERY_BRIDGE_CRATE_RELIEF;
+        }
+        return Math.max(SimulationConstants.EPSILON, factor);
+    }
+
+    private double computeDodFactor(double dod) {
+        double dodSafe = clamp(dod, SimulationConstants.EPSILON, 1.0);
+        return Math.pow(dodSafe / SimulationConstants.BATTERY_DEG_DOD_REF,
+                SimulationConstants.BATTERY_DEG_M);
     }
 
     private void applyCapacityLossKwh(double lossKwh) {
@@ -257,6 +304,10 @@ public class Battery extends Equipment {
         return v;
     }
 
+    private static double clamp(double v, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
     public void selfDischargeOneHour() {
         if (!isAvailableForUse()) return;
 
@@ -267,7 +318,7 @@ public class Battery extends Equipment {
         storedKwh = Math.max(0.0, storedKwh - lossKwh);
 
         if (maxCapacityKwh > SimulationConstants.EPSILON) {
-            soc = storedKwh / maxCapacityKwh;
+            soc = clamp01(storedKwh / maxCapacityKwh);
         } else {
             soc = 0.0;
         }
