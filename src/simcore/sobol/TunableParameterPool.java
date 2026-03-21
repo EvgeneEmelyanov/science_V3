@@ -174,8 +174,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_POWER,
                         "WT_POWER",
-                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.5, 336.5),
-                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 1.5, 1009.5),
+                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.5, 673),
+                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 1.5, 2019),
                         SystemParametersBuilder::setWindTurbinePowerKw
                 ));
 
@@ -246,8 +246,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.DISCOUNT_RATE,
                         "DISCOUNT_RATE",
-                        minFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 0.5, 0.05),
-                        maxFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 1.5, 0.15),
+                        minFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 0.875, 0.07),
+                        maxFromBase(ModelDefaults.DEFAULT_DISCOUNT_RATE, 1.875, 0.15),
                         SystemParametersBuilder::setDiscountRatePerYear
                 ));
 
@@ -273,8 +273,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_DG_RUB_PER_KW_PER_KMH,
                         "COST_DG_RUB_PER_KW_PER_KMH",
-                        minFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 0.5, 800),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 1.5, 2_400),
+                        minFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 0.5, 2500),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_DG_RUB_PER_KW_PER_KMH, 1.5, 7500),
                         SystemParametersBuilder::setCostDgRubPerKwPerKmh
                 ));
 
@@ -309,8 +309,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_BT_RUB_PER_KWH,
                         "COST_BT_RUB_PER_KWH",
-                        minFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH, 0.5, 45_000),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH, 1.5, 135_000),
+                        minFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH, 0.5, 22_500),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH, 1.5, 67_500),
                         SystemParametersBuilder::setCostBtRubPerKwh
                 ));
 
@@ -318,8 +318,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.COST_BT_RUB_PER_KWH_PER_YEAR,
                         "COST_BT_RUB_PER_KWH_PER_YEAR",
-                        minFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR, 0.5, 1125),
-                        maxFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR, 1.5, 3375),
+                        minFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR, 0.5, 562.5),
+                        maxFromBase(ModelDefaults.DEFAULT_COST_BT_RUB_PER_KWH_PER_YEAR, 1.5, 1687.5),
                         SystemParametersBuilder::setCostBtRubPerKwhPerYear
                 ));
 

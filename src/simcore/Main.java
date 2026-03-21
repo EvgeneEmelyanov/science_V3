@@ -29,9 +29,9 @@ public class Main {
 
         Task task = Task.RUN;
         RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 500;
+        int mcIterations = 250;
 
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
@@ -141,25 +141,16 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
-//                                .setTotalDieselGeneratorCount((int) p1)
-//                                .setDieselGeneratorPowerKw(p2)
+                                .setTotalDieselGeneratorCount((int) p1)
+                                .setDieselGeneratorPowerKw(p2)
 
 //                                .setTotalWindTurbineCount((int) p1)
 //                                .setWindTurbinePowerKw(p1)
 //
-                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
-                                .setMaxDischargeCurrent(p2)
+//                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
 
+//                                .setMaxDischargeCurrent(p2)
 //                                .setNonReserveDischargeLevel(p2)
-
-//                                .setRotationReserveCoeff(p1)
-//                                .setBtGridFormingReserveShare(p1)
-
-//
-
-//                                .setDieselGeneratorFailureRatePerYear(p2)
-//                                .setDieselGeneratorRepairTimeHours(p2)
-                                //                                .setFirstCat(p1)
 
                                 .build();
                         paramSets.add(p);
@@ -184,35 +175,43 @@ public class Main {
         final double catStep = 0.1;
 
         // ===== Axes (edit here) =====
-//        double[] param1 = new double[]{4, 6, 8, 10};
-//        double[] param2 = new double[]{
-//                150, 160, 170, 180, 190,
-//                200, 210, 220, 230, 240,
-//                250, 260, 270, 280, 290,
-//                300, 310, 320, 330, 340,
-//                350, 360, 370, 380, 390,
-//                400, 410, 420, 430, 440,
-//                450, 460, 470, 480, 490,
-//                500, 510, 520, 530, 540,
+        double[] param1 = new double[]{6, 8, 10};
+//        double[] param1 = new double[]{3, 4, 5, 6, 7, 8};
+        double[] param2 = new double[]{
+                150, 160, 170, 180, 190,
+                200, 210, 220, 230, 240,
+                250, 260, 270, 280, 290,
+                300, 310, 320, 330, 340,
+                350, 360, 370, 380, 390,
+                400, 410, 420, 430, 440,
+                450, 460, 470, 480, 490,
+                500,
+//                510, 520, 530, 540,
 //                550, 560, 570, 580, 590,
-//                600
-//
-//        };
+//                600, 610, 620, 630, 640,
+//                650, 660, 670, 680, 690,
 
+        };
+//
 //        double[] param1 = new double[]{
+//                0,
 //                168.25, 336.5, 504.75, 673,
 //                841.25, 1009.5, 1177.75, 1346,
 //                1514.25, 1682.5, 1850.75, 2019,
-////                2187.25, 2355.5, 2523.75, 2692,
-////                2860.25, 3028.5, 3196.75, 3365
+//////                2187.25, 2355.5, 2523.75, 2692,
+//////                2860.25, 3028.5, 3196.75, 3365
 //        };
 //        double[] param2 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
-        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+//        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+//        double[] param1 = new double[]{0, 0.2,  0.4, 0.6, 0.8, 1};
+//        double[] param2 = new double[]{0.2,  0.4, 0.6, 0.8, 1};
 
-        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
+
+//        double[] param2 = new double[]{1, 2, 3, 4, 5};
+
 //        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-
 
 
 
