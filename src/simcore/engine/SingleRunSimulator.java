@@ -232,6 +232,12 @@ public final class SingleRunSimulator {
         final boolean[] busEnergised = new boolean[busCount];
         // Счетчик часов подряд, когда шина не энергизована (для правил "в следующий час").
         final int[] outageHours = new int[busCount];
+        final double[] prevAdaptiveLoadKw = new double[busCount];
+        final double[] prevAdaptiveWindKw = new double[busCount];
+        final double[] prevAdaptiveAvailDgKw = new double[busCount];
+        java.util.Arrays.fill(prevAdaptiveLoadKw, Double.NaN);
+        java.util.Arrays.fill(prevAdaptiveWindKw, Double.NaN);
+        java.util.Arrays.fill(prevAdaptiveAvailDgKw, Double.NaN);
 
         // DOUBLE_BUS: если МШВ не работает, то перенос II/III и генерации выполняется в следующий час.
         int pendingDoubleBusTransferFrom = -1;
@@ -319,6 +325,18 @@ public final class SingleRunSimulator {
 
             double ownUseTotalKwThisHour = 0.0;
             for (int b = 0; b < busCount; b++) ownUseTotalKwThisHour += ownUseKwByBus[b];
+
+            for (int b = 0; b < busCount; b++) {
+                Battery btAdaptive = buses.get(b).getBattery();
+                if (btAdaptive != null) {
+                    btAdaptive.updateAdaptiveNonReserveDischargeLevel(
+                            sp,
+                            prevAdaptiveLoadKw[b],
+                            prevAdaptiveWindKw[b],
+                            prevAdaptiveAvailDgKw[b]
+                    );
+                }
+            }
 
             final HourContext ctx = new HourContext(
                     t,
@@ -467,6 +485,15 @@ public final class SingleRunSimulator {
             }
             // ===== Sectional-closed dispatch (если секционник закрыт) =====
 
+            final double[] adaptiveLoadKwNow = new double[busCount];
+            final double[] adaptiveWindKwNow = new double[busCount];
+            final double[] adaptiveAvailDgKwNow = new double[busCount];
+            for (int b = 0; b < busCount; b++) {
+                adaptiveLoadKwNow[b] = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
+                adaptiveWindKwNow[b] = computeWindPotential(buses.get(b), windV);
+                adaptiveAvailDgKwNow[b] = computeAvailableDgPowerKw(buses.get(b), sp);
+            }
+
             if (sectionalClosedThisHour) {
 
                 final double[] loads;
@@ -556,6 +583,12 @@ public final class SingleRunSimulator {
                     btReplByYear[y] += (sumBatteryReplacements(buses) - replBeforeHour);
                 } else {
                     servedKwhThisYear += servedToConsumers;
+                }
+
+                for (int b = 0; b < busCount; b++) {
+                    prevAdaptiveLoadKw[b] = adaptiveLoadKwNow[b];
+                    prevAdaptiveWindKw[b] = adaptiveWindKwNow[b];
+                    prevAdaptiveAvailDgKw[b] = adaptiveAvailDgKwNow[b];
                 }
 
                 if (!computeEconomyDrivers) {
@@ -1061,6 +1094,26 @@ public final class SingleRunSimulator {
             final double eps = 1e-12;
             lcoeRubPerKwh = (pvServedKwh <= eps) ? 0.0 : (pvCostRub / pvServedKwh);
         }
+        double adaptiveMean = Double.NaN;
+        double adaptiveMedian = Double.NaN;
+        if (sp.isBtUseAdaptiveNonReserveDischargeLevel()) {
+            java.util.ArrayList<Double> adaptiveLevels = new java.util.ArrayList<>();
+            for (PowerBus bus : buses) {
+                Battery bt = bus.getBattery();
+                if (bt != null && bt.hasAdaptiveLevelHistory()) {
+                    adaptiveLevels.addAll(bt.getAdaptiveLevelHistorySnapshot());
+                }
+            }
+            if (!adaptiveLevels.isEmpty()) {
+                double s = 0.0;
+                for (double v : adaptiveLevels) s += v;
+                adaptiveMean = s / adaptiveLevels.size();
+                adaptiveLevels.sort(java.util.Comparator.naturalOrder());
+                int n = adaptiveLevels.size();
+                adaptiveMedian = (n % 2 == 1) ? adaptiveLevels.get(n / 2) : 0.5 * (adaptiveLevels.get(n / 2 - 1) + adaptiveLevels.get(n / 2));
+            }
+        }
+
         return new SimulationMetrics(
                 totals.loadKwh,
                 totals.ensKwh,
@@ -1092,6 +1145,8 @@ public final class SingleRunSimulator {
                 loleHours,
                 lolp,
                 lpsp,
+                adaptiveMean,
+                adaptiveMedian,
                 econDrivers
         );
     }
@@ -1099,6 +1154,15 @@ public final class SingleRunSimulator {
     // ======================================================================
     // Helpers
     // ======================================================================
+
+    private static double computeAvailableDgPowerKw(PowerBus bus, SystemParameters sp) {
+        double sum = 0.0;
+        double dgMaxKw = sp.getDieselGeneratorPowerKw() * SimulationConstants.DG_MAX_POWER;
+        for (DieselGenerator dg : bus.getDieselGenerators()) {
+            if (dg.isAvailable()) sum += dgMaxKw;
+        }
+        return sum;
+    }
 
     private static long sumMotoHours(java.util.List<PowerBus> buses) {
         long s = 0;

@@ -32,6 +32,7 @@ public final class ArrayTraceSession implements TraceSession {
 
     private double[] btActualCapacity;
     private double[] btActualSoc;
+    private double[] btNonReserveDischargeLevel;
     private double[] btTimeWorked;
 
     @Override
@@ -59,6 +60,7 @@ public final class ArrayTraceSession implements TraceSession {
 
         btActualCapacity = new double[busCount];
         btActualSoc = new double[busCount];
+        btNonReserveDischargeLevel = new double[busCount];
         btTimeWorked = new double[busCount];
     }
 
@@ -120,10 +122,12 @@ public final class ArrayTraceSession implements TraceSession {
         if (battery != null) {
             btActualCapacity[busIndex] = battery.getMaxCapacityKwh();
             btActualSoc[busIndex] = battery.getStateOfCharge();
+            btNonReserveDischargeLevel[busIndex] = battery.getCurrentNonReserveDischargeLevel();
             btTimeWorked[busIndex] = battery.getTimeWorked();
         } else {
             btActualCapacity[busIndex] = Double.NaN;
             btActualSoc[busIndex] = Double.NaN;
+            btNonReserveDischargeLevel[busIndex] = Double.NaN;
             btTimeWorked[busIndex] = Double.NaN;
         }
     }
@@ -158,6 +162,7 @@ public final class ArrayTraceSession implements TraceSession {
                 dgInMaintenance,
                 btActualCapacity,
                 btActualSoc,
+                btNonReserveDischargeLevel,
                 btTimeWorked
         ));
     }

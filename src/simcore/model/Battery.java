@@ -1,42 +1,41 @@
 // File: simcore/model/Battery.java
 package simcore.model;
 
+import simcore.config.ModelDefaults;
 import simcore.config.SimulationConstants;
 import simcore.config.SystemParameters;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
 /**
  * Аккумуляторная батарея для почасового моделирования.
- *
- * Реализовано:
- *  1) Саморазряд: вычитаем фиксированную энергию (кВт·ч) каждый час.
- *  2) Календарная деградация: фиксированная доля от nominalCapacityKwh в год.
- *  3) Цикловая деградация:
- *     - учитываются и заряд, и разряд;
- *     - базовый счётчик через EFC:
- *          dEFC_base = |E_term| / (2 * C_nom)
- *     - C-rate и DoD работают только как штрафующие множители вверх:
- *          factor >= 1.0
- *     - калибровка по-прежнему:
- *          20% потери ёмкости на 2000 EFC в базовых условиях.
  */
 public class Battery extends Equipment {
 
-    private final double nominalCapacityKwh; // паспортная ёмкость
-    private double maxCapacityKwh;           // текущая доступная ёмкость (деградирует)
-    private double soc;                      // SOC (0..1) относительно maxCapacityKwh
-    private double efcEff = 0.0;             // накопленный эффективный EFC
+    private final double nominalCapacityKwh;
+    private double maxCapacityKwh;
+    private double soc;
+    private double efcEff = 0.0;
     private boolean replaceOnRepair = false;
-    private long replacementCount = 0;       // количество замен АКБ
-
-    // Guard against counting battery work time multiple times within the same simulated hour.
+    private long replacementCount = 0;
     private boolean workedCountedThisHour = false;
-
-    // Для оценки DoD текущего полуцикла
     private double halfCycleStartSoc;
-    // -1 = discharge, +1 = charge, 0 = idle/unknown
     private int lastFlowSign = 0;
+
+    private double currentNonReserveDischargeLevel = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
+    private Double prevLoadT1Kw;
+    private Double prevLoadT2Kw;
+    private Double prevWindT1Kw;
+    private Double prevWindT2Kw;
+    private Double prevAvailableDgPowerT1Kw;
+    private double previousTrendKw = 0.0;
+    private boolean hasPreviousTrend = false;
+    private double emaAccelerationKw = 0.0;
+    private boolean hasAccelerationEma = false;
+    private final List<Double> adaptiveLevelHistory = new ArrayList<>();
 
     public Battery(int id, double capacityKwh, double failureRatePerYear, int repairTimeHours) {
         super("BT", id, failureRatePerYear, repairTimeHours);
@@ -46,24 +45,103 @@ public class Battery extends Equipment {
         this.halfCycleStartSoc = this.soc;
     }
 
-    public long getReplacementCount() {
-        return replacementCount;
+    public long getReplacementCount() { return replacementCount; }
+    public double getNominalCapacityKwh() { return nominalCapacityKwh; }
+    public double getMaxCapacityKwh() { return maxCapacityKwh; }
+    public double getStateOfCharge() { return soc; }
+    public double getCurrentNonReserveDischargeLevel() { return currentNonReserveDischargeLevel; }
+    public boolean isAvailableForUse() { return status && repairDurationHours == 0; }
+
+    public double getEffectiveNonReserveDischargeLevel(SystemParameters sp) {
+        return sp.isBtUseAdaptiveNonReserveDischargeLevel()
+                ? currentNonReserveDischargeLevel
+                : clampRange(sp.getNonReserveDischargeLevel(), SimulationConstants.BATTERY_MIN_SOC, 1.0);
     }
 
-    public double getNominalCapacityKwh() {
-        return nominalCapacityKwh;
+    public boolean hasAdaptiveLevelHistory() { return !adaptiveLevelHistory.isEmpty(); }
+    public List<Double> getAdaptiveLevelHistorySnapshot() { return new ArrayList<>(adaptiveLevelHistory); }
+    public double getAdaptiveLevelMean() {
+        if (adaptiveLevelHistory.isEmpty()) return Double.NaN;
+        double s = 0.0;
+        for (double v : adaptiveLevelHistory) s += v;
+        return s / adaptiveLevelHistory.size();
+    }
+    public double getAdaptiveLevelMedian() {
+        if (adaptiveLevelHistory.isEmpty()) return Double.NaN;
+        List<Double> copy = new ArrayList<>(adaptiveLevelHistory);
+        Collections.sort(copy);
+        int n = copy.size();
+        return (n % 2 == 1) ? copy.get(n / 2) : 0.5 * (copy.get(n / 2 - 1) + copy.get(n / 2));
     }
 
-    public double getMaxCapacityKwh() {
-        return maxCapacityKwh;
+    public void updateAdaptiveNonReserveDischargeLevel(SystemParameters sp,
+                                                       double previousLoadKw,
+                                                       double previousWindKw,
+                                                       double previousAvailableDgPowerKw) {
+        shiftAdaptiveHistory(previousLoadKw, previousWindKw, previousAvailableDgPowerKw);
+
+        double fixed = clampRange(sp.getNonReserveDischargeLevel(), SimulationConstants.BATTERY_MIN_SOC, 1.0);
+        if (!sp.isBtUseAdaptiveNonReserveDischargeLevel()) {
+            currentNonReserveDischargeLevel = fixed;
+            return;
+        }
+
+        if (prevLoadT1Kw == null || prevWindT1Kw == null || prevAvailableDgPowerT1Kw == null
+                || prevLoadT2Kw == null || prevWindT2Kw == null) {
+            currentNonReserveDischargeLevel = fixed;
+            adaptiveLevelHistory.add(currentNonReserveDischargeLevel);
+            return;
+        }
+
+        double deltaT1 = prevLoadT1Kw - prevWindT1Kw;
+        double deltaT2 = prevLoadT2Kw - prevWindT2Kw;
+        double dgReserve = prevAvailableDgPowerT1Kw - deltaT1;
+        double trendNow = deltaT1 - deltaT2;
+        double accelerationRaw = hasPreviousTrend ? (trendNow - previousTrendKw) : 0.0;
+        previousTrendKw = trendNow;
+        hasPreviousTrend = true;
+
+        double alpha = clamp01(sp.getBtAdaptiveAccelerationEmaAlpha());
+        if (!hasAccelerationEma) {
+            emaAccelerationKw = accelerationRaw;
+            hasAccelerationEma = true;
+        } else {
+            emaAccelerationKw = alpha * accelerationRaw + (1.0 - alpha) * emaAccelerationKw;
+        }
+
+        double reserveRisk = riskFromLowReserve(dgReserve, sp.getBtAdaptiveReserveRiskScaleKw());
+        double deficitRisk = riskFromPositive(deltaT1, sp.getBtAdaptiveDeficitRiskScaleKw());
+        double accelerationRisk = riskFromPositive(Math.max(0.0, emaAccelerationKw), sp.getBtAdaptiveAccelerationRiskScaleKw());
+
+        double weightedRisk =
+                sp.getBtAdaptiveReserveRiskWeight() * reserveRisk
+                        + sp.getBtAdaptiveDeficitRiskWeight() * deficitRisk
+                        + sp.getBtAdaptiveAccelerationRiskWeight() * accelerationRisk;
+
+        double candidate = fixed + sp.getBtAdaptiveRiskGain() * weightedRisk;
+        currentNonReserveDischargeLevel = clampRange(candidate, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+        adaptiveLevelHistory.add(currentNonReserveDischargeLevel);
     }
 
-    public double getStateOfCharge() {
-        return soc;
+    private void shiftAdaptiveHistory(double previousLoadKw, double previousWindKw, double previousAvailableDgPowerKw) {
+        if (!Double.isFinite(previousLoadKw) || !Double.isFinite(previousWindKw) || !Double.isFinite(previousAvailableDgPowerKw)) {
+            return;
+        }
+        prevLoadT2Kw = prevLoadT1Kw;
+        prevWindT2Kw = prevWindT1Kw;
+        prevLoadT1Kw = previousLoadKw;
+        prevWindT1Kw = previousWindKw;
+        prevAvailableDgPowerT1Kw = previousAvailableDgPowerKw;
     }
 
-    public boolean isAvailableForUse() {
-        return status && repairDurationHours == 0;
+    private static double riskFromLowReserve(double reserveKw, double scaleKw) {
+        double scale = Math.max(SimulationConstants.EPSILON, scaleKw);
+        return clamp01((scale - reserveKw) / scale);
+    }
+
+    private static double riskFromPositive(double valueKw, double scaleKw) {
+        double scale = Math.max(SimulationConstants.EPSILON, scaleKw);
+        return clamp01(Math.max(0.0, valueKw) / scale);
     }
 
     @Override
@@ -71,32 +149,16 @@ public class Battery extends Equipment {
         super.initFailureModel(rnd, considerFailures);
     }
 
-    /**
-     * 1 час: ремонт/отказ (super), затем календарная деградация, саморазряд,
-     * и контроль порога деградации.
-     */
     @Override
     public void updateFailureOneHour(boolean considerFailures) {
         super.updateFailureOneHour(considerFailures);
-
-        // Новый час: разрешаем не более одного инкремента наработки за час
         workedCountedThisHour = false;
-
-        if (repairDurationHours > 0 || !status) {
-            return;
-        }
-
-        // Календарная деградация
+        if (repairDurationHours > 0 || !status) return;
         if (SimulationConstants.BATTERY_CALENDAR_LOSS_PER_YEAR > 0.0) {
-            double lossKwhPerHour =
-                    (SimulationConstants.BATTERY_CALENDAR_LOSS_PER_YEAR / 8760.0) * nominalCapacityKwh;
+            double lossKwhPerHour = (SimulationConstants.BATTERY_CALENDAR_LOSS_PER_YEAR / 8760.0) * nominalCapacityKwh;
             applyCapacityLossKwh(lossKwhPerHour);
         }
-
-        // Саморазряд
         selfDischargeOneHour();
-
-        // "Отказ по деградации" / критерий замены
         double minAllowed = SimulationConstants.BATTERY_DEGRADATION_THRESHOLD * nominalCapacityKwh;
         if (maxCapacityKwh <= minAllowed) {
             status = false;
@@ -118,44 +180,21 @@ public class Battery extends Equipment {
         }
     }
 
-    public double getChargeCapacity(SystemParameters systemParameters) {
-        // Backward-compatible name: return CHARGE POWER CAP (kW)
-        return getChargePowerCapKw(systemParameters);
-    }
-
-    public double getDischargeCapacity(SystemParameters systemParameters) {
-        // Backward-compatible name: return DISCHARGE POWER CAP (kW)
-        return getDischargePowerCapKw(systemParameters);
-    }
-
-    /**
-     * Максимальная мощность разряда (кВт) по ограничению тока (C-rate).
-     */
+    public double getChargeCapacity(SystemParameters systemParameters) { return getChargePowerCapKw(systemParameters); }
+    public double getDischargeCapacity(SystemParameters systemParameters) { return getDischargePowerCapKw(systemParameters); }
     public double getDischargePowerCapKw(SystemParameters systemParameters) {
         if (!isAvailableForUse()) return 0.0;
         return Math.max(0.0, maxCapacityKwh * systemParameters.getMaxDischargeCurrent());
     }
-
-    /**
-     * Максимальная мощность заряда (кВт) по ограничению тока (C-rate).
-     */
     public double getChargePowerCapKw(SystemParameters systemParameters) {
         if (!isAvailableForUse()) return 0.0;
         return Math.max(0.0, maxCapacityKwh * systemParameters.getMaxChargeCurrent());
     }
-
-    /**
-     * Доступная энергия разряда (кВт·ч) выше заданного SOC floor.
-     */
     public double getAvailableDischargeEnergyKwhAbove(double socFloor) {
         if (!isAvailableForUse()) return 0.0;
         double usableSoc = Math.max(0.0, soc - socFloor);
         return usableSoc * maxCapacityKwh * SimulationConstants.BATTERY_EFFICIENCY;
     }
-
-    /**
-     * Доступная энергия заряда (кВт·ч со стороны сети) до заданного SOC ceiling.
-     */
     public double getAvailableChargeEnergyKwhBelow(double socCeil) {
         if (!isAvailableForUse()) return 0.0;
         double headroomSoc = Math.max(0.0, socCeil - soc);
@@ -163,85 +202,39 @@ public class Battery extends Equipment {
         return headroomSoc * maxCapacityKwh / eff;
     }
 
-    /**
-     * Решение "можно ли разряжать ниже нерезервного уровня".
-     */
     public static boolean useBattery(SystemParameters systemParameters, Battery battery,
                                      double deficitKwh, double canDischargeKwh) {
         double socAfterDischarge = (canDischargeKwh - deficitKwh) / battery.getMaxCapacityKwh();
-        double minSocAllowed = systemParameters.getNonReserveDischargeLevel();
+        double minSocAllowed = battery.getEffectiveNonReserveDischargeLevel(systemParameters);
         return socAfterDischarge > minSocAllowed;
     }
 
-    /**
-     * energyDelta: +заряд, -разряд (кВт·ч за шаг)
-     * current: мощность по модулю/со знаком (кВт)
-     * doubleTime: флаг "короткого мостика"
-     * considerDegradation: учитывать ли деградацию
-     */
-    public void adjustCapacity(Battery battery,
-                               double energyDelta,
-                               double current,
-                               boolean doubleTime,
-                               boolean considerDegradation) {
-
+    public void adjustCapacity(Battery battery, double energyDelta, double current, boolean doubleTime, boolean considerDegradation) {
         if (!isAvailableForUse()) return;
         if (maxCapacityKwh <= SimulationConstants.EPSILON) return;
-
         double prevSoc = soc;
-
-        // -------------------------
-        // 1) Обновление SOC с ограничениями
-        // -------------------------
         if (energyDelta > 0.0) {
-            // заряд
-            soc = Math.min(
-                    SimulationConstants.BATTERY_MAX_SOC,
-                    soc + (energyDelta / maxCapacityKwh) * SimulationConstants.BATTERY_EFFICIENCY
-            );
+            soc = Math.min(SimulationConstants.BATTERY_MAX_SOC, soc + (energyDelta / maxCapacityKwh) * SimulationConstants.BATTERY_EFFICIENCY);
         } else if (energyDelta < 0.0) {
-            // разряд
-            soc = Math.max(
-                    SimulationConstants.BATTERY_MIN_SOC,
-                    soc + (energyDelta / maxCapacityKwh) / SimulationConstants.BATTERY_EFFICIENCY
-            );
+            soc = Math.max(SimulationConstants.BATTERY_MIN_SOC, soc + (energyDelta / maxCapacityKwh) / SimulationConstants.BATTERY_EFFICIENCY);
         }
-
-        // -------------------------
-        // 2) Фактически прошедшая терминальная энергия после clamp по SOC
-        //    Это защищает от ложной деградации у полностью заряженной/разряженной АКБ.
-        // -------------------------
         double socDelta = soc - prevSoc;
         double effEnergyDelta;
-
         if (Math.abs(socDelta) <= SimulationConstants.EPSILON) {
             effEnergyDelta = 0.0;
         } else if (socDelta > 0.0) {
-            // заряд: socDelta = (E * eff) / C  =>  E = socDelta * C / eff
             effEnergyDelta = (socDelta * maxCapacityKwh) / SimulationConstants.BATTERY_EFFICIENCY;
         } else {
-            // разряд: socDelta = E / (C * eff)  =>  E = socDelta * C * eff
             effEnergyDelta = (socDelta * maxCapacityKwh) * SimulationConstants.BATTERY_EFFICIENCY;
         }
-
-        // -------------------------
-        // 3) Наработка: не более +1 за час
-        // -------------------------
         if (!doubleTime && Math.abs(effEnergyDelta) > 0.0005 * nominalCapacityKwh) {
             if (!workedCountedThisHour) {
                 battery.timeWorked++;
                 workedCountedThisHour = true;
             }
         }
-
-        // -------------------------
-        // 4) Цикловая деградация
-        // -------------------------
         if (considerDegradation && Math.abs(effEnergyDelta) > SimulationConstants.EPSILON) {
-
             int flowSign = (effEnergyDelta > 0.0) ? 1 : -1;
-
-            // Если направление изменилось — начинаем новый полуцикл
             if (lastFlowSign == 0) {
                 lastFlowSign = flowSign;
                 halfCycleStartSoc = prevSoc;
@@ -249,101 +242,44 @@ public class Battery extends Equipment {
                 halfCycleStartSoc = prevSoc;
                 lastFlowSign = flowSign;
             }
-
-            // 4.1 Базовый EFC: учитываем и заряд, и разряд
             double dEfcBase = Math.abs(effEnergyDelta) / (2.0 * nominalCapacityKwh);
-
-            // 4.2 C-rate
-            // Берём по модулю мощности; если current пришёл 0, используем энергию за шаг как fallback
             double powerKw = Math.abs(current);
-            if (powerKw <= SimulationConstants.EPSILON) {
-                powerKw = Math.abs(effEnergyDelta); // при шаге 1 час это эквивалентно средней мощности
-            }
-
-            // Нормируем на паспортную ёмкость, чтобы калибровка не "уплывала" при деградации
+            if (powerKw <= SimulationConstants.EPSILON) powerKw = Math.abs(effEnergyDelta);
             double cRate = powerKw / Math.max(nominalCapacityKwh, SimulationConstants.EPSILON);
-
-            // ВАЖНО:
-            // C-rate не может смягчать деградацию: только 1.0 или больше
-            double cRateFactor = Math.max(
-                    0.1,
-                    Math.pow(
-                            cRate / SimulationConstants.BATTERY_DEG_CRATE_REF,
-                            SimulationConstants.BATTERY_DEG_H
-                    )
-            );
-
-
-            // 4.3 DoD текущего полуцикла
-            double dod = Math.abs(soc - halfCycleStartSoc);
-            dod = clamp01(dod);
-
-            // DoD тоже не может смягчать деградацию: только 1.0 или больше
-            double dodFactor = Math.max(
-                    0.1,
-                    Math.pow(
-                            dod / SimulationConstants.BATTERY_DEG_DOD_REF,
-                            SimulationConstants.BATTERY_DEG_M
-                    )
-            );
-
-            // 4.4 Эффективный EFC
+            double cRateFactor = Math.max(0.1, Math.pow(cRate / SimulationConstants.BATTERY_DEG_CRATE_REF, SimulationConstants.BATTERY_DEG_H));
+            double dod = clamp01(Math.abs(soc - halfCycleStartSoc));
+            double dodFactor = Math.max(0.1, Math.pow(dod / SimulationConstants.BATTERY_DEG_DOD_REF, SimulationConstants.BATTERY_DEG_M));
             double dEfcEff = dEfcBase * cRateFactor * dodFactor;
-
             double efcPrev = efcEff;
             double efcNew = efcPrev + dEfcEff;
             efcEff = efcNew;
-
-            // 4.5 Кумулятивная power-law деградация
-            double lossPrevFrac = SimulationConstants.BATTERY_DEG_K
-                    * Math.pow(Math.max(0.0, efcPrev), SimulationConstants.BATTERY_DEG_Z);
-
-            double lossNewFrac = SimulationConstants.BATTERY_DEG_K
-                    * Math.pow(Math.max(0.0, efcNew), SimulationConstants.BATTERY_DEG_Z);
-
+            double lossPrevFrac = SimulationConstants.BATTERY_DEG_K * Math.pow(Math.max(0.0, efcPrev), SimulationConstants.BATTERY_DEG_Z);
+            double lossNewFrac = SimulationConstants.BATTERY_DEG_K * Math.pow(Math.max(0.0, efcNew), SimulationConstants.BATTERY_DEG_Z);
             double dLossFrac = Math.max(0.0, lossNewFrac - lossPrevFrac);
-
-            // Потеря ёмкости от паспортной базы
-            double lossKwh = nominalCapacityKwh * dLossFrac;
-            applyCapacityLossKwh(lossKwh);
+            applyCapacityLossKwh(nominalCapacityKwh * dLossFrac);
         }
     }
 
     private void applyCapacityLossKwh(double lossKwh) {
         if (lossKwh <= 0.0) return;
         maxCapacityKwh = Math.max(0.0, maxCapacityKwh - lossKwh);
-
-        // После уменьшения maxCapacityKwh текущий SOC должен остаться в допустимых границах
-        soc = clamp01(soc);
-        if (soc < SimulationConstants.BATTERY_MIN_SOC) {
-            soc = SimulationConstants.BATTERY_MIN_SOC;
-        }
-        if (soc > SimulationConstants.BATTERY_MAX_SOC) {
-            soc = SimulationConstants.BATTERY_MAX_SOC;
-        }
-    }
-
-    private static double clamp01(double v) {
-        if (v < 0.0) return 0.0;
-        if (v > 1.0) return 1.0;
-        return v;
+        soc = clampRange(soc, SimulationConstants.BATTERY_MIN_SOC, SimulationConstants.BATTERY_MAX_SOC);
     }
 
     public void selfDischargeOneHour() {
         if (!isAvailableForUse()) return;
-
         double lossKwh = nominalCapacityKwh * SimulationConstants.BATTERY_SELF_DISCHARGE_PER_HOUR;
         if (lossKwh <= 0.0) return;
-
         double storedKwh = soc * maxCapacityKwh;
         storedKwh = Math.max(0.0, storedKwh - lossKwh);
-
-        if (maxCapacityKwh > SimulationConstants.EPSILON) {
-            soc = storedKwh / maxCapacityKwh;
-        } else {
-            soc = 0.0;
-        }
-
+        soc = (maxCapacityKwh > SimulationConstants.EPSILON) ? (storedKwh / maxCapacityKwh) : 0.0;
         soc = clamp01(soc);
+    }
+
+    private static double clamp01(double v) { return clampRange(v, 0.0, 1.0); }
+    private static double clampRange(double v, double lo, double hi) {
+        if (v < lo) return lo;
+        if (v > hi) return hi;
+        return v;
     }
 }

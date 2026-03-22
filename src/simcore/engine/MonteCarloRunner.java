@@ -139,6 +139,7 @@ public final class MonteCarloRunner {
 
             SingleRunMetrics singleRun = (m.trace != null) ? new SingleRunMetrics(m.trace) : null;
 
+            boolean adaptiveMode = input.getSystemParameters().isBtUseAdaptiveNonReserveDischargeLevel();
             return new MonteCarloEstimate(
                     theta,
                     m.economyDrivers,
@@ -170,7 +171,9 @@ public final class MonteCarloRunner {
                     (double) m.ensEventsMaxHours,
                     (double) m.loleHours,
                     m.lolp,
-                    m.lpsp
+                    m.lpsp,
+                    adaptiveMode ? m.adaptiveNonReserveLevelMean : Double.NaN,
+                    adaptiveMode ? m.adaptiveNonReserveLevelMedian : Double.NaN
             );
         }
 
@@ -232,6 +235,8 @@ public final class MonteCarloRunner {
         double loleHoursSum = 0.0;
         double lolpSum = 0.0;
         double lpspSum = 0.0;
+        double adaptiveMeanSum = 0.0;
+        double adaptiveMedianSum = 0.0;
 
         for (Future<ChunkAgg> f : futures) {
             ChunkAgg a = f.get();
@@ -290,6 +295,8 @@ public final class MonteCarloRunner {
             loleHoursSum += a.loleHoursSum;
             lolpSum += a.lolpSum;
             lpspSum += a.lpspSum;
+            adaptiveMeanSum += a.adaptiveMeanSum;
+            adaptiveMedianSum += a.adaptiveMedianSum;
 
 
             System.arraycopy(a.ens, 0, ens, a.ensOffset, a.ens.length);
@@ -328,6 +335,7 @@ public final class MonteCarloRunner {
         }
 
 
+        boolean adaptiveMode = input.getSystemParameters().isBtUseAdaptiveNonReserveDischargeLevel();
         return new MonteCarloEstimate(
                 theta,
                 meanEconomyDrivers,
@@ -359,7 +367,9 @@ public final class MonteCarloRunner {
                 ensEvtMaxHoursSum * inv,
                 loleHoursSum * inv,
                 lolpSum * inv,
-                lpspSum * inv
+                lpspSum * inv,
+                adaptiveMode ? adaptiveMeanSum * inv : Double.NaN,
+                adaptiveMode ? adaptiveMedianSum * inv : Double.NaN
         );
 
     }
@@ -430,6 +440,7 @@ public final class MonteCarloRunner {
             );
         }
 
+        boolean adaptiveMode = input.getSystemParameters().isBtUseAdaptiveNonReserveDischargeLevel();
         return new MonteCarloEstimate(
                 theta,
                 meanEconomyDrivers,
@@ -461,7 +472,9 @@ public final class MonteCarloRunner {
                 a.ensEvtMaxHoursSum * inv,
                 a.loleHoursSum * inv,
                 a.lolpSum * inv,
-                a.lpspSum * inv
+                a.lpspSum * inv,
+                adaptiveMode ? a.adaptiveMeanSum * inv : Double.NaN,
+                adaptiveMode ? a.adaptiveMedianSum * inv : Double.NaN
         );
     }
 
@@ -511,6 +524,8 @@ public final class MonteCarloRunner {
         double loleHoursSum = 0.0;
         double lolpSum = 0.0;
         double lpspSum = 0.0;
+        double adaptiveMeanSum = 0.0;
+        double adaptiveMedianSum = 0.0;
 
         // ===== Economy drivers aggregation (IMPORTANT) =====
         EconomyDrivers firstDriversLocal = null;
@@ -586,6 +601,8 @@ public final class MonteCarloRunner {
             loleHoursSum += (double) m.loleHours;
             lolpSum += m.lolp;
             lpspSum += m.lpsp;
+            adaptiveMeanSum += Double.isFinite(m.adaptiveNonReserveLevelMean) ? m.adaptiveNonReserveLevelMean : 0.0;
+            adaptiveMedianSum += Double.isFinite(m.adaptiveNonReserveLevelMedian) ? m.adaptiveNonReserveLevelMedian : 0.0;
         }
 
         // ===== IMPORTANT: return FULL ChunkAgg with drivers =====
@@ -619,6 +636,8 @@ public final class MonteCarloRunner {
                 loleHoursSum,
                 lolpSum,
                 lpspSum,
+                adaptiveMeanSum,
+                adaptiveMedianSum,
                 firstDriversLocal,
                 servedSumByYearLocal,
                 fuelSumByYearLocal,
@@ -673,6 +692,8 @@ public final class MonteCarloRunner {
         final double loleHoursSum;
         final double lolpSum;
         final double lpspSum;
+        final double adaptiveMeanSum;
+        final double adaptiveMedianSum;
 
         ChunkAgg(int ensOffset,
                  double[] ens,
@@ -703,6 +724,8 @@ public final class MonteCarloRunner {
                  double loleHoursSum,
                  double lolpSum,
                  double lpspSum,
+                 double adaptiveMeanSum,
+                 double adaptiveMedianSum,
                  EconomyDrivers firstDrivers,
                  double[] servedSumByYear,
                  double[] fuelSumByYear,
@@ -752,6 +775,8 @@ public final class MonteCarloRunner {
             this.loleHoursSum = loleHoursSum;
             this.lolpSum = lolpSum;
             this.lpspSum = lpspSum;
+            this.adaptiveMeanSum = adaptiveMeanSum;
+            this.adaptiveMedianSum = adaptiveMedianSum;
         }
     }
 

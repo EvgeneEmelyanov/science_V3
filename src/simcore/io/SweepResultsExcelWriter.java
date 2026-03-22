@@ -159,6 +159,8 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "FailBt", headerStyle);
             c = writeHeader(hdr, c, "BtRepl", headerStyle);
             c = writeHeader(hdr, c, "FailBrk", headerStyle);
+            c = writeHeader(hdr, c, "BT_NR_ADAPT_MEAN", headerStyle);
+            c = writeHeader(hdr, c, "BT_NR_ADAPT_MEDIAN", headerStyle);
 
             final int m2 = (param2 == null) ? 0 : param2.length;
 
@@ -262,6 +264,8 @@ public final class SweepResultsExcelWriter {
                 writeNumber(rr, cc++, e.meanFailBt, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanRepBt, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanFailBrk, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanAdaptiveNonReserveLevel, centeredNumberStyle);
+                writeNumber(rr, cc++, e.medianAdaptiveNonReserveLevel, centeredNumberStyle);
             }
 
             // Autosize RAW columns except A (keep narrow A)
@@ -554,8 +558,11 @@ public final class SweepResultsExcelWriter {
 
     private static void writeNumber(Row row, int col, double value, CellStyle numStyle) {
         Cell cell = row.createCell(col);
-        // Store full value; display is controlled by Excel format (0.00, 0, 0.000E+00, etc.)
-        cell.setCellValue(value);
+        if (Double.isFinite(value)) {
+            cell.setCellValue(value);
+        } else {
+            cell.setBlank();
+        }
         cell.setCellStyle(numStyle);
     }
 

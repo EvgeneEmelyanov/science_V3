@@ -111,6 +111,7 @@ public final class SimulationTraceExporter {
                 }
 
                 writeHeaderCell(hdr, c++, "B" + bi + "_SOC", headerStyle);
+                writeHeaderCell(hdr, c++, "B" + bi + "_NRL", headerStyle);
 
                 if (DETAILED_OUTPUT) {
                     writeHeaderCell(hdr, c++, "B" + bi + "_H", headerStyle);
@@ -163,6 +164,7 @@ public final class SimulationTraceExporter {
                 }
 
                 double[] btSoc = rec.getBtActualSOC();
+                double[] btNrl = rec.getBtNonReserveDischargeLevel();
 
                 for (int b = 0; b < busCnt; b++) {
 
@@ -198,6 +200,7 @@ public final class SimulationTraceExporter {
                     }
 
                     writeNum1(row, cc++, btSoc[b], num1Style);
+                    writeNum1(row, cc++, btNrl[b], num1Style);
 
                     if (DETAILED_OUTPUT) {
                         writeNum1(row, cc++, btH[b], num1Style);

@@ -387,7 +387,7 @@ final class PerBusDispatcher {
 
             // ===== 0) Special case: BESS can cover the entire deficit for the whole hour (fuel-saving) =====
             if (btAvail && deficitAfterWindKw > SimulationConstants.EPSILON) {
-                double nonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
+                double nonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, bt.getEffectiveNonReserveDischargeLevel(ctx.sp));
                 double btCapKw0 = batteryMaxDischargeKw(bt, ctx);
                 double needKw0 = deficitAfterWindKw;
                 double needKwh0 = needKw0; // 1 hour
@@ -440,7 +440,7 @@ final class PerBusDispatcher {
             int nPlanned = Math.min(Math.max(0, nPlannedRaw), Math.max(0, nAvail));
 
             // ===== 2) Non-reserve BESS use: reduce DG count if possible =====
-            double socNonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
+            double socNonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, bt.getEffectiveNonReserveDischargeLevel(ctx.sp));
 
             int nPlannedReduced = nPlanned;
             if (btAvail && nAvail > 0) {

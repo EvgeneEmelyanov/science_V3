@@ -41,6 +41,7 @@ public class SimulationStepRecord {
     // Состояние АКБ
     private final double[] btActualCapacity;
     private final double[] btActualSOC;
+    private final double[] btNonReserveDischargeLevel;
 
     // Наработка АКБ (часы)
     private final double[] btTimeWorked;
@@ -66,6 +67,7 @@ public class SimulationStepRecord {
                                 boolean[][] dgInMaintenance,
                                 double[] btActualCapacity,
                                 double[] btActualSOC,
+                                double[] btNonReserveDischargeLevel,
                                 double[] btTimeWorked) {
 
         this.timeIndex = timeIndex;
@@ -94,6 +96,7 @@ public class SimulationStepRecord {
 
         this.btActualCapacity = btActualCapacity.clone();
         this.btActualSOC = btActualSOC.clone();
+        this.btNonReserveDischargeLevel = btNonReserveDischargeLevel.clone();
         this.btTimeWorked = btTimeWorked.clone();
     }
 
@@ -192,6 +195,10 @@ public class SimulationStepRecord {
 
     public double[] getBtActualSOC() {
         return btActualSOC.clone();
+    }
+
+    public double[] getBtNonReserveDischargeLevel() {
+        return btNonReserveDischargeLevel.clone();
     }
 
     public double[] getBtTimeWorked() {

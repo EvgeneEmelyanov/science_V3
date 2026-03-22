@@ -134,6 +134,15 @@ public class SystemParameters {
      * Допустимый уровень разряда не в целях резервирования
      */
     private final double nonReserveDischargeLevel;
+    private final boolean btUseAdaptiveNonReserveDischargeLevel;
+    private final double btAdaptiveReserveRiskWeight;
+    private final double btAdaptiveDeficitRiskWeight;
+    private final double btAdaptiveAccelerationRiskWeight;
+    private final double btAdaptiveReserveRiskScaleKw;
+    private final double btAdaptiveDeficitRiskScaleKw;
+    private final double btAdaptiveAccelerationRiskScaleKw;
+    private final double btAdaptiveAccelerationEmaAlpha;
+    private final double btAdaptiveRiskGain;
     private final double btGridFormingReserveShare;
 
     private final double idleReserveCoeff;
@@ -191,6 +200,15 @@ public class SystemParameters {
                             double maxChargeCurrent,
                             double maxDischargeCurrent,
                             double nonReserveDischargeLevel,
+                            boolean btUseAdaptiveNonReserveDischargeLevel,
+                            double btAdaptiveReserveRiskWeight,
+                            double btAdaptiveDeficitRiskWeight,
+                            double btAdaptiveAccelerationRiskWeight,
+                            double btAdaptiveReserveRiskScaleKw,
+                            double btAdaptiveDeficitRiskScaleKw,
+                            double btAdaptiveAccelerationRiskScaleKw,
+                            double btAdaptiveAccelerationEmaAlpha,
+                            double btAdaptiveRiskGain,
                             double btGridFormingReserveShare,
 
                             double windTurbineFailureRatePerYear,
@@ -236,6 +254,15 @@ public class SystemParameters {
         this.maxChargeCurrent = maxChargeCurrent;
         this.maxDischargeCurrent = maxDischargeCurrent;
         this.nonReserveDischargeLevel = nonReserveDischargeLevel;
+        this.btUseAdaptiveNonReserveDischargeLevel = btUseAdaptiveNonReserveDischargeLevel;
+        this.btAdaptiveReserveRiskWeight = btAdaptiveReserveRiskWeight;
+        this.btAdaptiveDeficitRiskWeight = btAdaptiveDeficitRiskWeight;
+        this.btAdaptiveAccelerationRiskWeight = btAdaptiveAccelerationRiskWeight;
+        this.btAdaptiveReserveRiskScaleKw = btAdaptiveReserveRiskScaleKw;
+        this.btAdaptiveDeficitRiskScaleKw = btAdaptiveDeficitRiskScaleKw;
+        this.btAdaptiveAccelerationRiskScaleKw = btAdaptiveAccelerationRiskScaleKw;
+        this.btAdaptiveAccelerationEmaAlpha = btAdaptiveAccelerationEmaAlpha;
+        this.btAdaptiveRiskGain = btAdaptiveRiskGain;
         this.btGridFormingReserveShare = btGridFormingReserveShare;
 
         this.windTurbineFailureRatePerYear = windTurbineFailureRatePerYear;
@@ -286,6 +313,15 @@ public class SystemParameters {
                 maxChargeCurrent,
                 maxDischargeCurrent,
                 nonReserveDischargeLevel,
+                btUseAdaptiveNonReserveDischargeLevel,
+                btAdaptiveReserveRiskWeight,
+                btAdaptiveDeficitRiskWeight,
+                btAdaptiveAccelerationRiskWeight,
+                btAdaptiveReserveRiskScaleKw,
+                btAdaptiveDeficitRiskScaleKw,
+                btAdaptiveAccelerationRiskScaleKw,
+                btAdaptiveAccelerationEmaAlpha,
+                btAdaptiveRiskGain,
                 btGridFormingReserveShare,
                 windTurbineFailureRatePerYear,
                 windTurbineRepairTimeHours,
@@ -367,6 +403,42 @@ public class SystemParameters {
 
     public double getNonReserveDischargeLevel() {
         return nonReserveDischargeLevel;
+    }
+
+    public boolean isBtUseAdaptiveNonReserveDischargeLevel() {
+        return btUseAdaptiveNonReserveDischargeLevel;
+    }
+
+    public double getBtAdaptiveReserveRiskWeight() {
+        return btAdaptiveReserveRiskWeight;
+    }
+
+    public double getBtAdaptiveDeficitRiskWeight() {
+        return btAdaptiveDeficitRiskWeight;
+    }
+
+    public double getBtAdaptiveAccelerationRiskWeight() {
+        return btAdaptiveAccelerationRiskWeight;
+    }
+
+    public double getBtAdaptiveReserveRiskScaleKw() {
+        return btAdaptiveReserveRiskScaleKw;
+    }
+
+    public double getBtAdaptiveDeficitRiskScaleKw() {
+        return btAdaptiveDeficitRiskScaleKw;
+    }
+
+    public double getBtAdaptiveAccelerationRiskScaleKw() {
+        return btAdaptiveAccelerationRiskScaleKw;
+    }
+
+    public double getBtAdaptiveAccelerationEmaAlpha() {
+        return btAdaptiveAccelerationEmaAlpha;
+    }
+
+    public double getBtAdaptiveRiskGain() {
+        return btAdaptiveRiskGain;
     }
 
     public double getBtGridFormingReserveShare() {

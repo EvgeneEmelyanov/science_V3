@@ -74,7 +74,8 @@ public final class MonteCarloEstimate {
     public final double meanLoleHours;
     public final double meanLolp;
     public final double meanLpsp;
-
+    public final double meanAdaptiveNonReserveLevel;
+    public final double medianAdaptiveNonReserveLevel;
 
     public MonteCarloEstimate(ParameterSet theta,
                               EconomyDrivers economyDrivers,
@@ -106,7 +107,9 @@ public final class MonteCarloEstimate {
                               double meanEnsEventsMaxHours,
                               double meanLoleHours,
                               double meanLolp,
-                              double meanLpsp
+                              double meanLpsp,
+                              double meanAdaptiveNonReserveLevel,
+                              double medianAdaptiveNonReserveLevel
     ) {
         this.theta = theta;
         this.economyDrivers = economyDrivers;
@@ -141,5 +144,7 @@ public final class MonteCarloEstimate {
         this.meanLoleHours = meanLoleHours;
         this.meanLolp = meanLolp;
         this.meanLpsp = meanLpsp;
+        this.meanAdaptiveNonReserveLevel = meanAdaptiveNonReserveLevel;
+        this.medianAdaptiveNonReserveLevel = medianAdaptiveNonReserveLevel;
     }
 }

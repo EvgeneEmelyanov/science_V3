@@ -21,6 +21,15 @@ public class SystemParametersBuilder {
     private double maxChargeCurrent;
     private double maxDischargeCurrent;
     private double nonReserveDischargeLevel;
+    private boolean btUseAdaptiveNonReserveDischargeLevel;
+    private double btAdaptiveReserveRiskWeight;
+    private double btAdaptiveDeficitRiskWeight;
+    private double btAdaptiveAccelerationRiskWeight;
+    private double btAdaptiveReserveRiskScaleKw;
+    private double btAdaptiveDeficitRiskScaleKw;
+    private double btAdaptiveAccelerationRiskScaleKw;
+    private double btAdaptiveAccelerationEmaAlpha;
+    private double btAdaptiveRiskGain;
     private double btGridFormingReserveShare;
 
 
@@ -83,6 +92,15 @@ public class SystemParametersBuilder {
         b.maxChargeCurrent = base.getMaxChargeCurrent();
         b.maxDischargeCurrent = base.getMaxDischargeCurrent();
         b.nonReserveDischargeLevel = base.getNonReserveDischargeLevel();
+        b.btUseAdaptiveNonReserveDischargeLevel = base.isBtUseAdaptiveNonReserveDischargeLevel();
+        b.btAdaptiveReserveRiskWeight = base.getBtAdaptiveReserveRiskWeight();
+        b.btAdaptiveDeficitRiskWeight = base.getBtAdaptiveDeficitRiskWeight();
+        b.btAdaptiveAccelerationRiskWeight = base.getBtAdaptiveAccelerationRiskWeight();
+        b.btAdaptiveReserveRiskScaleKw = base.getBtAdaptiveReserveRiskScaleKw();
+        b.btAdaptiveDeficitRiskScaleKw = base.getBtAdaptiveDeficitRiskScaleKw();
+        b.btAdaptiveAccelerationRiskScaleKw = base.getBtAdaptiveAccelerationRiskScaleKw();
+        b.btAdaptiveAccelerationEmaAlpha = base.getBtAdaptiveAccelerationEmaAlpha();
+        b.btAdaptiveRiskGain = base.getBtAdaptiveRiskGain();
         b.btGridFormingReserveShare = base.getBtGridFormingReserveShare();
         b.idleReserveCoeff = base.getIdleReserveCoeff();
         b.rotationReserveCoeff = base.getRotationReserveCoeff();
@@ -131,6 +149,15 @@ public class SystemParametersBuilder {
                 maxChargeCurrent,
                 maxDischargeCurrent,
                 nonReserveDischargeLevel,
+                btUseAdaptiveNonReserveDischargeLevel,
+                btAdaptiveReserveRiskWeight,
+                btAdaptiveDeficitRiskWeight,
+                btAdaptiveAccelerationRiskWeight,
+                btAdaptiveReserveRiskScaleKw,
+                btAdaptiveDeficitRiskScaleKw,
+                btAdaptiveAccelerationRiskScaleKw,
+                btAdaptiveAccelerationEmaAlpha,
+                btAdaptiveRiskGain,
                 btGridFormingReserveShare,
 
                 windTurbineFailureRatePerYear,
@@ -264,6 +291,87 @@ public class SystemParametersBuilder {
 
     public SystemParametersBuilder setNonReserveDischargeLevel(double nonReserveDischargeLevel) {
         this.nonReserveDischargeLevel = nonReserveDischargeLevel;
+        return this;
+    }
+
+    public boolean isBtUseAdaptiveNonReserveDischargeLevel() {
+        return btUseAdaptiveNonReserveDischargeLevel;
+    }
+
+    public SystemParametersBuilder setBtUseAdaptiveNonReserveDischargeLevel(boolean btUseAdaptiveNonReserveDischargeLevel) {
+        this.btUseAdaptiveNonReserveDischargeLevel = btUseAdaptiveNonReserveDischargeLevel;
+        return this;
+    }
+
+    public double getBtAdaptiveReserveRiskWeight() {
+        return btAdaptiveReserveRiskWeight;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveReserveRiskWeight(double v) {
+        this.btAdaptiveReserveRiskWeight = v;
+        return this;
+    }
+
+    public double getBtAdaptiveDeficitRiskWeight() {
+        return btAdaptiveDeficitRiskWeight;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveDeficitRiskWeight(double v) {
+        this.btAdaptiveDeficitRiskWeight = v;
+        return this;
+    }
+
+    public double getBtAdaptiveAccelerationRiskWeight() {
+        return btAdaptiveAccelerationRiskWeight;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveAccelerationRiskWeight(double v) {
+        this.btAdaptiveAccelerationRiskWeight = v;
+        return this;
+    }
+
+    public double getBtAdaptiveReserveRiskScaleKw() {
+        return btAdaptiveReserveRiskScaleKw;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveReserveRiskScaleKw(double v) {
+        this.btAdaptiveReserveRiskScaleKw = v;
+        return this;
+    }
+
+    public double getBtAdaptiveDeficitRiskScaleKw() {
+        return btAdaptiveDeficitRiskScaleKw;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveDeficitRiskScaleKw(double v) {
+        this.btAdaptiveDeficitRiskScaleKw = v;
+        return this;
+    }
+
+    public double getBtAdaptiveAccelerationRiskScaleKw() {
+        return btAdaptiveAccelerationRiskScaleKw;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveAccelerationRiskScaleKw(double v) {
+        this.btAdaptiveAccelerationRiskScaleKw = v;
+        return this;
+    }
+
+    public double getBtAdaptiveAccelerationEmaAlpha() {
+        return btAdaptiveAccelerationEmaAlpha;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveAccelerationEmaAlpha(double v) {
+        this.btAdaptiveAccelerationEmaAlpha = v;
+        return this;
+    }
+
+    public double getBtAdaptiveRiskGain() {
+        return btAdaptiveRiskGain;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveRiskGain(double v) {
+        this.btAdaptiveRiskGain = v;
         return this;
     }
 

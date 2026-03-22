@@ -18,6 +18,16 @@ public final class ModelDefaults {
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1; //0,6
     public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
     public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.6;
+
+    public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = true;
+    public static final double DEFAULT_BT_ADAPTIVE_RESERVE_RISK_WEIGHT = 0.45;
+    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_WEIGHT = 0.35;
+    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_WEIGHT = 0.20;
+    public static final double DEFAULT_BT_ADAPTIVE_RESERVE_RISK_SCALE_KW = DEFAULT_DG_POWER_KW;
+    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_SCALE_KW = DEFAULT_DG_POWER_KW;
+    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_SCALE_KW = DEFAULT_DG_POWER_KW * 0.5;
+    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_EMA_ALPHA = 0.35;
+    public static final double DEFAULT_BT_ADAPTIVE_RISK_GAIN = 0.40;
     public static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = 1;
 
     // Reliability (rates are double, repair times are int)

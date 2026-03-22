@@ -52,6 +52,8 @@ public final class SimulationMetrics {
     public final double lolp;
     /** LPSP, energy-based: ENS / Load. */
     public final double lpsp;
+    public final double adaptiveNonReserveLevelMean;
+    public final double adaptiveNonReserveLevelMedian;
 
     public SimulationMetrics(double loadKwh,
                              double ensKwh,
@@ -83,6 +85,8 @@ public final class SimulationMetrics {
                              double loleHours,
                              double lolp,
                              double lpsp,
+                             double adaptiveNonReserveLevelMean,
+                             double adaptiveNonReserveLevelMedian,
                              EconomyDrivers economyDrivers) {
         this.loadKwh = loadKwh;
         this.ensKwh = ensKwh;
@@ -117,5 +121,7 @@ public final class SimulationMetrics {
         this.loleHours = loleHours;
         this.lolp = lolp;
         this.lpsp = lpsp;
+        this.adaptiveNonReserveLevelMean = adaptiveNonReserveLevelMean;
+        this.adaptiveNonReserveLevelMedian = adaptiveNonReserveLevelMedian;
     }
 }

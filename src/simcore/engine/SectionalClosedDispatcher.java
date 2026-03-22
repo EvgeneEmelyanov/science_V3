@@ -242,7 +242,13 @@ final class SectionalClosedDispatcher {
                 // ===== Non-reserve BESS use: try to reduce DG count for fuel saving =====
                 // Effective SOC floor is MIN_SOC + nonReserveAdd.
                 // Non-reserve floor is ABSOLUTE (>= max(SOC_MIN, nonReserveLevel)).
-                final double socNonReserveFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC, ctx.sp.getNonReserveDischargeLevel());
+                final double socNonReserveFloor = Math.max(
+                        SimulationConstants.BATTERY_MIN_SOC,
+                        Math.max(
+                                bt0Avail ? bt0.getEffectiveNonReserveDischargeLevel(ctx.sp) : SimulationConstants.BATTERY_MIN_SOC,
+                                bt1Avail ? bt1.getEffectiveNonReserveDischargeLevel(ctx.sp) : SimulationConstants.BATTERY_MIN_SOC
+                        )
+                );
 
                 if ((bt0Avail || bt1Avail) && dgToUse > 1) {
                     while (dgToUse > 1) {
