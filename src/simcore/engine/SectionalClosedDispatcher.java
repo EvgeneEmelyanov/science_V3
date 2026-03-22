@@ -114,6 +114,8 @@ final class SectionalClosedDispatcher {
         Battery bt1 = b1.getBattery();
         boolean bt0Avail = bt0 != null && bt0.isAvailable();
         boolean bt1Avail = bt1 != null && bt1.isAvailable();
+        if (bt0 != null) bt0.setCurrentNonReserveDischargeLevelForTrace(bt0.getEffectiveNonReserveDischargeLevel(ctx.sp));
+        if (bt1 != null) bt1.setCurrentNonReserveDischargeLevelForTrace(bt1.getEffectiveNonReserveDischargeLevel(ctx.sp));
 
 
 // ===== Battery discharge (sectional closed): use BESS only for the residual that DGs cannot cover
@@ -237,16 +239,15 @@ final class SectionalClosedDispatcher {
                         : (int) Math.ceil(deficitAfterWindBt / ctx.dgMaxKw);
 
                 final int dgCountPlanned = Math.min(needed, available);
+                final int naturalNeedDgCount = dgCountPlanned;
                 int dgToUse = dgCountPlanned;
 
                 // ===== Non-reserve BESS use: try to reduce DG count for fuel saving =====
-                // Effective SOC floor is MIN_SOC + nonReserveAdd.
-                // Non-reserve floor is ABSOLUTE (>= max(SOC_MIN, nonReserveLevel)).
-                final double socNonReserveFloor = Math.max(
+                double socNonReserveFloor = Math.max(
                         SimulationConstants.BATTERY_MIN_SOC,
                         Math.max(
-                                bt0Avail ? bt0.getEffectiveNonReserveDischargeLevel(ctx.sp) : SimulationConstants.BATTERY_MIN_SOC,
-                                bt1Avail ? bt1.getEffectiveNonReserveDischargeLevel(ctx.sp) : SimulationConstants.BATTERY_MIN_SOC
+                                bt0Avail ? bt0.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, dgToUse) : SimulationConstants.BATTERY_MIN_SOC,
+                                bt1Avail ? bt1.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, dgToUse) : SimulationConstants.BATTERY_MIN_SOC
                         )
                 );
 
@@ -263,16 +264,28 @@ final class SectionalClosedDispatcher {
                                 + (bt1Avail ? bt1.getDischargePowerCapKw(ctx.sp) : 0.0);
                         if (btCapKw + SimulationConstants.EPSILON < needFromBtKw) break;
 
+                        double candFloor = Math.max(
+                                SimulationConstants.BATTERY_MIN_SOC,
+                                Math.max(
+                                        bt0Avail ? bt0.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, cand) : SimulationConstants.BATTERY_MIN_SOC,
+                                        bt1Avail ? bt1.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, cand) : SimulationConstants.BATTERY_MIN_SOC
+                                )
+                        );
+
                         double btEnergyKwh = 0.0;
-                        if (bt0Avail) btEnergyKwh += Math.max(0.0, (bt0.getStateOfCharge() - socNonReserveFloor))
+                        if (bt0Avail) btEnergyKwh += Math.max(0.0, (bt0.getStateOfCharge() - candFloor))
                                 * bt0.getMaxCapacityKwh() * SimulationConstants.BATTERY_EFFICIENCY;
-                        if (bt1Avail) btEnergyKwh += Math.max(0.0, (bt1.getStateOfCharge() - socNonReserveFloor))
+                        if (bt1Avail) btEnergyKwh += Math.max(0.0, (bt1.getStateOfCharge() - candFloor))
                                 * bt1.getMaxCapacityKwh() * SimulationConstants.BATTERY_EFFICIENCY;
 
                         if (btEnergyKwh + SimulationConstants.EPSILON < needFromBtKw) break; // duration=1h
+                        socNonReserveFloor = candFloor;
                         dgToUse = cand;
                     }
                 }
+
+                if (bt0Avail) bt0.setCurrentNonReserveDischargeLevelForTrace(socNonReserveFloor);
+                if (bt1Avail) bt1.setCurrentNonReserveDischargeLevelForTrace(socNonReserveFloor);
 
                 final boolean maintenanceStartedThisHour = DieselGenerator.isMaintenanceStartedThisHour(dgs);
 

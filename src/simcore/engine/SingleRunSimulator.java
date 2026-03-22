@@ -99,6 +99,16 @@ public final class SingleRunSimulator {
         return windPotKw + dgMaxAvgKw + btMaxAvgKw;
     }
 
+    private static int countRunningDgs(PowerBus bus) {
+        if (bus == null) return 0;
+        int count = 0;
+        for (DieselGenerator dg : bus.getDieselGenerators()) {
+            if (dg == null || !dg.isAvailable()) continue;
+            if (dg.getCurrentLoad() > SimulationConstants.EPSILON || dg.isWorking()) count++;
+        }
+        return count;
+    }
+
     public SimulationMetrics simulate(SimInput input, long seed, boolean traceEnabled) {
 
         final SimulationConfig config = input.getConfig();
@@ -234,10 +244,9 @@ public final class SingleRunSimulator {
         final int[] outageHours = new int[busCount];
         final double[] prevAdaptiveLoadKw = new double[busCount];
         final double[] prevAdaptiveWindKw = new double[busCount];
-        final double[] prevAdaptiveAvailDgKw = new double[busCount];
+        final int[] prevAdaptiveRunningDgCount = new int[busCount];
         java.util.Arrays.fill(prevAdaptiveLoadKw, Double.NaN);
         java.util.Arrays.fill(prevAdaptiveWindKw, Double.NaN);
-        java.util.Arrays.fill(prevAdaptiveAvailDgKw, Double.NaN);
 
         // DOUBLE_BUS: если МШВ не работает, то перенос II/III и генерации выполняется в следующий час.
         int pendingDoubleBusTransferFrom = -1;
@@ -333,7 +342,7 @@ public final class SingleRunSimulator {
                             sp,
                             prevAdaptiveLoadKw[b],
                             prevAdaptiveWindKw[b],
-                            prevAdaptiveAvailDgKw[b]
+                            prevAdaptiveRunningDgCount[b]
                     );
                 }
             }
@@ -487,11 +496,11 @@ public final class SingleRunSimulator {
 
             final double[] adaptiveLoadKwNow = new double[busCount];
             final double[] adaptiveWindKwNow = new double[busCount];
-            final double[] adaptiveAvailDgKwNow = new double[busCount];
+            final int[] adaptiveRunningDgCountNow = new int[busCount];
             for (int b = 0; b < busCount; b++) {
                 adaptiveLoadKwNow[b] = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
                 adaptiveWindKwNow[b] = computeWindPotential(buses.get(b), windV);
-                adaptiveAvailDgKwNow[b] = computeAvailableDgPowerKw(buses.get(b), sp);
+                adaptiveRunningDgCountNow[b] = countRunningDgs(buses.get(b));
             }
 
             if (sectionalClosedThisHour) {
@@ -588,7 +597,7 @@ public final class SingleRunSimulator {
                 for (int b = 0; b < busCount; b++) {
                     prevAdaptiveLoadKw[b] = adaptiveLoadKwNow[b];
                     prevAdaptiveWindKw[b] = adaptiveWindKwNow[b];
-                    prevAdaptiveAvailDgKw[b] = adaptiveAvailDgKwNow[b];
+                    prevAdaptiveRunningDgCount[b] = adaptiveRunningDgCountNow[b];
                 }
 
                 if (!computeEconomyDrivers) {

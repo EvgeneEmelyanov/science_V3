@@ -445,6 +445,35 @@ public class SystemParameters {
         return btGridFormingReserveShare;
     }
 
+    // ----- Алиасы с новой семантикой adaptive non-reserve -----
+    public double getBtAdaptiveReplacementWeight() {
+        return btAdaptiveReserveRiskWeight;
+    }
+
+    public double getBtAdaptiveTrendWeight() {
+        return btAdaptiveDeficitRiskWeight;
+    }
+
+    public double getBtAdaptiveAccelerationWeight() {
+        return btAdaptiveAccelerationRiskWeight;
+    }
+
+    public double getBtAdaptiveTrendScaleKw() {
+        return btAdaptiveReserveRiskScaleKw;
+    }
+
+    public double getBtAdaptiveAccelerationScaleKw() {
+        return btAdaptiveDeficitRiskScaleKw;
+    }
+
+    public double getBtAdaptiveNoDgPrevHourBonus() {
+        return Math.max(0.0, btAdaptiveAccelerationRiskScaleKw);
+    }
+
+    public double getBtAdaptiveReplacementExponent() {
+        return btAdaptiveRiskGain;
+    }
+
     public double getWindTurbineFailureRatePerYear() {
         return windTurbineFailureRatePerYear;
     }

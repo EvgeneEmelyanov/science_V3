@@ -25,16 +25,28 @@ public class Battery extends Equipment {
     private double halfCycleStartSoc;
     private int lastFlowSign = 0;
 
+    /**
+     * Для trace храним тот non-reserve floor, который реально использовался/был активен в текущем часу.
+     */
     private double currentNonReserveDischargeLevel = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
+
     private Double prevLoadT1Kw;
     private Double prevLoadT2Kw;
     private Double prevWindT1Kw;
     private Double prevWindT2Kw;
-    private Double prevAvailableDgPowerT1Kw;
+    private int prevRunningDgCountT1 = 0;
+    private boolean hasPrevRunningDgCountT1 = false;
+
     private double previousTrendKw = 0.0;
     private boolean hasPreviousTrend = false;
     private double emaAccelerationKw = 0.0;
     private boolean hasAccelerationEma = false;
+
+    /**
+     * Базовый adaptive floor на текущий час БЕЗ поправки за конкретную глубину замещения ДГУ.
+     */
+    private double currentAdaptiveBaseNonReserveLevel = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
+
     private final List<Double> adaptiveLevelHistory = new ArrayList<>();
 
     public Battery(int id, double capacityKwh, double failureRatePerYear, int repairTimeHours) {
@@ -54,8 +66,12 @@ public class Battery extends Equipment {
 
     public double getEffectiveNonReserveDischargeLevel(SystemParameters sp) {
         return sp.isBtUseAdaptiveNonReserveDischargeLevel()
-                ? currentNonReserveDischargeLevel
+                ? currentAdaptiveBaseNonReserveLevel
                 : clampRange(sp.getNonReserveDischargeLevel(), SimulationConstants.BATTERY_MIN_SOC, 1.0);
+    }
+
+    public void setCurrentNonReserveDischargeLevelForTrace(double level) {
+        this.currentNonReserveDischargeLevel = clampRange(level, SimulationConstants.BATTERY_MIN_SOC, 1.0);
     }
 
     public boolean hasAdaptiveLevelHistory() { return !adaptiveLevelHistory.isEmpty(); }
@@ -74,28 +90,30 @@ public class Battery extends Equipment {
         return (n % 2 == 1) ? copy.get(n / 2) : 0.5 * (copy.get(n / 2 - 1) + copy.get(n / 2));
     }
 
+    /**
+     * Обновление базового adaptive floor в начале часа по данным только предыдущих часов.
+     */
     public void updateAdaptiveNonReserveDischargeLevel(SystemParameters sp,
                                                        double previousLoadKw,
                                                        double previousWindKw,
-                                                       double previousAvailableDgPowerKw) {
-        shiftAdaptiveHistory(previousLoadKw, previousWindKw, previousAvailableDgPowerKw);
+                                                       int previousRunningDgCount) {
+        shiftAdaptiveHistory(previousLoadKw, previousWindKw, previousRunningDgCount);
 
         double fixed = clampRange(sp.getNonReserveDischargeLevel(), SimulationConstants.BATTERY_MIN_SOC, 1.0);
+        currentAdaptiveBaseNonReserveLevel = fixed;
+        currentNonReserveDischargeLevel = fixed;
+
         if (!sp.isBtUseAdaptiveNonReserveDischargeLevel()) {
-            currentNonReserveDischargeLevel = fixed;
             return;
         }
 
-        if (prevLoadT1Kw == null || prevWindT1Kw == null || prevAvailableDgPowerT1Kw == null
-                || prevLoadT2Kw == null || prevWindT2Kw == null) {
-            currentNonReserveDischargeLevel = fixed;
-            adaptiveLevelHistory.add(currentNonReserveDischargeLevel);
+        if (prevLoadT1Kw == null || prevWindT1Kw == null || prevLoadT2Kw == null || prevWindT2Kw == null) {
+            adaptiveLevelHistory.add(currentAdaptiveBaseNonReserveLevel);
             return;
         }
 
         double deltaT1 = prevLoadT1Kw - prevWindT1Kw;
         double deltaT2 = prevLoadT2Kw - prevWindT2Kw;
-        double dgReserve = prevAvailableDgPowerT1Kw - deltaT1;
         double trendNow = deltaT1 - deltaT2;
         double accelerationRaw = hasPreviousTrend ? (trendNow - previousTrendKw) : 0.0;
         previousTrendKw = trendNow;
@@ -109,39 +127,63 @@ public class Battery extends Equipment {
             emaAccelerationKw = alpha * accelerationRaw + (1.0 - alpha) * emaAccelerationKw;
         }
 
-        double reserveRisk = riskFromLowReserve(dgReserve, sp.getBtAdaptiveReserveRiskScaleKw());
-        double deficitRisk = riskFromPositive(deltaT1, sp.getBtAdaptiveDeficitRiskScaleKw());
-        double accelerationRisk = riskFromPositive(Math.max(0.0, emaAccelerationKw), sp.getBtAdaptiveAccelerationRiskScaleKw());
+        double trendScale = Math.max(SimulationConstants.EPSILON, sp.getBtAdaptiveTrendScaleKw());
+        double accelerationScale = Math.max(SimulationConstants.EPSILON, sp.getBtAdaptiveAccelerationScaleKw());
 
-        double weightedRisk =
-                sp.getBtAdaptiveReserveRiskWeight() * reserveRisk
-                        + sp.getBtAdaptiveDeficitRiskWeight() * deficitRisk
-                        + sp.getBtAdaptiveAccelerationRiskWeight() * accelerationRisk;
+        double trendSignal = clampRange(trendNow / trendScale, -1.0, 1.0);
+        double accelerationSignal = clamp01(Math.max(0.0, emaAccelerationKw) / accelerationScale);
+        double noDgBonus = (hasPrevRunningDgCountT1 && prevRunningDgCountT1 == 0)
+                ? Math.max(0.0, sp.getBtAdaptiveNoDgPrevHourBonus())
+                : 0.0;
 
-        double candidate = fixed + sp.getBtAdaptiveRiskGain() * weightedRisk;
-        currentNonReserveDischargeLevel = clampRange(candidate, SimulationConstants.BATTERY_MIN_SOC, 1.0);
-        adaptiveLevelHistory.add(currentNonReserveDischargeLevel);
+        double candidate = fixed
+                + sp.getBtAdaptiveTrendWeight() * trendSignal
+                + sp.getBtAdaptiveAccelerationWeight() * accelerationSignal
+                - noDgBonus;
+
+        currentAdaptiveBaseNonReserveLevel = clampRange(candidate, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+        currentNonReserveDischargeLevel = currentAdaptiveBaseNonReserveLevel;
+        adaptiveLevelHistory.add(currentAdaptiveBaseNonReserveLevel);
     }
 
-    private void shiftAdaptiveHistory(double previousLoadKw, double previousWindKw, double previousAvailableDgPowerKw) {
-        if (!Double.isFinite(previousLoadKw) || !Double.isFinite(previousWindKw) || !Double.isFinite(previousAvailableDgPowerKw)) {
+    /**
+     * Получить floor для конкретного кандидата по числу оставляемых ДГУ.
+     * Чем агрессивнее сокращение дизельного состава, тем выше floor.
+     */
+    public double getAdaptiveNonReserveFloorForCandidate(SystemParameters sp,
+                                                         int naturalNeededDgCount,
+                                                         int candidateDgCount) {
+        double base = getEffectiveNonReserveDischargeLevel(sp);
+        if (!sp.isBtUseAdaptiveNonReserveDischargeLevel()) {
+            return clampRange(base, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+        }
+
+        int nNeed = Math.max(0, naturalNeededDgCount);
+        int nCand = Math.max(0, candidateDgCount);
+        if (nNeed <= 0 || nCand >= nNeed) {
+            return clampRange(base, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+        }
+
+        double replacementRatio = clamp01((double) (nNeed - nCand) / Math.max(1, nNeed));
+        double needFactor = ((double) nNeed) / (nNeed + 1.0);
+        double exponent = Math.max(1.0, sp.getBtAdaptiveReplacementExponent());
+
+        double candidate = base
+                + sp.getBtAdaptiveReplacementWeight() * needFactor * Math.pow(replacementRatio, exponent);
+
+        return clampRange(candidate, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+    }
+
+    private void shiftAdaptiveHistory(double previousLoadKw, double previousWindKw, int previousRunningDgCount) {
+        if (!Double.isFinite(previousLoadKw) || !Double.isFinite(previousWindKw)) {
             return;
         }
         prevLoadT2Kw = prevLoadT1Kw;
         prevWindT2Kw = prevWindT1Kw;
         prevLoadT1Kw = previousLoadKw;
         prevWindT1Kw = previousWindKw;
-        prevAvailableDgPowerT1Kw = previousAvailableDgPowerKw;
-    }
-
-    private static double riskFromLowReserve(double reserveKw, double scaleKw) {
-        double scale = Math.max(SimulationConstants.EPSILON, scaleKw);
-        return clamp01((scale - reserveKw) / scale);
-    }
-
-    private static double riskFromPositive(double valueKw, double scaleKw) {
-        double scale = Math.max(SimulationConstants.EPSILON, scaleKw);
-        return clamp01(Math.max(0.0, valueKw) / scale);
+        prevRunningDgCountT1 = Math.max(0, previousRunningDgCount);
+        hasPrevRunningDgCountT1 = true;
     }
 
     @Override
@@ -211,52 +253,67 @@ public class Battery extends Equipment {
 
     public void adjustCapacity(Battery battery, double energyDelta, double current, boolean doubleTime, boolean considerDegradation) {
         if (!isAvailableForUse()) return;
-        if (maxCapacityKwh <= SimulationConstants.EPSILON) return;
-        double prevSoc = soc;
-        if (energyDelta > 0.0) {
-            soc = Math.min(SimulationConstants.BATTERY_MAX_SOC, soc + (energyDelta / maxCapacityKwh) * SimulationConstants.BATTERY_EFFICIENCY);
-        } else if (energyDelta < 0.0) {
-            soc = Math.max(SimulationConstants.BATTERY_MIN_SOC, soc + (energyDelta / maxCapacityKwh) / SimulationConstants.BATTERY_EFFICIENCY);
+
+        if (!workedCountedThisHour && Math.abs(current) > SimulationConstants.EPSILON) {
+            addWorkTime(doubleTime ? 2 : 1);
+            workedCountedThisHour = true;
         }
-        double socDelta = soc - prevSoc;
-        double effEnergyDelta;
-        if (Math.abs(socDelta) <= SimulationConstants.EPSILON) {
-            effEnergyDelta = 0.0;
-        } else if (socDelta > 0.0) {
-            effEnergyDelta = (socDelta * maxCapacityKwh) / SimulationConstants.BATTERY_EFFICIENCY;
+
+        double eff = Math.max(SimulationConstants.EPSILON, SimulationConstants.BATTERY_EFFICIENCY);
+        double storedKwh = soc * maxCapacityKwh;
+        double newStoredKwh;
+
+        if (energyDelta >= 0.0) {
+            newStoredKwh = storedKwh + energyDelta * eff;
         } else {
-            effEnergyDelta = (socDelta * maxCapacityKwh) * SimulationConstants.BATTERY_EFFICIENCY;
+            newStoredKwh = storedKwh + energyDelta / eff;
         }
-        if (!doubleTime && Math.abs(effEnergyDelta) > 0.0005 * nominalCapacityKwh) {
-            if (!workedCountedThisHour) {
-                battery.timeWorked++;
-                workedCountedThisHour = true;
-            }
+        newStoredKwh = clampRange(newStoredKwh, 0.0, maxCapacityKwh);
+        soc = (maxCapacityKwh > SimulationConstants.EPSILON) ? (newStoredKwh / maxCapacityKwh) : 0.0;
+        soc = clamp01(soc);
+
+        if (!considerDegradation) return;
+        if (Math.abs(energyDelta) <= SimulationConstants.EPSILON) return;
+
+        int sign = (energyDelta > 0.0) ? +1 : -1;
+        if (lastFlowSign == 0) {
+            lastFlowSign = sign;
+            halfCycleStartSoc = soc;
+        } else if (sign != lastFlowSign) {
+            halfCycleStartSoc = soc;
+            lastFlowSign = sign;
         }
-        if (considerDegradation && Math.abs(effEnergyDelta) > SimulationConstants.EPSILON) {
-            int flowSign = (effEnergyDelta > 0.0) ? 1 : -1;
-            if (lastFlowSign == 0) {
-                lastFlowSign = flowSign;
-                halfCycleStartSoc = prevSoc;
-            } else if (flowSign != lastFlowSign) {
-                halfCycleStartSoc = prevSoc;
-                lastFlowSign = flowSign;
+
+        double cNom = Math.max(SimulationConstants.EPSILON, nominalCapacityKwh);
+        double dEfcBase = Math.abs(energyDelta) / (2.0 * cNom);
+
+        double cRate = Math.abs(current) / cNom;
+        double cRateFactor = Math.pow(
+                Math.max(1.0, cRate / Math.max(SimulationConstants.EPSILON, SimulationConstants.BATTERY_DEG_CRATE_REF)),
+                SimulationConstants.BATTERY_DEG_H
+        );
+
+        double dod = Math.abs(soc - halfCycleStartSoc);
+        double dodFactor = Math.pow(
+                Math.max(1.0, dod / Math.max(SimulationConstants.EPSILON, SimulationConstants.BATTERY_DEG_DOD_REF)),
+                SimulationConstants.BATTERY_DEG_M
+        );
+
+        double dEfcEff = dEfcBase * cRateFactor * dodFactor;
+        efcEff += dEfcEff;
+
+        double fracLoss = SimulationConstants.BATTERY_DEG_K * Math.pow(Math.max(0.0, efcEff), SimulationConstants.BATTERY_DEG_Z);
+        fracLoss = clampRange(fracLoss, 0.0, 1.0);
+        double targetCapacity = nominalCapacityKwh * (1.0 - fracLoss);
+
+        if (targetCapacity < maxCapacityKwh) {
+            maxCapacityKwh = targetCapacity;
+            double storedNow = soc * Math.max(maxCapacityKwh, 0.0);
+            if (maxCapacityKwh > SimulationConstants.EPSILON) {
+                soc = clampRange(storedNow / maxCapacityKwh, 0.0, 1.0);
+            } else {
+                soc = 0.0;
             }
-            double dEfcBase = Math.abs(effEnergyDelta) / (2.0 * nominalCapacityKwh);
-            double powerKw = Math.abs(current);
-            if (powerKw <= SimulationConstants.EPSILON) powerKw = Math.abs(effEnergyDelta);
-            double cRate = powerKw / Math.max(nominalCapacityKwh, SimulationConstants.EPSILON);
-            double cRateFactor = Math.max(0.1, Math.pow(cRate / SimulationConstants.BATTERY_DEG_CRATE_REF, SimulationConstants.BATTERY_DEG_H));
-            double dod = clamp01(Math.abs(soc - halfCycleStartSoc));
-            double dodFactor = Math.max(0.1, Math.pow(dod / SimulationConstants.BATTERY_DEG_DOD_REF, SimulationConstants.BATTERY_DEG_M));
-            double dEfcEff = dEfcBase * cRateFactor * dodFactor;
-            double efcPrev = efcEff;
-            double efcNew = efcPrev + dEfcEff;
-            efcEff = efcNew;
-            double lossPrevFrac = SimulationConstants.BATTERY_DEG_K * Math.pow(Math.max(0.0, efcPrev), SimulationConstants.BATTERY_DEG_Z);
-            double lossNewFrac = SimulationConstants.BATTERY_DEG_K * Math.pow(Math.max(0.0, efcNew), SimulationConstants.BATTERY_DEG_Z);
-            double dLossFrac = Math.max(0.0, lossNewFrac - lossPrevFrac);
-            applyCapacityLossKwh(nominalCapacityKwh * dLossFrac);
         }
     }
 
