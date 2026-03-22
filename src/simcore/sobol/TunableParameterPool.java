@@ -18,9 +18,9 @@ public final class TunableParameterPool {
 
     // Precomputed bounds (also used by coupled constraints)
     private static final double DG_COUNT_MIN = minFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 0.666666666667, 4);
-    private static final double DG_COUNT_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 1.33333333333, 8);
-    private static final double DG_POWER_MIN = minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.5, 225);
-    private static final double DG_POWER_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.5, 675);
+    private static final double DG_COUNT_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 1.33333333333, 10);
+    private static final double DG_POWER_MIN = minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.395, 150);
+    private static final double DG_POWER_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.985, 675);
 
     static {
         Map<TunableParamId, TunableParameter> m = new EnumMap<>(TunableParamId.class);
@@ -166,7 +166,7 @@ public final class TunableParameterPool {
                         TunableParamId.WT_COUNT,
                         "WT_COUNT",
                         minFromBase(ModelDefaults.DEFAULT_WT_COUNT_TOTAL, 0.5, 2),
-                        maxFromBase(ModelDefaults.DEFAULT_WT_COUNT_TOTAL, 2, 8),
+                        maxFromBase(ModelDefaults.DEFAULT_WT_COUNT_TOTAL, 2, 6),
                         (b, v) -> b.setTotalWindTurbineCount((int) Math.round(v))
                 ));
 
@@ -174,8 +174,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_POWER,
                         "WT_POWER",
-                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.5, 673),
-                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 1.5, 2019),
+                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.0, 0),
+                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 2, 1346),
                         SystemParametersBuilder::setWindTurbinePowerKw
                 ));
 
@@ -211,8 +211,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_CAPACITY_PER_BUS,
                         "BT_CAPACITY_PER_BUS",
-                        minFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 0.5, 336.5),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 1.5, 1009.5),
+                        minFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 0.0, 0),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_CAPACITY_KWH_PER_BUS, 2, 673),
                         SystemParametersBuilder::setBatteryCapacityKwhPerBus
                 ));
         m.put(TunableParamId.BT_MAX_CHARGE_CURRENT,
@@ -220,7 +220,7 @@ public final class TunableParameterPool {
                         TunableParamId.BT_MAX_CHARGE_CURRENT,
                         "BT_MAX_CHARGE_CURRENT",
                         minFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 0.5, 0.3),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 1.5, 0.9),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_MAX_CHARGE_CURRENT, 2, 1),
                         SystemParametersBuilder::setMaxChargeCurrent
                 ));
         m.put(TunableParamId.BT_MAX_DISCHARGE_CURRENT,
@@ -235,8 +235,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL,
                         "BT_NON_RESERVE_DISCHARGE_LVL",
-                        minFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 0.5, 0.3),
-                        maxFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 1.5, 0.9),
+                        minFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 0.3, 0.2),
+                        maxFromBase(ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL, 2, 1),
                         SystemParametersBuilder::setNonReserveDischargeLevel
                 ));
 

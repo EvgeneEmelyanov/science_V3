@@ -27,14 +27,14 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.RUN;
-        RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 250;
+        Task task = Task.SOBOL_HARD;
+        RunMode runMode = RunMode.SINGLE;
+        int mcIterations = 50;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 128;
+        int sobolN = 512;
 
         //        String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
@@ -260,31 +260,31 @@ public class Main {
         List<TunableParamId> ids = List.of(
 
                 // Группа по параметрам:
-//                TunableParamId.DG_POWER,
-//                TunableParamId.DG_COUNT,
-//                TunableParamId.WT_POWER,
-//                TunableParamId.BT_CAPACITY_PER_BUS,
-//                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-//                TunableParamId.BT_MAX_CHARGE_CURRENT,
-//                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+                TunableParamId.DG_POWER,
+                TunableParamId.DG_COUNT,
+                TunableParamId.WT_POWER,
+                TunableParamId.BT_CAPACITY_PER_BUS,
+                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                TunableParamId.BT_MAX_CHARGE_CURRENT,
+                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
 
 //                TunableParamId.WT_COUNT,
 
                 // Группа по надежности:
-                TunableParamId.FIRST_CAT,
-                TunableParamId.SECOND_CAT,
-
-                TunableParamId.WT_FAILURE_RATE,
-                TunableParamId.DG_FAILURE_RATE,
-                TunableParamId.BT_FAILURE_RATE,
-                TunableParamId.BUS_FAILURE_RATE,
-                TunableParamId.BRK_FAILURE_RATE,
-
-                TunableParamId.WT_FAILURE_RATE,
-                TunableParamId.DG_REPAIR_TIME,
-                TunableParamId.BT_REPAIR_TIME,
-                TunableParamId.BUS_REPAIR_TIME,
-                TunableParamId.BRK_REPAIR_TIME
+//                TunableParamId.FIRST_CAT,
+//                TunableParamId.SECOND_CAT,
+//
+//                TunableParamId.WT_FAILURE_RATE,
+//                TunableParamId.DG_FAILURE_RATE,
+//                TunableParamId.BT_FAILURE_RATE,
+//                TunableParamId.BUS_FAILURE_RATE,
+//                TunableParamId.BRK_FAILURE_RATE,
+//
+//                TunableParamId.WT_FAILURE_RATE,
+//                TunableParamId.DG_REPAIR_TIME,
+//                TunableParamId.BT_REPAIR_TIME,
+//                TunableParamId.BUS_REPAIR_TIME,
+//                TunableParamId.BRK_REPAIR_TIME
 
         );
 
