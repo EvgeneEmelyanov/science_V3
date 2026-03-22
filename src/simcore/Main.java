@@ -27,8 +27,8 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.SOBOL_HARD;
-        RunMode runMode = RunMode.SINGLE;
+        Task task = Task.RUN;
+        RunMode runMode = RunMode.SWEEP_2;
         int mcIterations = 50;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
@@ -141,16 +141,16 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
-                                .setTotalDieselGeneratorCount((int) p1)
-                                .setDieselGeneratorPowerKw(p2)
+//                                .setTotalDieselGeneratorCount((int) p1)
+//                                .setDieselGeneratorPowerKw(p2)
 
 //                                .setTotalWindTurbineCount((int) p1)
 //                                .setWindTurbinePowerKw(p1)
 //
-//                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
 
 //                                .setMaxDischargeCurrent(p2)
-//                                .setNonReserveDischargeLevel(p2)
+                                .setNonReserveDischargeLevel(p2)
 
                                 .build();
                         paramSets.add(p);
@@ -175,23 +175,23 @@ public class Main {
         final double catStep = 0.1;
 
         // ===== Axes (edit here) =====
-        double[] param1 = new double[]{6, 8, 10};
-//        double[] param1 = new double[]{3, 4, 5, 6, 7, 8};
-        double[] param2 = new double[]{
-                150, 160, 170, 180, 190,
-                200, 210, 220, 230, 240,
-                250, 260, 270, 280, 290,
-                300, 310, 320, 330, 340,
-                350, 360, 370, 380, 390,
-                400, 410, 420, 430, 440,
-                450, 460, 470, 480, 490,
-                500,
-//                510, 520, 530, 540,
-//                550, 560, 570, 580, 590,
-//                600, 610, 620, 630, 640,
-//                650, 660, 670, 680, 690,
-
-        };
+//        double[] param1 = new double[]{6, 8, 10};
+////        double[] param1 = new double[]{3, 4, 5, 6, 7, 8};
+//        double[] param2 = new double[]{
+//                150, 160, 170, 180, 190,
+//                200, 210, 220, 230, 240,
+//                250, 260, 270, 280, 290,
+//                300, 310, 320, 330, 340,
+//                350, 360, 370, 380, 390,
+//                400, 410, 420, 430, 440,
+//                450, 460, 470, 480, 490,
+//                500,
+////                510, 520, 530, 540,
+////                550, 560, 570, 580, 590,
+////                600, 610, 620, 630, 640,
+////                650, 660, 670, 680, 690,
+//
+//        };
 //
 //        double[] param1 = new double[]{
 //                0,
@@ -203,15 +203,11 @@ public class Main {
 //        };
 //        double[] param2 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
-//        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-//        double[] param1 = new double[]{0, 0.2,  0.4, 0.6, 0.8, 1};
-//        double[] param2 = new double[]{0.2,  0.4, 0.6, 0.8, 1};
+        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        //        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5}
 
-//        double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 
-//        double[] param2 = new double[]{1, 2, 3, 4, 5};
-
-//        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
 
 
