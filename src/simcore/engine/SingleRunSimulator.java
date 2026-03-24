@@ -109,6 +109,15 @@ public final class SingleRunSimulator {
         return count;
     }
 
+    private static int countAvailableDgs(PowerBus bus) {
+        if (bus == null) return 0;
+        int count = 0;
+        for (DieselGenerator dg : bus.getDieselGenerators()) {
+            if (dg != null && dg.isAvailable()) count++;
+        }
+        return count;
+    }
+
     public SimulationMetrics simulate(SimInput input, long seed, boolean traceEnabled) {
 
         final SimulationConfig config = input.getConfig();
@@ -244,6 +253,7 @@ public final class SingleRunSimulator {
         final int[] outageHours = new int[busCount];
         final double[] prevAdaptiveLoadKw = new double[busCount];
         final double[] prevAdaptiveWindKw = new double[busCount];
+        final double[] prevAdaptiveAvailableDgPowerKw = new double[busCount];
         final int[] prevAdaptiveRunningDgCount = new int[busCount];
         java.util.Arrays.fill(prevAdaptiveLoadKw, Double.NaN);
         java.util.Arrays.fill(prevAdaptiveWindKw, Double.NaN);
@@ -342,6 +352,7 @@ public final class SingleRunSimulator {
                             sp,
                             prevAdaptiveLoadKw[b],
                             prevAdaptiveWindKw[b],
+                            prevAdaptiveAvailableDgPowerKw[b],
                             prevAdaptiveRunningDgCount[b]
                     );
                 }
@@ -496,10 +507,12 @@ public final class SingleRunSimulator {
 
             final double[] adaptiveLoadKwNow = new double[busCount];
             final double[] adaptiveWindKwNow = new double[busCount];
+            final double[] adaptiveAvailableDgPowerKwNow = new double[busCount];
             final int[] adaptiveRunningDgCountNow = new int[busCount];
             for (int b = 0; b < busCount; b++) {
                 adaptiveLoadKwNow[b] = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
                 adaptiveWindKwNow[b] = computeWindPotential(buses.get(b), windV);
+                adaptiveAvailableDgPowerKwNow[b] = countAvailableDgs(buses.get(b)) * dgRatedKw;
                 adaptiveRunningDgCountNow[b] = countRunningDgs(buses.get(b));
             }
 
@@ -597,6 +610,7 @@ public final class SingleRunSimulator {
                 for (int b = 0; b < busCount; b++) {
                     prevAdaptiveLoadKw[b] = adaptiveLoadKwNow[b];
                     prevAdaptiveWindKw[b] = adaptiveWindKwNow[b];
+                    prevAdaptiveAvailableDgPowerKw[b] = adaptiveAvailableDgPowerKwNow[b];
                     prevAdaptiveRunningDgCount[b] = adaptiveRunningDgCountNow[b];
                 }
 

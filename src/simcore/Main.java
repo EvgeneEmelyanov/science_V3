@@ -27,14 +27,14 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.SOBOL_HARD;
+        Task task = Task.RUN;
         RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 250;
+        int mcIterations = 1;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 512;
+        int sobolN = 128;
 
         //        String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
@@ -112,11 +112,11 @@ public class Main {
         if (mode == RunMode.SWEEP_1) {
             for (double p1 : param1) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-//                        .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+                        .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
 //                        .setDieselGeneratorPowerKw(p1)
 //                        .setRotationReserveCoeff(p1)
 //                        .setBtGridFormingReserveShare(p1)
-                        .setNonReserveDischargeLevel(p1)
+//                        .setNonReserveDischargeLevel(p1)
                         .build();
                 paramSets.add(p);
             }

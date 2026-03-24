@@ -447,17 +447,22 @@ public class SystemParameters {
 
     // ----- Алиасы с новой семантикой adaptive non-reserve -----
     public double getBtAdaptiveReplacementWeight() {
-        return btAdaptiveReserveRiskWeight;
+        return Math.max(0.0, btAdaptiveReserveRiskWeight);
     }
 
     public double getBtAdaptiveTrendWeight() {
-        return btAdaptiveDeficitRiskWeight;
+        return Math.max(0.0, btAdaptiveDeficitRiskWeight);
     }
 
     public double getBtAdaptiveAccelerationWeight() {
-        return btAdaptiveAccelerationRiskWeight;
+        return Math.max(0.0, btAdaptiveAccelerationRiskWeight);
     }
 
+    public double getBtAdaptiveNoDgPrevHourWeight() {
+        return Math.max(0.0, btAdaptiveAccelerationRiskScaleKw);
+    }
+
+    // legacy aliases kept for compatibility with old callers
     public double getBtAdaptiveTrendScaleKw() {
         return btAdaptiveReserveRiskScaleKw;
     }
@@ -467,7 +472,7 @@ public class SystemParameters {
     }
 
     public double getBtAdaptiveNoDgPrevHourBonus() {
-        return Math.max(0.0, btAdaptiveAccelerationRiskScaleKw);
+        return getBtAdaptiveNoDgPrevHourWeight();
     }
 
     public double getBtAdaptiveReplacementExponent() {

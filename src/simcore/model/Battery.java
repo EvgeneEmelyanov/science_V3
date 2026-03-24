@@ -32,20 +32,18 @@ public class Battery extends Equipment {
 
     private Double prevLoadT1Kw;
     private Double prevLoadT2Kw;
+    private Double prevLoadT3Kw;
     private Double prevWindT1Kw;
     private Double prevWindT2Kw;
+    private Double prevWindT3Kw;
+    private double prevAvailableDgPowerT1Kw = 0.0;
     private int prevRunningDgCountT1 = 0;
     private boolean hasPrevRunningDgCountT1 = false;
 
-    private double previousTrendKw = 0.0;
-    private boolean hasPreviousTrend = false;
-    private double emaAccelerationKw = 0.0;
-    private boolean hasAccelerationEma = false;
-
     /**
-     * Базовый adaptive floor на текущий час БЕЗ поправки за конкретную глубину замещения ДГУ.
+     * Базовый adaptive floor на текущий час без поправки за конкретную глубину замещения ДГУ.
      */
-    private double currentAdaptiveBaseNonReserveLevel = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
+    private double currentAdaptiveBaseNonReserveLevel = 1.0;
 
     private final List<Double> adaptiveLevelHistory = new ArrayList<>();
 
@@ -92,12 +90,14 @@ public class Battery extends Equipment {
 
     /**
      * Обновление базового adaptive floor в начале часа по данным только предыдущих часов.
+     * В первые три часа non-reserve разряд запрещен: уровень равен 1.0.
      */
     public void updateAdaptiveNonReserveDischargeLevel(SystemParameters sp,
                                                        double previousLoadKw,
                                                        double previousWindKw,
+                                                       double previousAvailableDgPowerKw,
                                                        int previousRunningDgCount) {
-        shiftAdaptiveHistory(previousLoadKw, previousWindKw, previousRunningDgCount);
+        shiftAdaptiveHistory(previousLoadKw, previousWindKw, previousAvailableDgPowerKw, previousRunningDgCount);
 
         double fixed = clampRange(sp.getNonReserveDischargeLevel(), SimulationConstants.BATTERY_MIN_SOC, 1.0);
         currentAdaptiveBaseNonReserveLevel = fixed;
@@ -107,81 +107,92 @@ public class Battery extends Equipment {
             return;
         }
 
-        if (prevLoadT1Kw == null || prevWindT1Kw == null || prevLoadT2Kw == null || prevWindT2Kw == null) {
+        // Первые три часа: не разряжаем АКБ в non-reserve режиме.
+        if (prevLoadT1Kw == null || prevLoadT2Kw == null || prevLoadT3Kw == null
+                || prevWindT1Kw == null || prevWindT2Kw == null || prevWindT3Kw == null) {
+            currentAdaptiveBaseNonReserveLevel = 1.0;
+            currentNonReserveDischargeLevel = 1.0;
             adaptiveLevelHistory.add(currentAdaptiveBaseNonReserveLevel);
             return;
         }
 
         double deltaT1 = prevLoadT1Kw - prevWindT1Kw;
         double deltaT2 = prevLoadT2Kw - prevWindT2Kw;
-        double trendNow = deltaT1 - deltaT2;
-        double accelerationRaw = hasPreviousTrend ? (trendNow - previousTrendKw) : 0.0;
-        previousTrendKw = trendNow;
-        hasPreviousTrend = true;
+        double deltaT3 = prevLoadT3Kw - prevWindT3Kw;
 
-        double alpha = clamp01(sp.getBtAdaptiveAccelerationEmaAlpha());
-        if (!hasAccelerationEma) {
-            emaAccelerationKw = accelerationRaw;
-            hasAccelerationEma = true;
-        } else {
-            emaAccelerationKw = alpha * accelerationRaw + (1.0 - alpha) * emaAccelerationKw;
+        double trend = deltaT1 - deltaT2;
+        double prevTrend = deltaT2 - deltaT3;
+        double acceleration = trend - prevTrend;
+
+        double scale = Math.max(SimulationConstants.EPSILON, prevAvailableDgPowerT1Kw);
+
+        double fTrend = trend / scale;
+        double fAcceleration = acceleration / scale;
+        double fNoDg = (hasPrevRunningDgCountT1 && prevRunningDgCountT1 == 0) ? -1.0 : 0.0;
+
+        double wTrend = Math.max(0.0, sp.getBtAdaptiveTrendWeight());
+        double wAcceleration = Math.max(0.0, sp.getBtAdaptiveAccelerationWeight());
+        double wNoDg = Math.max(0.0, sp.getBtAdaptiveNoDgPrevHourWeight());
+        double wReplacement = Math.max(0.0, sp.getBtAdaptiveReplacementWeight());
+        double weightSum = wTrend + wAcceleration + wNoDg + wReplacement;
+        if (weightSum <= SimulationConstants.EPSILON) {
+            weightSum = 1.0;
         }
 
-        double trendScale = Math.max(SimulationConstants.EPSILON, sp.getBtAdaptiveTrendScaleKw());
-        double accelerationScale = Math.max(SimulationConstants.EPSILON, sp.getBtAdaptiveAccelerationScaleKw());
+        // Базовый R без фактора замещения ДГУ. Вес агрессивности резервируем под candidate-level расчет.
+        double rBase = (wTrend * fTrend + wAcceleration * fAcceleration + wNoDg * fNoDg) / weightSum;
+        rBase = clampRange(rBase, 0.0, 1.0);
 
-        double trendSignal = clampRange(trendNow / trendScale, -1.0, 1.0);
-        double accelerationSignal = clamp01(Math.max(0.0, emaAccelerationKw) / accelerationScale);
-        double noDgBonus = (hasPrevRunningDgCountT1 && prevRunningDgCountT1 == 0)
-                ? Math.max(0.0, sp.getBtAdaptiveNoDgPrevHourBonus())
-                : 0.0;
-
-        double candidate = fixed
-                + sp.getBtAdaptiveTrendWeight() * trendSignal
-                + sp.getBtAdaptiveAccelerationWeight() * accelerationSignal
-                - noDgBonus;
-
-        currentAdaptiveBaseNonReserveLevel = clampRange(candidate, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+        currentAdaptiveBaseNonReserveLevel = 0.2 + 0.8 * rBase;
         currentNonReserveDischargeLevel = currentAdaptiveBaseNonReserveLevel;
         adaptiveLevelHistory.add(currentAdaptiveBaseNonReserveLevel);
     }
 
     /**
      * Получить floor для конкретного кандидата по числу оставляемых ДГУ.
-     * Чем агрессивнее сокращение дизельного состава, тем выше floor.
+     * Чем агрессивнее сокращение дизельного состава, тем выше итоговый коэффициент осторожности R.
      */
     public double getAdaptiveNonReserveFloorForCandidate(SystemParameters sp,
                                                          int naturalNeededDgCount,
                                                          int candidateDgCount) {
-        double base = getEffectiveNonReserveDischargeLevel(sp);
         if (!sp.isBtUseAdaptiveNonReserveDischargeLevel()) {
-            return clampRange(base, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+            return clampRange(sp.getNonReserveDischargeLevel(), SimulationConstants.BATTERY_MIN_SOC, 1.0);
         }
 
         int nNeed = Math.max(0, naturalNeededDgCount);
         int nCand = Math.max(0, candidateDgCount);
-        if (nNeed <= 0 || nCand >= nNeed) {
-            return clampRange(base, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+
+        double wTrend = Math.max(0.0, sp.getBtAdaptiveTrendWeight());
+        double wAcceleration = Math.max(0.0, sp.getBtAdaptiveAccelerationWeight());
+        double wNoDg = Math.max(0.0, sp.getBtAdaptiveNoDgPrevHourWeight());
+        double wReplacement = Math.max(0.0, sp.getBtAdaptiveReplacementWeight());
+        double weightSum = wTrend + wAcceleration + wNoDg + wReplacement;
+        if (weightSum <= SimulationConstants.EPSILON) {
+            weightSum = 1.0;
         }
 
-        double replacementRatio = clamp01((double) (nNeed - nCand) / Math.max(1, nNeed));
-        double needFactor = ((double) nNeed) / (nNeed + 1.0);
-        double exponent = Math.max(1.0, sp.getBtAdaptiveReplacementExponent());
+        double baseR = (currentAdaptiveBaseNonReserveLevel - 0.2) / 0.8;
+        double fReplacement = (nNeed <= 0) ? 0.0 : ((double) (nNeed - nCand) / Math.max(1, nNeed));
+        fReplacement = clampRange(fReplacement, 0.0, 1.0);
 
-        double candidate = base
-                + sp.getBtAdaptiveReplacementWeight() * needFactor * Math.pow(replacementRatio, exponent);
-
-        return clampRange(candidate, SimulationConstants.BATTERY_MIN_SOC, 1.0);
+        double r = clampRange(baseR + (wReplacement / weightSum) * fReplacement, 0.0, 1.0);
+        return 0.2 + 0.8 * r;
     }
 
-    private void shiftAdaptiveHistory(double previousLoadKw, double previousWindKw, int previousRunningDgCount) {
+    private void shiftAdaptiveHistory(double previousLoadKw,
+                                      double previousWindKw,
+                                      double previousAvailableDgPowerKw,
+                                      int previousRunningDgCount) {
         if (!Double.isFinite(previousLoadKw) || !Double.isFinite(previousWindKw)) {
             return;
         }
+        prevLoadT3Kw = prevLoadT2Kw;
+        prevWindT3Kw = prevWindT2Kw;
         prevLoadT2Kw = prevLoadT1Kw;
         prevWindT2Kw = prevWindT1Kw;
         prevLoadT1Kw = previousLoadKw;
         prevWindT1Kw = previousWindKw;
+        prevAvailableDgPowerT1Kw = Math.max(0.0, previousAvailableDgPowerKw);
         prevRunningDgCountT1 = Math.max(0, previousRunningDgCount);
         hasPrevRunningDgCountT1 = true;
     }

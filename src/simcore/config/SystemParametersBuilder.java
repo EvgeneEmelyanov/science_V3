@@ -375,6 +375,43 @@ public class SystemParametersBuilder {
         return this;
     }
 
+    // ----- Алиасы с новой семантикой adaptive non-reserve -----
+    public SystemParametersBuilder setBtAdaptiveReplacementWeight(double v) {
+        this.btAdaptiveReserveRiskWeight = v;
+        return this;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveTrendWeight(double v) {
+        this.btAdaptiveDeficitRiskWeight = v;
+        return this;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveAccelerationWeight(double v) {
+        this.btAdaptiveAccelerationRiskWeight = v;
+        return this;
+    }
+
+    public SystemParametersBuilder setBtAdaptiveNoDgPrevHourWeight(double v) {
+        this.btAdaptiveAccelerationRiskScaleKw = v;
+        return this;
+    }
+
+    public double getBtAdaptiveReplacementWeight() {
+        return btAdaptiveReserveRiskWeight;
+    }
+
+    public double getBtAdaptiveTrendWeight() {
+        return btAdaptiveDeficitRiskWeight;
+    }
+
+    public double getBtAdaptiveAccelerationWeight() {
+        return btAdaptiveAccelerationRiskWeight;
+    }
+
+    public double getBtAdaptiveNoDgPrevHourWeight() {
+        return btAdaptiveAccelerationRiskScaleKw;
+    }
+
     public double getBtGridFormingReserveShare() {
         return btGridFormingReserveShare;
     }
