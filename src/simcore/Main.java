@@ -145,10 +145,18 @@ public class Main {
 //                                .setTotalWindTurbineCount((int) p1)
 //                                .setWindTurbinePowerKw(p1)
 //
-                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+//                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
 
 //                                .setMaxDischargeCurrent(p2)
-                                .setNonReserveDischargeLevel(p2)
+//                                .setNonReserveDischargeLevel(p2)
+
+//                                .setBtAdaptiveTrendWeight(p1) // wT
+//                                .setBtAdaptiveAccelerationWeight(p1) // wA
+//                                .setBtAdaptiveNoDgPrevHourWeight(p2) // wH
+//                                .setBtAdaptiveReplacementWeight(p1) // wR
+//                                .setBtAdaptiveDgAvailabilityWeight(p1) // wD
+
+
 
                                 .build();
                         paramSets.add(p);

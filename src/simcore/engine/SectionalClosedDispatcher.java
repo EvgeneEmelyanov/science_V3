@@ -246,8 +246,8 @@ final class SectionalClosedDispatcher {
                 double socNonReserveFloor = Math.max(
                         SimulationConstants.BATTERY_MIN_SOC,
                         Math.max(
-                                bt0Avail ? bt0.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, dgToUse) : SimulationConstants.BATTERY_MIN_SOC,
-                                bt1Avail ? bt1.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, dgToUse) : SimulationConstants.BATTERY_MIN_SOC
+                                bt0Avail ? bt0.previewAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, dgToUse) : SimulationConstants.BATTERY_MIN_SOC,
+                                bt1Avail ? bt1.previewAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, dgToUse) : SimulationConstants.BATTERY_MIN_SOC
                         )
                 );
 
@@ -267,8 +267,8 @@ final class SectionalClosedDispatcher {
                         double candFloor = Math.max(
                                 SimulationConstants.BATTERY_MIN_SOC,
                                 Math.max(
-                                        bt0Avail ? bt0.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, cand) : SimulationConstants.BATTERY_MIN_SOC,
-                                        bt1Avail ? bt1.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, cand) : SimulationConstants.BATTERY_MIN_SOC
+                                        bt0Avail ? bt0.previewAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, cand) : SimulationConstants.BATTERY_MIN_SOC,
+                                        bt1Avail ? bt1.previewAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, cand) : SimulationConstants.BATTERY_MIN_SOC
                                 )
                         );
 
@@ -284,8 +284,8 @@ final class SectionalClosedDispatcher {
                     }
                 }
 
-                if (bt0Avail) bt0.setCurrentNonReserveDischargeLevelForTrace(socNonReserveFloor);
-                if (bt1Avail) bt1.setCurrentNonReserveDischargeLevelForTrace(socNonReserveFloor);
+                if (bt0Avail) bt0.commitAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, dgToUse);
+                if (bt1Avail) bt1.commitAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, dgToUse);
 
                 final boolean maintenanceStartedThisHour = DieselGenerator.isMaintenanceStartedThisHour(dgs);
 

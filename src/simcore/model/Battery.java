@@ -168,17 +168,24 @@ public class Battery extends Equipment {
         traceAdaptiveLevel = currentAdaptiveBaseNonReserveLevel;
     }
 
-    /**
-     * Получить floor для конкретного кандидата по числу оставляемых ДГУ.
-     */
-    public double getAdaptiveNonReserveFloorForCandidate(SystemParameters sp,
-                                                         int naturalNeededDgCount,
-                                                         int candidateDgCount) {
+    private static final class AdaptiveCandidateState {
+        final double fReplacement;
+        final double r;
+        final double level;
+
+        AdaptiveCandidateState(double fReplacement, double r, double level) {
+            this.fReplacement = fReplacement;
+            this.r = r;
+            this.level = level;
+        }
+    }
+
+    private AdaptiveCandidateState calculateAdaptiveCandidateState(SystemParameters sp,
+                                                                   int naturalNeededDgCount,
+                                                                   int candidateDgCount) {
         if (!sp.isBtUseAdaptiveNonReserveDischargeLevel()) {
             double level = clampRange(sp.getNonReserveDischargeLevel(), SimulationConstants.BATTERY_MIN_SOC, 1.0);
-            currentNonReserveDischargeLevel = level;
-            traceAdaptiveLevel = level;
-            return level;
+            return new AdaptiveCandidateState(0.0, Double.NaN, level);
         }
 
         int nNeed = Math.max(0, naturalNeededDgCount);
@@ -189,12 +196,30 @@ public class Battery extends Equipment {
         double baseR = clampRange((currentAdaptiveBaseNonReserveLevel - 0.2) / 0.8, 0.0, 1.0);
         double r = clampRange(baseR + sp.getBtAdaptiveReplacementWeight() * fReplacement, 0.0, 1.0);
         double level = 0.2 + 0.8 * r;
+        return new AdaptiveCandidateState(fReplacement, r, level);
+    }
 
-        traceAdaptiveFactorReplacement = fReplacement;
-        traceAdaptiveR = r;
-        traceAdaptiveLevel = level;
-        currentNonReserveDischargeLevel = level;
-        return level;
+    /**
+     * Рассчитать floor для кандидата без побочных эффектов.
+     */
+    public double previewAdaptiveNonReserveFloorForCandidate(SystemParameters sp,
+                                                             int naturalNeededDgCount,
+                                                             int candidateDgCount) {
+        return calculateAdaptiveCandidateState(sp, naturalNeededDgCount, candidateDgCount).level;
+    }
+
+    /**
+     * Зафиксировать финальный floor для выбранного кандидата и согласованно обновить trace.
+     */
+    public double commitAdaptiveNonReserveFloorForCandidate(SystemParameters sp,
+                                                            int naturalNeededDgCount,
+                                                            int candidateDgCount) {
+        AdaptiveCandidateState state = calculateAdaptiveCandidateState(sp, naturalNeededDgCount, candidateDgCount);
+        currentNonReserveDischargeLevel = state.level;
+        traceAdaptiveFactorReplacement = state.fReplacement;
+        traceAdaptiveR = state.r;
+        traceAdaptiveLevel = state.level;
+        return state.level;
     }
 
     private void shiftAdaptiveHistory(double previousLoadKw,

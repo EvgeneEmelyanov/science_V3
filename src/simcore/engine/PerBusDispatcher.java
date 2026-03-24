@@ -400,7 +400,7 @@ final class PerBusDispatcher {
 
                 double nonReserveFloor = Math.max(
                         SimulationConstants.BATTERY_MIN_SOC,
-                        bt.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeed0, 0)
+                        bt.previewAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeed0, 0)
                 );
                 bt.setCurrentNonReserveDischargeLevelForTrace(nonReserveFloor);
                 double btCapKw0 = batteryMaxDischargeKw(bt, ctx);
@@ -412,6 +412,7 @@ final class PerBusDispatcher {
                 if (needKw0 <= btCapKw0 + SimulationConstants.EPSILON
                         && availKwh0 + SimulationConstants.EPSILON >= needKwh0) {
 
+                    bt.commitAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeed0, 0);
                     DieselGenerator.stopAllDieselsOnBus(bus);
                     if (extraSourceBus != null) DieselGenerator.stopAllDieselsOnBus(extraSourceBus);
 
@@ -458,7 +459,7 @@ final class PerBusDispatcher {
             // ===== 2) Non-reserve BESS use: reduce DG count if possible =====
             double socNonReserveFloor = btAvail
                     ? Math.max(SimulationConstants.BATTERY_MIN_SOC,
-                    bt.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, nPlanned))
+                    bt.previewAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, nPlanned))
                     : SimulationConstants.BATTERY_MIN_SOC;
 
             int nPlannedReduced = nPlanned;
@@ -475,7 +476,7 @@ final class PerBusDispatcher {
                     if (btCapKw + SimulationConstants.EPSILON < needFromBtKw) break;
 
                     double candFloor = Math.max(SimulationConstants.BATTERY_MIN_SOC,
-                            bt.getAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, cand));
+                            bt.previewAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, cand));
                     double needEnergyKwh = needFromBtKw * 1.0;
                     double availEnergyKwh = bt.getAvailableDischargeEnergyKwhAbove(candFloor);
                     if (availEnergyKwh + SimulationConstants.EPSILON < needEnergyKwh) break;
@@ -486,7 +487,7 @@ final class PerBusDispatcher {
             }
             nPlanned = nPlannedReduced;
             if (btAvail) {
-                bt.setCurrentNonReserveDischargeLevelForTrace(socNonReserveFloor);
+                bt.commitAdaptiveNonReserveFloorForCandidate(ctx.sp, naturalNeedDgCount, nPlanned);
             }
 
             // ===== 3) Rotation reserve (N-1) =====
