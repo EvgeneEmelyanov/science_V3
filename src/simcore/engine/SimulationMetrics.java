@@ -43,6 +43,7 @@ public final class SimulationMetrics {
     public final long ensEvents5to12H;
     public final long ensEvents13to24H;
     public final long ensEventsGt24H;
+    public final double ensEventsAvgHours;
     public final long ensEventsMaxHours;
 
     // ===== Reliability-of-supply metrics derived from ENS =====
@@ -81,6 +82,7 @@ public final class SimulationMetrics {
                              long ensEvents5to12H,
                              long ensEvents13to24H,
                              long ensEventsGt24H,
+                             double ensEventsAvgHours,
                              long ensEventsMaxHours,
                              double loleHours,
                              double lolp,
@@ -116,6 +118,7 @@ public final class SimulationMetrics {
         this.ensEvents5to12H = ensEvents5to12H;
         this.ensEvents13to24H = ensEvents13to24H;
         this.ensEventsGt24H = ensEventsGt24H;
+        this.ensEventsAvgHours = ensEventsAvgHours;
         this.ensEventsMaxHours = ensEventsMaxHours;
 
         this.loleHours = loleHours;

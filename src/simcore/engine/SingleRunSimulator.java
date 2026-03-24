@@ -1087,6 +1087,7 @@ public final class SingleRunSimulator {
         long[] bc = totals.ensEventStats.getBucketCounts();
         long ensEventsTotal = totals.ensEventStats.getEventsTotal();
         long ensEventsStartOnly = totals.ensEventStats.getEventsStartOnly();
+        double ensEventsAvgHours = (ensEventsTotal <= 0L) ? 0.0 : totals.ensEventStats.getLolHours() / (double) ensEventsTotal;
         long ensEventsMaxHours = totals.ensEventStats.getMaxRunHours();
         double loleHours = totals.ensEventStats.getLolHours();
 
@@ -1164,6 +1165,7 @@ public final class SingleRunSimulator {
                 bc[3],
                 bc[4],
                 bc[5],
+                ensEventsAvgHours,
                 ensEventsMaxHours,
                 loleHours,
                 lolp,

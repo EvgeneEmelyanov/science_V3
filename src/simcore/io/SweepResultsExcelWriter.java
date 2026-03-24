@@ -149,6 +149,7 @@ public final class SweepResultsExcelWriter {
             c = writeHeader(hdr, c, "ENS_evt5_12h", headerStyle);
             c = writeHeader(hdr, c, "ENS_evt13_24h", headerStyle);
             c = writeHeader(hdr, c, "ENS_evtGt24h", headerStyle);
+            c = writeHeader(hdr, c, "ENS_evtAvgH", headerStyle);
             c = writeHeader(hdr, c, "ENS_evtMaxH", headerStyle);
 
             // Failures + replacements
@@ -254,6 +255,7 @@ public final class SweepResultsExcelWriter {
                 writeNumber(rr, cc++, e.meanEnsEvents5to12H, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEvents13to24H, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEventsGt24H, centeredNumberStyle);
+                writeNumber(rr, cc++, e.meanEnsEventsAvgHours, centeredNumberStyle);
                 writeNumber(rr, cc++, e.meanEnsEventsMaxHours, centeredNumberStyle);
 
                 // Failures + replacements
@@ -303,6 +305,7 @@ public final class SweepResultsExcelWriter {
                 String ensEvt5_12hRange     = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evt5_12h"), firstDataExcelRow, lastDataExcelRow);
                 String ensEvt13_24hRange    = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evt13_24h"), firstDataExcelRow, lastDataExcelRow);
                 String ensEvtGt24hRange     = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evtGt24h"), firstDataExcelRow, lastDataExcelRow);
+                String ensEvtAvgHRange      = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evtAvgH"), firstDataExcelRow, lastDataExcelRow);
                 String ensEvtMaxHRange      = rangeInSheet("RAW", findHeaderColIdx(hdr, "ENS_evtMaxH"), firstDataExcelRow, lastDataExcelRow);
 
                 String failRoomRange = rangeInSheet("RAW", findHeaderColIdx(hdr, "FailRoom"), firstDataExcelRow, lastDataExcelRow);
@@ -338,6 +341,8 @@ public final class SweepResultsExcelWriter {
 
                         top = writeTriangularGridBlock(grid, "ENS_evtN", top + 2, param1, param2,
                                 ensEvtNRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeTriangularGridBlock(grid, "ENS_evtAvgH", top + 2, param1, param2,
+                                ensEvtAvgHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                         top = writeTriangularGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
                                 ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
 
@@ -401,6 +406,8 @@ public final class SweepResultsExcelWriter {
 
                         top = writeGridBlock(grid, "ENS_evtN", top + 2, param1, param2,
                                 ensEvtNRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
+                        top = writeGridBlock(grid, "ENS_evtAvgH", top + 2, param1, param2,
+                                ensEvtAvgHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
                         top = writeGridBlock(grid, "ENS_evtMaxH", top + 2, param1, param2,
                                 ensEvtMaxHRange, p1Range, p2Range, centeredNumberStyle, headerStyle);
 
@@ -469,6 +476,8 @@ public final class SweepResultsExcelWriter {
 
                         top = writeRowBlock1D(grid, "ENS_evtN", top + 2, param1,
                                 ensEvtNRange, p1Range, centeredNumberStyle, headerStyle);
+                        top = writeRowBlock1D(grid, "ENS_evtAvgH", top + 2, param1,
+                                ensEvtAvgHRange, p1Range, centeredNumberStyle, headerStyle);
                         top = writeRowBlock1D(grid, "ENS_evtMaxH", top + 2, param1,
                                 ensEvtMaxHRange, p1Range, centeredNumberStyle, headerStyle);
 

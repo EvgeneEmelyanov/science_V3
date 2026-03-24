@@ -46,6 +46,14 @@ public class SimulationStepRecord {
     // Наработка АКБ (часы)
     private final double[] btTimeWorked;
 
+    // Отладка adaptive-уровня АКБ
+    private final double[] btAdaptiveFactorTrend;
+    private final double[] btAdaptiveFactorAcceleration;
+    private final double[] btAdaptiveFactorNoDg;
+    private final double[] btAdaptiveFactorReplacement;
+    private final double[] btAdaptiveFactorDgAvailability;
+    private final double[] btAdaptiveR;
+
     public SimulationStepRecord(int timeIndex,
                                 double totalLoadKw,
                                 double totalDeficitKw,
@@ -68,7 +76,13 @@ public class SimulationStepRecord {
                                 double[] btActualCapacity,
                                 double[] btActualSOC,
                                 double[] btNonReserveDischargeLevel,
-                                double[] btTimeWorked) {
+                                double[] btTimeWorked,
+                                double[] btAdaptiveFactorTrend,
+                                double[] btAdaptiveFactorAcceleration,
+                                double[] btAdaptiveFactorNoDg,
+                                double[] btAdaptiveFactorReplacement,
+                                double[] btAdaptiveFactorDgAvailability,
+                                double[] btAdaptiveR) {
 
         this.timeIndex = timeIndex;
         this.totalLoadKw = totalLoadKw;
@@ -98,6 +112,12 @@ public class SimulationStepRecord {
         this.btActualSOC = btActualSOC.clone();
         this.btNonReserveDischargeLevel = btNonReserveDischargeLevel.clone();
         this.btTimeWorked = btTimeWorked.clone();
+        this.btAdaptiveFactorTrend = btAdaptiveFactorTrend.clone();
+        this.btAdaptiveFactorAcceleration = btAdaptiveFactorAcceleration.clone();
+        this.btAdaptiveFactorNoDg = btAdaptiveFactorNoDg.clone();
+        this.btAdaptiveFactorReplacement = btAdaptiveFactorReplacement.clone();
+        this.btAdaptiveFactorDgAvailability = btAdaptiveFactorDgAvailability.clone();
+        this.btAdaptiveR = btAdaptiveR.clone();
     }
 
     private static double[][] deepCopy(double[][] array) {
@@ -112,96 +132,33 @@ public class SimulationStepRecord {
         return Arrays.stream(array).map(int[]::clone).toArray(int[][]::new);
     }
 
-    // --- Геттеры ---
-    public int getTimeIndex() {
-        return timeIndex;
-    }
-
-    public double getTotalLoadKw() {
-        return totalLoadKw;
-    }
-
-    public double getTotalDeficitKw() {
-        return totalDeficitKw;
-    }
-
-    public double getTotalWreKw() {
-        return totalWreKw;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public Boolean getBreakerClosed() {
-        return breakerClosed;
-    }
-
-    public boolean[] getBusStatus() {
-        return busStatus.clone();
-    }
-
-    public double[] getBusLoadKw() {
-        return busLoadKw.clone();
-    }
-
-    public double[] getBusGenWindKw() {
-        return busGenWindKw.clone();
-    }
-
-    public double[] getBusGenDgKw() {
-        return busGenDgKw.clone();
-    }
-
-    public double[] getBusGenBtKw() {
-        return busGenBtKw.clone();
-    }
-
-    public double[] getBusDeficitKw() {
-        return busDeficitKw.clone();
-    }
-
-    public double[][] getBusGenDgLoadKw() {
-        return deepCopy(busGenDgLoadKw);
-    }
-
-    public double[][] getBusGenDgHoursSinceMaintenance() {
-        return deepCopy(busGenDgHoursSinceMaintenance);
-    }
-
-    public double[][] getBusGenDgTimeWorked() {
-        return deepCopy(busGenDgTimeWorked);
-    }
-
-    public double[][] getBusGenDgTotalTimeWorked() {
-        return deepCopy(busGenDgTotalTimeWorked);
-    }
-
-    public int[][] getBusGenDgIdleTime() {
-        return deepCopy(busGenDgIdleTime);
-    }
-
-    public boolean[][] getDgAvailable() {
-        return deepCopy(dgAvailable);
-    }
-
-    public boolean[][] getDgInMaintenance() {
-        return deepCopy(dgInMaintenance);
-    }
-
-    public double[] getBtActualCapacity() {
-        return btActualCapacity.clone();
-    }
-
-    public double[] getBtActualSOC() {
-        return btActualSOC.clone();
-    }
-
-    public double[] getBtNonReserveDischargeLevel() {
-        return btNonReserveDischargeLevel.clone();
-    }
-
-    public double[] getBtTimeWorked() {
-        return btTimeWorked.clone();
-    }
+    public int getTimeIndex() { return timeIndex; }
+    public double getTotalLoadKw() { return totalLoadKw; }
+    public double getTotalDeficitKw() { return totalDeficitKw; }
+    public double getTotalWreKw() { return totalWreKw; }
+    public String getStatus() { return status; }
+    public Boolean getBreakerClosed() { return breakerClosed; }
+    public boolean[] getBusStatus() { return busStatus.clone(); }
+    public double[] getBusLoadKw() { return busLoadKw.clone(); }
+    public double[] getBusGenWindKw() { return busGenWindKw.clone(); }
+    public double[] getBusGenDgKw() { return busGenDgKw.clone(); }
+    public double[] getBusGenBtKw() { return busGenBtKw.clone(); }
+    public double[] getBusDeficitKw() { return busDeficitKw.clone(); }
+    public double[][] getBusGenDgLoadKw() { return deepCopy(busGenDgLoadKw); }
+    public double[][] getBusGenDgHoursSinceMaintenance() { return deepCopy(busGenDgHoursSinceMaintenance); }
+    public double[][] getBusGenDgTimeWorked() { return deepCopy(busGenDgTimeWorked); }
+    public double[][] getBusGenDgTotalTimeWorked() { return deepCopy(busGenDgTotalTimeWorked); }
+    public int[][] getBusGenDgIdleTime() { return deepCopy(busGenDgIdleTime); }
+    public boolean[][] getDgAvailable() { return deepCopy(dgAvailable); }
+    public boolean[][] getDgInMaintenance() { return deepCopy(dgInMaintenance); }
+    public double[] getBtActualCapacity() { return btActualCapacity.clone(); }
+    public double[] getBtActualSOC() { return btActualSOC.clone(); }
+    public double[] getBtNonReserveDischargeLevel() { return btNonReserveDischargeLevel.clone(); }
+    public double[] getBtTimeWorked() { return btTimeWorked.clone(); }
+    public double[] getBtAdaptiveFactorTrend() { return btAdaptiveFactorTrend.clone(); }
+    public double[] getBtAdaptiveFactorAcceleration() { return btAdaptiveFactorAcceleration.clone(); }
+    public double[] getBtAdaptiveFactorNoDg() { return btAdaptiveFactorNoDg.clone(); }
+    public double[] getBtAdaptiveFactorReplacement() { return btAdaptiveFactorReplacement.clone(); }
+    public double[] getBtAdaptiveFactorDgAvailability() { return btAdaptiveFactorDgAvailability.clone(); }
+    public double[] getBtAdaptiveR() { return btAdaptiveR.clone(); }
 }

@@ -168,6 +168,7 @@ public final class MonteCarloRunner {
                     (double) m.ensEvents5to12H,
                     (double) m.ensEvents13to24H,
                     (double) m.ensEventsGt24H,
+                    m.ensEventsAvgHours,
                     (double) m.ensEventsMaxHours,
                     (double) m.loleHours,
                     m.lolp,
@@ -230,6 +231,7 @@ public final class MonteCarloRunner {
         double ensEvt5to12HSum = 0.0;
         double ensEvt13to24HSum = 0.0;
         double ensEvtGt24HSum = 0.0;
+        double ensEvtAvgHoursSum = 0.0;
         double ensEvtMaxHoursSum = 0.0;
 
         double loleHoursSum = 0.0;
@@ -290,6 +292,7 @@ public final class MonteCarloRunner {
             ensEvt5to12HSum += a.ensEvt5to12HSum;
             ensEvt13to24HSum += a.ensEvt13to24HSum;
             ensEvtGt24HSum += a.ensEvtGt24HSum;
+            ensEvtAvgHoursSum += a.ensEvtAvgHoursSum;
             ensEvtMaxHoursSum += a.ensEvtMaxHoursSum;
 
             loleHoursSum += a.loleHoursSum;
@@ -364,6 +367,7 @@ public final class MonteCarloRunner {
                 ensEvt5to12HSum * inv,
                 ensEvt13to24HSum * inv,
                 ensEvtGt24HSum * inv,
+                ensEvtAvgHoursSum * inv,
                 ensEvtMaxHoursSum * inv,
                 loleHoursSum * inv,
                 lolpSum * inv,
@@ -469,6 +473,7 @@ public final class MonteCarloRunner {
                 a.ensEvt5to12HSum * inv,
                 a.ensEvt13to24HSum * inv,
                 a.ensEvtGt24HSum * inv,
+                a.ensEvtAvgHoursSum * inv,
                 a.ensEvtMaxHoursSum * inv,
                 a.loleHoursSum * inv,
                 a.lolpSum * inv,
@@ -518,6 +523,7 @@ public final class MonteCarloRunner {
         double ensEvt5to12HSum = 0.0;
         double ensEvt13to24HSum = 0.0;
         double ensEvtGt24HSum = 0.0;
+        double ensEvtAvgHoursSum = 0.0;
         double ensEvtMaxHoursSum = 0.0;
 
         // Reliability-of-supply metrics derived from ENS
@@ -596,6 +602,7 @@ public final class MonteCarloRunner {
             ensEvt5to12HSum     += m.ensEvents5to12H;
             ensEvt13to24HSum    += m.ensEvents13to24H;
             ensEvtGt24HSum      += m.ensEventsGt24H;
+            ensEvtAvgHoursSum   += m.ensEventsAvgHours;
             ensEvtMaxHoursSum   += m.ensEventsMaxHours;
 
             loleHoursSum += (double) m.loleHours;
@@ -632,6 +639,7 @@ public final class MonteCarloRunner {
                 ensEvt5to12HSum,
                 ensEvt13to24HSum,
                 ensEvtGt24HSum,
+                ensEvtAvgHoursSum,
                 ensEvtMaxHoursSum,
                 loleHoursSum,
                 lolpSum,
@@ -687,6 +695,7 @@ public final class MonteCarloRunner {
         final double ensEvt5to12HSum;
         final double ensEvt13to24HSum;
         final double ensEvtGt24HSum;
+        final double ensEvtAvgHoursSum;
         final double ensEvtMaxHoursSum;
 
         final double loleHoursSum;
@@ -720,6 +729,7 @@ public final class MonteCarloRunner {
                  double ensEvt5to12HSum,
                  double ensEvt13to24HSum,
                  double ensEvtGt24HSum,
+                 double ensEvtAvgHoursSum,
                  double ensEvtMaxHoursSum,
                  double loleHoursSum,
                  double lolpSum,
@@ -770,6 +780,7 @@ public final class MonteCarloRunner {
             this.ensEvt5to12HSum = ensEvt5to12HSum;
             this.ensEvt13to24HSum = ensEvt13to24HSum;
             this.ensEvtGt24HSum = ensEvtGt24HSum;
+            this.ensEvtAvgHoursSum = ensEvtAvgHoursSum;
             this.ensEvtMaxHoursSum = ensEvtMaxHoursSum;
 
             this.loleHoursSum = loleHoursSum;

@@ -68,6 +68,7 @@ public final class MonteCarloEstimate {
     public final double meanEnsEvents5to12H;
     public final double meanEnsEvents13to24H;
     public final double meanEnsEventsGt24H;
+    public final double meanEnsEventsAvgHours;
     public final double meanEnsEventsMaxHours;
 
     // ===== Reliability-of-supply metrics derived from ENS (MC means) =====
@@ -104,6 +105,7 @@ public final class MonteCarloEstimate {
                               double meanEnsEvents5to12H,
                               double meanEnsEvents13to24H,
                               double meanEnsEventsGt24H,
+                              double meanEnsEventsAvgHours,
                               double meanEnsEventsMaxHours,
                               double meanLoleHours,
                               double meanLolp,
@@ -139,6 +141,7 @@ public final class MonteCarloEstimate {
         this.meanEnsEvents5to12H = meanEnsEvents5to12H;
         this.meanEnsEvents13to24H = meanEnsEvents13to24H;
         this.meanEnsEventsGt24H = meanEnsEventsGt24H;
+        this.meanEnsEventsAvgHours = meanEnsEventsAvgHours;
         this.meanEnsEventsMaxHours = meanEnsEventsMaxHours;
 
         this.meanLoleHours = meanLoleHours;

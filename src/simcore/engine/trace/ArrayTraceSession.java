@@ -23,10 +23,7 @@ public final class ArrayTraceSession implements TraceSession {
     private double[][] dgHoursSinceMaintenance;
     private double[][] dgTimeWorked;
     private double[][] dgTotalTimeWorked;
-
-    /** idleTime по ДГУ (целые часы) */
     private int[][] dgIdleTime;
-
     private boolean[][] dgAvailable;
     private boolean[][] dgInMaintenance;
 
@@ -35,10 +32,15 @@ public final class ArrayTraceSession implements TraceSession {
     private double[] btNonReserveDischargeLevel;
     private double[] btTimeWorked;
 
+    private double[] btAdaptiveFactorTrend;
+    private double[] btAdaptiveFactorAcceleration;
+    private double[] btAdaptiveFactorNoDg;
+    private double[] btAdaptiveFactorReplacement;
+    private double[] btAdaptiveFactorDgAvailability;
+    private double[] btAdaptiveR;
+
     @Override
-    public boolean enabled() {
-        return true;
-    }
+    public boolean enabled() { return true; }
 
     @Override
     public void startHour(int busCount) {
@@ -54,7 +56,6 @@ public final class ArrayTraceSession implements TraceSession {
         dgTimeWorked = new double[busCount][];
         dgTotalTimeWorked = new double[busCount][];
         dgIdleTime = new int[busCount][];
-
         dgAvailable = new boolean[busCount][];
         dgInMaintenance = new boolean[busCount][];
 
@@ -62,6 +63,12 @@ public final class ArrayTraceSession implements TraceSession {
         btActualSoc = new double[busCount];
         btNonReserveDischargeLevel = new double[busCount];
         btTimeWorked = new double[busCount];
+        btAdaptiveFactorTrend = new double[busCount];
+        btAdaptiveFactorAcceleration = new double[busCount];
+        btAdaptiveFactorNoDg = new double[busCount];
+        btAdaptiveFactorReplacement = new double[busCount];
+        btAdaptiveFactorDgAvailability = new double[busCount];
+        btAdaptiveR = new double[busCount];
     }
 
     @Override
@@ -100,7 +107,6 @@ public final class ArrayTraceSession implements TraceSession {
         dgTimeWorked[busIndex] = new double[n];
         dgTotalTimeWorked[busIndex] = new double[n];
         dgIdleTime[busIndex] = new int[n];
-
         dgAvailable[busIndex] = new boolean[n];
         dgInMaintenance[busIndex] = new boolean[n];
 
@@ -111,7 +117,6 @@ public final class ArrayTraceSession implements TraceSession {
             dgTimeWorked[busIndex][i] = dg.getTimeWorked();
             dgTotalTimeWorked[busIndex][i] = dg.getTotalTimeWorked();
             dgIdleTime[busIndex][i] = dg.getIdleTime();
-
             dgAvailable[busIndex][i] = dg.isAvailable();
             dgInMaintenance[busIndex][i] = dg.isInMaintenance();
         }
@@ -124,11 +129,23 @@ public final class ArrayTraceSession implements TraceSession {
             btActualSoc[busIndex] = battery.getStateOfCharge();
             btNonReserveDischargeLevel[busIndex] = battery.getCurrentNonReserveDischargeLevel();
             btTimeWorked[busIndex] = battery.getTimeWorked();
+            btAdaptiveFactorTrend[busIndex] = battery.getTraceAdaptiveFactorTrend();
+            btAdaptiveFactorAcceleration[busIndex] = battery.getTraceAdaptiveFactorAcceleration();
+            btAdaptiveFactorNoDg[busIndex] = battery.getTraceAdaptiveFactorNoDg();
+            btAdaptiveFactorReplacement[busIndex] = battery.getTraceAdaptiveFactorReplacement();
+            btAdaptiveFactorDgAvailability[busIndex] = battery.getTraceAdaptiveFactorDgAvailability();
+            btAdaptiveR[busIndex] = battery.getTraceAdaptiveR();
         } else {
             btActualCapacity[busIndex] = Double.NaN;
             btActualSoc[busIndex] = Double.NaN;
             btNonReserveDischargeLevel[busIndex] = Double.NaN;
             btTimeWorked[busIndex] = Double.NaN;
+            btAdaptiveFactorTrend[busIndex] = Double.NaN;
+            btAdaptiveFactorAcceleration[busIndex] = Double.NaN;
+            btAdaptiveFactorNoDg[busIndex] = Double.NaN;
+            btAdaptiveFactorReplacement[busIndex] = Double.NaN;
+            btAdaptiveFactorDgAvailability[busIndex] = Double.NaN;
+            btAdaptiveR[busIndex] = Double.NaN;
         }
     }
 
@@ -139,7 +156,6 @@ public final class ArrayTraceSession implements TraceSession {
                               double totalWreKw,
                               Boolean breakerClosed,
                               String status) {
-
         records.add(new SimulationStepRecord(
                 timeIndex,
                 totalLoadKw,
@@ -163,12 +179,16 @@ public final class ArrayTraceSession implements TraceSession {
                 btActualCapacity,
                 btActualSoc,
                 btNonReserveDischargeLevel,
-                btTimeWorked
+                btTimeWorked,
+                btAdaptiveFactorTrend,
+                btAdaptiveFactorAcceleration,
+                btAdaptiveFactorNoDg,
+                btAdaptiveFactorReplacement,
+                btAdaptiveFactorDgAvailability,
+                btAdaptiveR
         ));
     }
 
     @Override
-    public List<SimulationStepRecord> records() {
-        return records;
-    }
+    public List<SimulationStepRecord> records() { return records; }
 }
