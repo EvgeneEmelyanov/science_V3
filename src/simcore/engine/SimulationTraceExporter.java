@@ -14,7 +14,12 @@ public final class SimulationTraceExporter {
     private static final Locale RU = Locale.forLanguageTag("ru-RU");
 
     private static final boolean DETAILED_OUTPUT = false;
-    private static final boolean DEBUG_ADAPTIVE_FACTORS = true;
+    /**
+     * Отладка весовых факторов adaptive-level.
+     * Если true, выводится компактный trace (как при DETAILED_OUTPUT=false)
+     * и сразу после B*_NRL добавляются B*_FT, B*_FA, B*_FH, B*_FR, B*_FD, B*_R.
+     */
+    private static final boolean DEBUG_WEIGHT_FACTORS = true;
 
     private static final int SXSSF_WINDOW = 200;
 
@@ -74,20 +79,20 @@ public final class SimulationTraceExporter {
                 for (int i = 0; i < dgCnt; i++) {
                     int di = i + 1;
                     writeHeaderCell(hdr, c++, "B" + bi + "_D" + di, headerStyle);
-                    if (DETAILED_OUTPUT) {
+                    if (DETAILED_OUTPUT && !DEBUG_WEIGHT_FACTORS) {
                         writeHeaderCell(hdr, c++, "B" + bi + "_D" + di + "_T", headerStyle);
                         writeHeaderCell(hdr, c++, "B" + bi + "_D" + di + "_I", headerStyle);
                     }
                 }
 
                 writeHeaderCell(hdr, c++, "B" + bi + "_B", headerStyle);
-                if (DETAILED_OUTPUT) {
+                if (DETAILED_OUTPUT && !DEBUG_WEIGHT_FACTORS) {
                     writeHeaderCell(hdr, c++, "B" + bi + "_C", headerStyle);
                 }
                 writeHeaderCell(hdr, c++, "B" + bi + "_SOC", headerStyle);
                 writeHeaderCell(hdr, c++, "B" + bi + "_NRL", headerStyle);
 
-                if (DEBUG_ADAPTIVE_FACTORS) {
+                if (DEBUG_WEIGHT_FACTORS) {
                     writeHeaderCell(hdr, c++, "B" + bi + "_FT", headerStyle);
                     writeHeaderCell(hdr, c++, "B" + bi + "_FA", headerStyle);
                     writeHeaderCell(hdr, c++, "B" + bi + "_FH", headerStyle);
@@ -96,7 +101,7 @@ public final class SimulationTraceExporter {
                     writeHeaderCell(hdr, c++, "B" + bi + "_R", headerStyle);
                 }
 
-                if (DETAILED_OUTPUT) {
+                if (DETAILED_OUTPUT && !DEBUG_WEIGHT_FACTORS) {
                     writeHeaderCell(hdr, c++, "B" + bi + "_H", headerStyle);
                 }
             }
@@ -135,7 +140,7 @@ public final class SimulationTraceExporter {
                 int[][] dgIdleT = null;
                 double[] btCap = null;
                 double[] btH = null;
-                if (DETAILED_OUTPUT) {
+                if (DETAILED_OUTPUT && !DEBUG_WEIGHT_FACTORS) {
                     dgTotalT = rec.getBusGenDgTotalTimeWorked();
                     dgIdleT = rec.getBusGenDgIdleTime();
                     btCap = rec.getBtActualCapacity();
@@ -144,12 +149,12 @@ public final class SimulationTraceExporter {
 
                 double[] btSoc = rec.getBtActualSOC();
                 double[] btNrl = rec.getBtNonReserveDischargeLevel();
-                double[] btFt = DEBUG_ADAPTIVE_FACTORS ? rec.getBtAdaptiveFactorTrend() : null;
-                double[] btFa = DEBUG_ADAPTIVE_FACTORS ? rec.getBtAdaptiveFactorAcceleration() : null;
-                double[] btFh = DEBUG_ADAPTIVE_FACTORS ? rec.getBtAdaptiveFactorNoDg() : null;
-                double[] btFr = DEBUG_ADAPTIVE_FACTORS ? rec.getBtAdaptiveFactorReplacement() : null;
-                double[] btFd = DEBUG_ADAPTIVE_FACTORS ? rec.getBtAdaptiveFactorDgAvailability() : null;
-                double[] btR = DEBUG_ADAPTIVE_FACTORS ? rec.getBtAdaptiveR() : null;
+                double[] btFt = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorTrend() : null;
+                double[] btFa = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorAcceleration() : null;
+                double[] btFh = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorNoDg() : null;
+                double[] btFr = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorReplacement() : null;
+                double[] btFd = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorDgAvailability() : null;
+                double[] btR = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveR() : null;
 
                 for (int b = 0; b < busCnt; b++) {
                     if (busStatus[b]) {
@@ -167,7 +172,7 @@ public final class SimulationTraceExporter {
                         } else {
                             writeNum1(row, cc++, dgLoad[b][i], num1Style);
                         }
-                        if (DETAILED_OUTPUT) {
+                        if (DETAILED_OUTPUT && !DEBUG_WEIGHT_FACTORS) {
                             writeNum1(row, cc++, dgTotalT[b][i], num1Style);
                             Cell idle = row.createCell(cc++);
                             idle.setCellValue(dgIdleT[b][i]);
@@ -176,13 +181,13 @@ public final class SimulationTraceExporter {
                     }
 
                     writeNum1(row, cc++, busB[b], num1Style);
-                    if (DETAILED_OUTPUT) {
+                    if (DETAILED_OUTPUT && !DEBUG_WEIGHT_FACTORS) {
                         writeNum1(row, cc++, btCap[b], num1Style);
                     }
                     writeNum1(row, cc++, btSoc[b], num1Style);
                     writeNum1(row, cc++, btNrl[b], num1Style);
 
-                    if (DEBUG_ADAPTIVE_FACTORS) {
+                    if (DEBUG_WEIGHT_FACTORS) {
                         writeNum1(row, cc++, btFt[b], num1Style);
                         writeNum1(row, cc++, btFa[b], num1Style);
                         writeNum1(row, cc++, btFh[b], num1Style);
@@ -191,7 +196,7 @@ public final class SimulationTraceExporter {
                         writeNum1(row, cc++, btR[b], num1Style);
                     }
 
-                    if (DETAILED_OUTPUT) {
+                    if (DETAILED_OUTPUT && !DEBUG_WEIGHT_FACTORS) {
                         writeNum1(row, cc++, btH[b], num1Style);
                     }
                 }
@@ -205,7 +210,7 @@ public final class SimulationTraceExporter {
             setWidth(sh, 2, 8);
             setWidth(sh, 3, 40);
             for (int col = 4; col <= lastCol0; col++) {
-                setWidth(sh, col, DEBUG_ADAPTIVE_FACTORS ? 12 : 11);
+                setWidth(sh, col, DEBUG_WEIGHT_FACTORS ? 12 : 11);
             }
 
             try (FileOutputStream out = new FileOutputStream(path)) {
