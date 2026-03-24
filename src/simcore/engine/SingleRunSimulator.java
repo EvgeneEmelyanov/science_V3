@@ -372,7 +372,8 @@ public final class SingleRunSimulator {
                             prevAdaptiveLoadKw[b],
                             prevAdaptiveWindKw[b],
                             prevAdaptiveAvailableDgPowerKw[b],
-                            prevAdaptiveRunningDgCount[b]
+                            prevAdaptiveRunningDgCount[b],
+                            buses.get(b).getDieselGenerators().size() * dgRatedKw
                     );
                 }
             }

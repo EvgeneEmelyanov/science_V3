@@ -47,6 +47,7 @@ public class SimulationStepRecord {
     private final double[] btTimeWorked;
 
     // Отладка adaptive-уровня АКБ
+    private final double[] btAdaptiveFactorDeficit;
     private final double[] btAdaptiveFactorTrend;
     private final double[] btAdaptiveFactorAcceleration;
     private final double[] btAdaptiveFactorNoDg;
@@ -77,6 +78,7 @@ public class SimulationStepRecord {
                                 double[] btActualSOC,
                                 double[] btNonReserveDischargeLevel,
                                 double[] btTimeWorked,
+                                double[] btAdaptiveFactorDeficit,
                                 double[] btAdaptiveFactorTrend,
                                 double[] btAdaptiveFactorAcceleration,
                                 double[] btAdaptiveFactorNoDg,
@@ -112,6 +114,7 @@ public class SimulationStepRecord {
         this.btActualSOC = btActualSOC.clone();
         this.btNonReserveDischargeLevel = btNonReserveDischargeLevel.clone();
         this.btTimeWorked = btTimeWorked.clone();
+        this.btAdaptiveFactorDeficit = btAdaptiveFactorDeficit.clone();
         this.btAdaptiveFactorTrend = btAdaptiveFactorTrend.clone();
         this.btAdaptiveFactorAcceleration = btAdaptiveFactorAcceleration.clone();
         this.btAdaptiveFactorNoDg = btAdaptiveFactorNoDg.clone();
@@ -155,6 +158,7 @@ public class SimulationStepRecord {
     public double[] getBtActualSOC() { return btActualSOC.clone(); }
     public double[] getBtNonReserveDischargeLevel() { return btNonReserveDischargeLevel.clone(); }
     public double[] getBtTimeWorked() { return btTimeWorked.clone(); }
+    public double[] getBtAdaptiveFactorDeficit() { return btAdaptiveFactorDeficit.clone(); }
     public double[] getBtAdaptiveFactorTrend() { return btAdaptiveFactorTrend.clone(); }
     public double[] getBtAdaptiveFactorAcceleration() { return btAdaptiveFactorAcceleration.clone(); }
     public double[] getBtAdaptiveFactorNoDg() { return btAdaptiveFactorNoDg.clone(); }

@@ -33,6 +33,7 @@ public class SystemParameters {
     private final double maxDischargeCurrent;
     private final double nonReserveDischargeLevel;
     private final boolean btUseAdaptiveNonReserveDischargeLevel;
+    private final double btAdaptiveDeficitWeight;
     private final double btAdaptiveTrendWeight;
     private final double btAdaptiveAccelerationWeight;
     private final double btAdaptiveNoDgPrevHourWeight;
@@ -69,6 +70,7 @@ public class SystemParameters {
                             double maxDischargeCurrent,
                             double nonReserveDischargeLevel,
                             boolean btUseAdaptiveNonReserveDischargeLevel,
+                            double btAdaptiveDeficitWeight,
                             double btAdaptiveTrendWeight,
                             double btAdaptiveAccelerationWeight,
                             double btAdaptiveNoDgPrevHourWeight,
@@ -116,6 +118,7 @@ public class SystemParameters {
         this.maxDischargeCurrent = maxDischargeCurrent;
         this.nonReserveDischargeLevel = nonReserveDischargeLevel;
         this.btUseAdaptiveNonReserveDischargeLevel = btUseAdaptiveNonReserveDischargeLevel;
+        this.btAdaptiveDeficitWeight = btAdaptiveDeficitWeight;
         this.btAdaptiveTrendWeight = btAdaptiveTrendWeight;
         this.btAdaptiveAccelerationWeight = btAdaptiveAccelerationWeight;
         this.btAdaptiveNoDgPrevHourWeight = btAdaptiveNoDgPrevHourWeight;
@@ -161,7 +164,7 @@ public class SystemParameters {
                 batteryCapacityKwhPerBus,
                 maxChargeCurrent, maxDischargeCurrent, nonReserveDischargeLevel,
                 btUseAdaptiveNonReserveDischargeLevel,
-                btAdaptiveTrendWeight, btAdaptiveAccelerationWeight,
+                btAdaptiveDeficitWeight, btAdaptiveTrendWeight, btAdaptiveAccelerationWeight,
                 btAdaptiveNoDgPrevHourWeight, btAdaptiveReplacementWeight,
                 btAdaptiveDgAvailabilityWeight, btGridFormingReserveShare,
                 windTurbineFailureRatePerYear, windTurbineRepairTimeHours,
@@ -206,6 +209,7 @@ public class SystemParameters {
     public double getMaxDischargeCurrent() { return maxDischargeCurrent; }
     public double getNonReserveDischargeLevel() { return nonReserveDischargeLevel; }
     public boolean isBtUseAdaptiveNonReserveDischargeLevel() { return btUseAdaptiveNonReserveDischargeLevel; }
+    public double getBtAdaptiveDeficitWeight() { return btAdaptiveDeficitWeight; }
     public double getBtAdaptiveTrendWeight() { return btAdaptiveTrendWeight; }
     public double getBtAdaptiveAccelerationWeight() { return btAdaptiveAccelerationWeight; }
     public double getBtAdaptiveNoDgPrevHourWeight() { return btAdaptiveNoDgPrevHourWeight; }

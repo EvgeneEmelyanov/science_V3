@@ -38,10 +38,12 @@ public class Battery extends Equipment {
     private boolean hasPrevRunningDgCountT1 = false;
 
     private double currentAdaptiveBaseNonReserveLevel = 1.0;
+    private double currentAdaptiveBaseR = 1.0;
 
     private final List<Double> adaptiveLevelHistory = new ArrayList<>();
 
     // ===== Adaptive diagnostics for trace =====
+    private double traceAdaptiveFactorDeficit = Double.NaN;
     private double traceAdaptiveFactorTrend = Double.NaN;
     private double traceAdaptiveFactorAcceleration = Double.NaN;
     private double traceAdaptiveFactorNoDg = Double.NaN;
@@ -65,6 +67,7 @@ public class Battery extends Equipment {
     public double getCurrentNonReserveDischargeLevel() { return currentNonReserveDischargeLevel; }
     public boolean isAvailableForUse() { return status && repairDurationHours == 0; }
 
+    public double getTraceAdaptiveFactorDeficit() { return traceAdaptiveFactorDeficit; }
     public double getTraceAdaptiveFactorTrend() { return traceAdaptiveFactorTrend; }
     public double getTraceAdaptiveFactorAcceleration() { return traceAdaptiveFactorAcceleration; }
     public double getTraceAdaptiveFactorNoDg() { return traceAdaptiveFactorNoDg; }
@@ -108,12 +111,14 @@ public class Battery extends Equipment {
                                                        double previousLoadKw,
                                                        double previousWindKw,
                                                        double previousAvailableDgPowerKw,
-                                                       int previousRunningDgCount) {
+                                                       int previousRunningDgCount,
+                                                       double totalDgPowerOnBusKw) {
         shiftAdaptiveHistory(previousLoadKw, previousWindKw, previousAvailableDgPowerKw, previousRunningDgCount);
         resetAdaptiveTraceDiagnostics();
 
         double fixed = clampRange(sp.getNonReserveDischargeLevel(), SimulationConstants.BATTERY_MIN_SOC, 1.0);
         currentAdaptiveBaseNonReserveLevel = fixed;
+        currentAdaptiveBaseR = clampRange((fixed - 0.2) / 0.8, 0.0, 1.0);
         currentNonReserveDischargeLevel = fixed;
         traceAdaptiveLevel = fixed;
 
@@ -124,6 +129,7 @@ public class Battery extends Equipment {
         if (prevLoadT1Kw == null || prevLoadT2Kw == null || prevLoadT3Kw == null
                 || prevWindT1Kw == null || prevWindT2Kw == null || prevWindT3Kw == null) {
             currentAdaptiveBaseNonReserveLevel = 1.0;
+            currentAdaptiveBaseR = 1.0;
             currentNonReserveDischargeLevel = 1.0;
             traceAdaptiveR = 1.0;
             traceAdaptiveLevel = 1.0;
@@ -138,10 +144,11 @@ public class Battery extends Equipment {
         double trend = deltaT1 - deltaT2;
         double previousTrend = deltaT2 - deltaT3;
         double acceleration = trend - previousTrend;
-        double dgUnitPowerKw = Math.max(SimulationConstants.EPSILON, sp.getDieselGeneratorPowerKw());
+        double dgBusPowerKw = Math.max(SimulationConstants.EPSILON, totalDgPowerOnBusKw);
 
-        double fTrend = trend / dgUnitPowerKw;
-        double fAcceleration = acceleration / dgUnitPowerKw;
+        double fDeficit = clampRange(deltaT1 / dgBusPowerKw, 0.0, 1.0);
+        double fTrend = clampRange(trend / dgBusPowerKw, -1.0, 1.0);
+        double fAcceleration = clampRange(acceleration / dgBusPowerKw, -1.0, 1.0);
         double fNoDg = (hasPrevRunningDgCountT1 && prevRunningDgCountT1 == 0) ? -1.0 : 0.0;
         double fDgAvailability = 0.0;
         if (deltaT1 > SimulationConstants.EPSILON) {
@@ -149,22 +156,24 @@ public class Battery extends Equipment {
             fDgAvailability = 1.0 - Math.min(1.0, Math.max(0.0, coverage));
         }
 
-        double r = sp.getBtAdaptiveTrendWeight() * fTrend
+        double rBase = sp.getBtAdaptiveDeficitWeight() * fDeficit
+                + sp.getBtAdaptiveTrendWeight() * fTrend
                 + sp.getBtAdaptiveAccelerationWeight() * fAcceleration
                 + sp.getBtAdaptiveNoDgPrevHourWeight() * fNoDg
                 + sp.getBtAdaptiveDgAvailabilityWeight() * fDgAvailability;
-        r = clampRange(r, 0.0, 1.0);
+        currentAdaptiveBaseR = clampRange(rBase, 0.0, 1.0);
 
-        currentAdaptiveBaseNonReserveLevel = 0.2 + 0.8 * r;
+        currentAdaptiveBaseNonReserveLevel = 0.2 + 0.8 * currentAdaptiveBaseR;
         currentNonReserveDischargeLevel = currentAdaptiveBaseNonReserveLevel;
         adaptiveLevelHistory.add(currentAdaptiveBaseNonReserveLevel);
 
+        traceAdaptiveFactorDeficit = fDeficit;
         traceAdaptiveFactorTrend = fTrend;
         traceAdaptiveFactorAcceleration = fAcceleration;
         traceAdaptiveFactorNoDg = fNoDg;
         traceAdaptiveFactorReplacement = 0.0;
         traceAdaptiveFactorDgAvailability = fDgAvailability;
-        traceAdaptiveR = r;
+        traceAdaptiveR = currentAdaptiveBaseR;
         traceAdaptiveLevel = currentAdaptiveBaseNonReserveLevel;
     }
 
@@ -193,7 +202,7 @@ public class Battery extends Equipment {
         double fReplacement = (nNeed <= 0) ? 0.0 : ((double) (nNeed - nCand) / Math.max(1, nNeed));
         fReplacement = clampRange(fReplacement, 0.0, 1.0);
 
-        double baseR = clampRange((currentAdaptiveBaseNonReserveLevel - 0.2) / 0.8, 0.0, 1.0);
+        double baseR = currentAdaptiveBaseR;
         double r = clampRange(baseR + sp.getBtAdaptiveReplacementWeight() * fReplacement, 0.0, 1.0);
         double level = 0.2 + 0.8 * r;
         return new AdaptiveCandidateState(fReplacement, r, level);
@@ -241,6 +250,7 @@ public class Battery extends Equipment {
     }
 
     private void resetAdaptiveTraceDiagnostics() {
+        traceAdaptiveFactorDeficit = Double.NaN;
         traceAdaptiveFactorTrend = Double.NaN;
         traceAdaptiveFactorAcceleration = Double.NaN;
         traceAdaptiveFactorNoDg = Double.NaN;

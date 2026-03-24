@@ -21,11 +21,12 @@ public final class ModelDefaults {
     public static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = 1;
 
     public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = true;
+    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT = 0.7; // wE
     public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = 0.2; // wT
-    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = 0.2; // wA
-    public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = 0.2; // wH
-    public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = 10; // wR
-    public static final double DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT = 0.2; // wD
+    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = 0.1; // wA
+    public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = 0.05; // wH
+    public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = 0.3; // wR
+    public static final double DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT = 0.1; // wD
 
     // Reliability (rates are double, repair times are int)
     public static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;

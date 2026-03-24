@@ -32,6 +32,7 @@ public final class ArrayTraceSession implements TraceSession {
     private double[] btNonReserveDischargeLevel;
     private double[] btTimeWorked;
 
+    private double[] btAdaptiveFactorDeficit;
     private double[] btAdaptiveFactorTrend;
     private double[] btAdaptiveFactorAcceleration;
     private double[] btAdaptiveFactorNoDg;
@@ -63,6 +64,7 @@ public final class ArrayTraceSession implements TraceSession {
         btActualSoc = new double[busCount];
         btNonReserveDischargeLevel = new double[busCount];
         btTimeWorked = new double[busCount];
+        btAdaptiveFactorDeficit = new double[busCount];
         btAdaptiveFactorTrend = new double[busCount];
         btAdaptiveFactorAcceleration = new double[busCount];
         btAdaptiveFactorNoDg = new double[busCount];
@@ -129,6 +131,7 @@ public final class ArrayTraceSession implements TraceSession {
             btActualSoc[busIndex] = battery.getStateOfCharge();
             btNonReserveDischargeLevel[busIndex] = battery.getCurrentNonReserveDischargeLevel();
             btTimeWorked[busIndex] = battery.getTimeWorked();
+            btAdaptiveFactorDeficit[busIndex] = battery.getTraceAdaptiveFactorDeficit();
             btAdaptiveFactorTrend[busIndex] = battery.getTraceAdaptiveFactorTrend();
             btAdaptiveFactorAcceleration[busIndex] = battery.getTraceAdaptiveFactorAcceleration();
             btAdaptiveFactorNoDg[busIndex] = battery.getTraceAdaptiveFactorNoDg();
@@ -140,6 +143,7 @@ public final class ArrayTraceSession implements TraceSession {
             btActualSoc[busIndex] = Double.NaN;
             btNonReserveDischargeLevel[busIndex] = Double.NaN;
             btTimeWorked[busIndex] = Double.NaN;
+            btAdaptiveFactorDeficit[busIndex] = Double.NaN;
             btAdaptiveFactorTrend[busIndex] = Double.NaN;
             btAdaptiveFactorAcceleration[busIndex] = Double.NaN;
             btAdaptiveFactorNoDg[busIndex] = Double.NaN;
@@ -180,6 +184,7 @@ public final class ArrayTraceSession implements TraceSession {
                 btActualSoc,
                 btNonReserveDischargeLevel,
                 btTimeWorked,
+                btAdaptiveFactorDeficit,
                 btAdaptiveFactorTrend,
                 btAdaptiveFactorAcceleration,
                 btAdaptiveFactorNoDg,

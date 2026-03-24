@@ -13,6 +13,7 @@ public class SystemParametersBuilder {
     private double maxDischargeCurrent;
     private double nonReserveDischargeLevel;
     private boolean btUseAdaptiveNonReserveDischargeLevel;
+    private double btAdaptiveDeficitWeight;
     private double btAdaptiveTrendWeight;
     private double btAdaptiveAccelerationWeight;
     private double btAdaptiveNoDgPrevHourWeight;
@@ -63,6 +64,7 @@ public class SystemParametersBuilder {
         b.maxDischargeCurrent = base.getMaxDischargeCurrent();
         b.nonReserveDischargeLevel = base.getNonReserveDischargeLevel();
         b.btUseAdaptiveNonReserveDischargeLevel = base.isBtUseAdaptiveNonReserveDischargeLevel();
+        b.btAdaptiveDeficitWeight = base.getBtAdaptiveDeficitWeight();
         b.btAdaptiveTrendWeight = base.getBtAdaptiveTrendWeight();
         b.btAdaptiveAccelerationWeight = base.getBtAdaptiveAccelerationWeight();
         b.btAdaptiveNoDgPrevHourWeight = base.getBtAdaptiveNoDgPrevHourWeight();
@@ -109,7 +111,7 @@ public class SystemParametersBuilder {
                 batteryCapacityKwhPerBus,
                 maxChargeCurrent, maxDischargeCurrent, nonReserveDischargeLevel,
                 btUseAdaptiveNonReserveDischargeLevel,
-                btAdaptiveTrendWeight, btAdaptiveAccelerationWeight,
+                btAdaptiveDeficitWeight, btAdaptiveTrendWeight, btAdaptiveAccelerationWeight,
                 btAdaptiveNoDgPrevHourWeight, btAdaptiveReplacementWeight,
                 btAdaptiveDgAvailabilityWeight, btGridFormingReserveShare,
                 windTurbineFailureRatePerYear, windTurbineRepairTimeHours,
@@ -152,6 +154,8 @@ public class SystemParametersBuilder {
     public SystemParametersBuilder setNonReserveDischargeLevel(double v) { this.nonReserveDischargeLevel = v; return this; }
     public boolean isBtUseAdaptiveNonReserveDischargeLevel() { return btUseAdaptiveNonReserveDischargeLevel; }
     public SystemParametersBuilder setBtUseAdaptiveNonReserveDischargeLevel(boolean v) { this.btUseAdaptiveNonReserveDischargeLevel = v; return this; }
+    public double getBtAdaptiveDeficitWeight() { return btAdaptiveDeficitWeight; }
+    public SystemParametersBuilder setBtAdaptiveDeficitWeight(double v) { this.btAdaptiveDeficitWeight = v; return this; }
     public double getBtAdaptiveTrendWeight() { return btAdaptiveTrendWeight; }
     public SystemParametersBuilder setBtAdaptiveTrendWeight(double v) { this.btAdaptiveTrendWeight = v; return this; }
     public double getBtAdaptiveAccelerationWeight() { return btAdaptiveAccelerationWeight; }

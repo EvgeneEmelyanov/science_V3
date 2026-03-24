@@ -16,9 +16,7 @@ import java.util.concurrent.Executors;
 public class Main {
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
-
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
-
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
     public static double MAX_LOAD;
@@ -26,8 +24,8 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 1;
+        RunMode runMode = RunMode.SWEEP_1;
+        int mcIterations = 50;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
@@ -145,11 +143,12 @@ public class Main {
 //                                .setTotalWindTurbineCount((int) p1)
 //                                .setWindTurbinePowerKw(p1)
 //
-//                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+                                .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
 
 //                                .setMaxDischargeCurrent(p2)
-//                                .setNonReserveDischargeLevel(p2)
+                                .setNonReserveDischargeLevel(p1)
 
+//                                .setBtAdaptiveDeficitWeight(p1) // wE
 //                                .setBtAdaptiveTrendWeight(p1) // wT
 //                                .setBtAdaptiveAccelerationWeight(p1) // wA
 //                                .setBtAdaptiveNoDgPrevHourWeight(p2) // wH
@@ -435,6 +434,7 @@ public class Main {
         static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = ModelDefaults.DEFAULT_BT_MAX_DISCHARGE_CURRENT;
         static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
         static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = ModelDefaults.DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL;
+        static final double DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT;
         static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_TREND_WEIGHT;
         static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT;
         static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT;
@@ -553,6 +553,7 @@ public class Main {
                     Defaults.DEFAULT_BT_MAX_DISCHARGE_CURRENT,
                     Defaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL,
                     Defaults.DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL,
+                    Defaults.DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT,
                     Defaults.DEFAULT_BT_ADAPTIVE_TREND_WEIGHT,
                     Defaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT,
                     Defaults.DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT,

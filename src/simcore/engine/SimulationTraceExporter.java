@@ -17,7 +17,7 @@ public final class SimulationTraceExporter {
     /**
      * Отладка весовых факторов adaptive-level.
      * Если true, выводится компактный trace (как при DETAILED_OUTPUT=false)
-     * и сразу после B*_NRL добавляются B*_FT, B*_FA, B*_FH, B*_FR, B*_FD, B*_R.
+     * и сразу после B*_NRL добавляются B*_FE, B*_FT, B*_FA, B*_FH, B*_FR, B*_FD, B*_R.
      */
     private static final boolean DEBUG_WEIGHT_FACTORS = true;
 
@@ -93,6 +93,7 @@ public final class SimulationTraceExporter {
                 writeHeaderCell(hdr, c++, "B" + bi + "_NRL", headerStyle);
 
                 if (DEBUG_WEIGHT_FACTORS) {
+                    writeHeaderCell(hdr, c++, "B" + bi + "_FE", headerStyle);
                     writeHeaderCell(hdr, c++, "B" + bi + "_FT", headerStyle);
                     writeHeaderCell(hdr, c++, "B" + bi + "_FA", headerStyle);
                     writeHeaderCell(hdr, c++, "B" + bi + "_FH", headerStyle);
@@ -149,6 +150,7 @@ public final class SimulationTraceExporter {
 
                 double[] btSoc = rec.getBtActualSOC();
                 double[] btNrl = rec.getBtNonReserveDischargeLevel();
+                double[] btFe = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorDeficit() : null;
                 double[] btFt = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorTrend() : null;
                 double[] btFa = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorAcceleration() : null;
                 double[] btFh = DEBUG_WEIGHT_FACTORS ? rec.getBtAdaptiveFactorNoDg() : null;
@@ -188,6 +190,7 @@ public final class SimulationTraceExporter {
                     writeNum1(row, cc++, btNrl[b], num1Style);
 
                     if (DEBUG_WEIGHT_FACTORS) {
+                        writeNum1(row, cc++, btFe[b], num1Style);
                         writeNum1(row, cc++, btFt[b], num1Style);
                         writeNum1(row, cc++, btFa[b], num1Style);
                         writeNum1(row, cc++, btFh[b], num1Style);
