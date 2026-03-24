@@ -109,6 +109,25 @@ public final class SingleRunSimulator {
         return count;
     }
 
+    private static void updateAdaptivePrevArrays(
+            int busCount,
+            double[] prevAdaptiveLoadKw,
+            double[] prevAdaptiveWindKw,
+            double[] prevAdaptiveAvailableDgPowerKw,
+            int[] prevAdaptiveRunningDgCount,
+            double[] adaptiveLoadKwNow,
+            double[] adaptiveWindKwNow,
+            double[] adaptiveAvailableDgPowerKwNow,
+            int[] adaptiveRunningDgCountNow
+    ) {
+        for (int b = 0; b < busCount; b++) {
+            prevAdaptiveLoadKw[b] = adaptiveLoadKwNow[b];
+            prevAdaptiveWindKw[b] = adaptiveWindKwNow[b];
+            prevAdaptiveAvailableDgPowerKw[b] = adaptiveAvailableDgPowerKwNow[b];
+            prevAdaptiveRunningDgCount[b] = adaptiveRunningDgCountNow[b];
+        }
+    }
+
     private static int countAvailableDgs(PowerBus bus) {
         if (bus == null) return 0;
         int count = 0;
@@ -444,6 +463,17 @@ public final class SingleRunSimulator {
             final CatLoads2 catLoads = BusLoadAllocator.computeCatLoadsOnOutage(
                     sp, buses, t, cat1, cat2, rawLoadThisHourKw, outageHours
             );
+            final double[] adaptiveLoadKwNow = new double[busCount];
+            final double[] adaptiveWindKwNow = new double[busCount];
+            final double[] adaptiveAvailableDgPowerKwNow = new double[busCount];
+            final int[] adaptiveRunningDgCountNow = new int[busCount];
+            for (int b = 0; b < busCount; b++) {
+                adaptiveLoadKwNow[b] = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
+                adaptiveWindKwNow[b] = computeWindPotential(buses.get(b), windV);
+                adaptiveAvailableDgPowerKwNow[b] = countAvailableDgs(buses.get(b)) * dgRatedKw;
+                adaptiveRunningDgCountNow[b] = countRunningDgs(buses.get(b));
+            }
+
 
 
             // ===== SINGLE_BUS (SN): outage / no grid-forming => 100% ENS =====
@@ -466,6 +496,17 @@ public final class SingleRunSimulator {
                 double ensThisHour = totals.ensKwh - ensBeforeHour;
                 double startEnsThisHour = totals.startEnsKwh - startEnsBeforeHour;
                 totals.ensEventStats.updateHour(ensThisHour, startEnsThisHour);
+                updateAdaptivePrevArrays(
+                        busCount,
+                        prevAdaptiveLoadKw,
+                        prevAdaptiveWindKw,
+                        prevAdaptiveAvailableDgPowerKw,
+                        prevAdaptiveRunningDgCount,
+                        adaptiveLoadKwNow,
+                        adaptiveWindKwNow,
+                        adaptiveAvailableDgPowerKwNow,
+                        adaptiveRunningDgCountNow
+                );
                 continue;
             }
 
@@ -505,16 +546,6 @@ public final class SingleRunSimulator {
             }
             // ===== Sectional-closed dispatch (если секционник закрыт) =====
 
-            final double[] adaptiveLoadKwNow = new double[busCount];
-            final double[] adaptiveWindKwNow = new double[busCount];
-            final double[] adaptiveAvailableDgPowerKwNow = new double[busCount];
-            final int[] adaptiveRunningDgCountNow = new int[busCount];
-            for (int b = 0; b < busCount; b++) {
-                adaptiveLoadKwNow[b] = (effectiveLoadKw != null) ? effectiveLoadKw[b] : rawLoadThisHourKw[b];
-                adaptiveWindKwNow[b] = computeWindPotential(buses.get(b), windV);
-                adaptiveAvailableDgPowerKwNow[b] = countAvailableDgs(buses.get(b)) * dgRatedKw;
-                adaptiveRunningDgCountNow[b] = countRunningDgs(buses.get(b));
-            }
 
             if (sectionalClosedThisHour) {
 
@@ -607,12 +638,17 @@ public final class SingleRunSimulator {
                     servedKwhThisYear += servedToConsumers;
                 }
 
-                for (int b = 0; b < busCount; b++) {
-                    prevAdaptiveLoadKw[b] = adaptiveLoadKwNow[b];
-                    prevAdaptiveWindKw[b] = adaptiveWindKwNow[b];
-                    prevAdaptiveAvailableDgPowerKw[b] = adaptiveAvailableDgPowerKwNow[b];
-                    prevAdaptiveRunningDgCount[b] = adaptiveRunningDgCountNow[b];
-                }
+                updateAdaptivePrevArrays(
+                        busCount,
+                        prevAdaptiveLoadKw,
+                        prevAdaptiveWindKw,
+                        prevAdaptiveAvailableDgPowerKw,
+                        prevAdaptiveRunningDgCount,
+                        adaptiveLoadKwNow,
+                        adaptiveWindKwNow,
+                        adaptiveAvailableDgPowerKwNow,
+                        adaptiveRunningDgCountNow
+                );
 
                 if (!computeEconomyDrivers) {
                     final boolean yearEndsNow = ((t + 1) % HOURS_PER_YEAR == 0) || (t == hours - 1);
@@ -908,6 +944,17 @@ public final class SingleRunSimulator {
                         }
                     }
 
+                    updateAdaptivePrevArrays(
+                            busCount,
+                            prevAdaptiveLoadKw,
+                            prevAdaptiveWindKw,
+                            prevAdaptiveAvailableDgPowerKw,
+                            prevAdaptiveRunningDgCount,
+                            adaptiveLoadKwNow,
+                            adaptiveWindKwNow,
+                            adaptiveAvailableDgPowerKwNow,
+                            adaptiveRunningDgCountNow
+                    );
                     continue;
                 }
             }
@@ -1047,6 +1094,18 @@ public final class SingleRunSimulator {
                     replAtYearStart = replNow;
                 }
             }
+
+            updateAdaptivePrevArrays(
+                    busCount,
+                    prevAdaptiveLoadKw,
+                    prevAdaptiveWindKw,
+                    prevAdaptiveAvailableDgPowerKw,
+                    prevAdaptiveRunningDgCount,
+                    adaptiveLoadKwNow,
+                    adaptiveWindKwNow,
+                    adaptiveAvailableDgPowerKwNow,
+                    adaptiveRunningDgCountNow
+            );
 
         }
 

@@ -21,7 +21,7 @@ public final class ModelDefaults {
     public static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = 1;
 
     public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = true;
-    public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = 1;
+    public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = 0;
     public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = 0.0;
     public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = 0.0;
     public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = 0.0;
