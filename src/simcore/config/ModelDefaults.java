@@ -18,31 +18,14 @@ public final class ModelDefaults {
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.6; //0,6
     public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
     public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.6;
-
-    public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = true;
-    // Адаптивный non-reserve алгоритм (новая упрощенная модель).
-    // Для совместимости используются старые поля SystemParameters, но их семантика следующая:
-    // reserve risk weight            -> weight of DG replacement aggressiveness (w_R)
-    // deficit risk weight            -> weight of deficit trend (w_T)
-    // acceleration risk weight       -> weight of deficit acceleration (w_A)
-    // acceleration risk scale kw     -> weight of previous-hour no-DG factor (w_H)
-    // reserve/deficit scales, EMA alpha and risk gain в новой модели не используются.
-    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_WEIGHT = 0.35;       // w_T
-    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_WEIGHT = 0.15;  // w_A
-    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_SCALE_KW = 0.20; // w_H
-    public static final double DEFAULT_BT_ADAPTIVE_RESERVE_RISK_WEIGHT = 0.30;       // w_R
-
-    public static final double DEFAULT_BT_ADAPTIVE_RESERVE_RISK_SCALE_KW = DEFAULT_DG_POWER_KW;
-    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_SCALE_KW = DEFAULT_DG_POWER_KW;
-    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_EMA_ALPHA = 1.0;
-    public static final double DEFAULT_BT_ADAPTIVE_RISK_GAIN = 1.0;
     public static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = 1;
 
-    // Алиасы с новой семантикой.
-    public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = DEFAULT_BT_ADAPTIVE_RESERVE_RISK_WEIGHT;
-    public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_WEIGHT;
-    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_WEIGHT;
-    public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_SCALE_KW;
+    public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = true;
+    public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = 0.3;
+    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = 0.0;
+    public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = 0.30;
+    public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = 0.30;
+    public static final double DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT = 0.1;
 
     // Reliability (rates are double, repair times are int)
     public static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;

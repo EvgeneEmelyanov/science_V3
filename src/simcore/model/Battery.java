@@ -25,9 +25,6 @@ public class Battery extends Equipment {
     private double halfCycleStartSoc;
     private int lastFlowSign = 0;
 
-    /**
-     * Для trace храним тот non-reserve floor, который реально использовался/был активен в текущем часу.
-     */
     private double currentNonReserveDischargeLevel = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
 
     private Double prevLoadT1Kw;
@@ -40,9 +37,6 @@ public class Battery extends Equipment {
     private int prevRunningDgCountT1 = 0;
     private boolean hasPrevRunningDgCountT1 = false;
 
-    /**
-     * Базовый adaptive floor на текущий час без поправки за конкретную глубину замещения ДГУ.
-     */
     private double currentAdaptiveBaseNonReserveLevel = 1.0;
 
     private final List<Double> adaptiveLevelHistory = new ArrayList<>();
@@ -107,7 +101,6 @@ public class Battery extends Equipment {
             return;
         }
 
-        // Первые три часа: не разряжаем АКБ в non-reserve режиме.
         if (prevLoadT1Kw == null || prevLoadT2Kw == null || prevLoadT3Kw == null
                 || prevWindT1Kw == null || prevWindT2Kw == null || prevWindT3Kw == null) {
             currentAdaptiveBaseNonReserveLevel = 1.0;
@@ -121,36 +114,32 @@ public class Battery extends Equipment {
         double deltaT3 = prevLoadT3Kw - prevWindT3Kw;
 
         double trend = deltaT1 - deltaT2;
-        double prevTrend = deltaT2 - deltaT3;
-        double acceleration = trend - prevTrend;
+        double previousTrend = deltaT2 - deltaT3;
+        double acceleration = trend - previousTrend;
+        double dgUnitPowerKw = Math.max(SimulationConstants.EPSILON, sp.getDieselGeneratorPowerKw());
 
-        double scale = Math.max(SimulationConstants.EPSILON, prevAvailableDgPowerT1Kw);
-
-        double fTrend = trend / scale;
-        double fAcceleration = acceleration / scale;
+        double fTrend = trend / dgUnitPowerKw;
+        double fAcceleration = acceleration / dgUnitPowerKw;
         double fNoDg = (hasPrevRunningDgCountT1 && prevRunningDgCountT1 == 0) ? -1.0 : 0.0;
-
-        double wTrend = Math.max(0.0, sp.getBtAdaptiveTrendWeight());
-        double wAcceleration = Math.max(0.0, sp.getBtAdaptiveAccelerationWeight());
-        double wNoDg = Math.max(0.0, sp.getBtAdaptiveNoDgPrevHourWeight());
-        double wReplacement = Math.max(0.0, sp.getBtAdaptiveReplacementWeight());
-        double weightSum = wTrend + wAcceleration + wNoDg + wReplacement;
-        if (weightSum <= SimulationConstants.EPSILON) {
-            weightSum = 1.0;
+        double fDgAvailability = 0.0;
+        if (deltaT1 > SimulationConstants.EPSILON) {
+            double coverage = prevAvailableDgPowerT1Kw / deltaT1;
+            fDgAvailability = 1.0 - Math.min(1.0, Math.max(0.0, coverage));
         }
 
-        // Базовый R без фактора замещения ДГУ. Вес агрессивности резервируем под candidate-level расчет.
-        double rBase = (wTrend * fTrend + wAcceleration * fAcceleration + wNoDg * fNoDg) / weightSum;
-        rBase = clampRange(rBase, 0.0, 1.0);
+        double r = sp.getBtAdaptiveTrendWeight() * fTrend
+                + sp.getBtAdaptiveAccelerationWeight() * fAcceleration
+                + sp.getBtAdaptiveNoDgPrevHourWeight() * fNoDg
+                + sp.getBtAdaptiveDgAvailabilityWeight() * fDgAvailability;
+        r = clampRange(r, 0.0, 1.0);
 
-        currentAdaptiveBaseNonReserveLevel = 0.2 + 0.8 * rBase;
+        currentAdaptiveBaseNonReserveLevel = 0.2 + 0.8 * r;
         currentNonReserveDischargeLevel = currentAdaptiveBaseNonReserveLevel;
         adaptiveLevelHistory.add(currentAdaptiveBaseNonReserveLevel);
     }
 
     /**
      * Получить floor для конкретного кандидата по числу оставляемых ДГУ.
-     * Чем агрессивнее сокращение дизельного состава, тем выше итоговый коэффициент осторожности R.
      */
     public double getAdaptiveNonReserveFloorForCandidate(SystemParameters sp,
                                                          int naturalNeededDgCount,
@@ -161,21 +150,11 @@ public class Battery extends Equipment {
 
         int nNeed = Math.max(0, naturalNeededDgCount);
         int nCand = Math.max(0, candidateDgCount);
-
-        double wTrend = Math.max(0.0, sp.getBtAdaptiveTrendWeight());
-        double wAcceleration = Math.max(0.0, sp.getBtAdaptiveAccelerationWeight());
-        double wNoDg = Math.max(0.0, sp.getBtAdaptiveNoDgPrevHourWeight());
-        double wReplacement = Math.max(0.0, sp.getBtAdaptiveReplacementWeight());
-        double weightSum = wTrend + wAcceleration + wNoDg + wReplacement;
-        if (weightSum <= SimulationConstants.EPSILON) {
-            weightSum = 1.0;
-        }
-
-        double baseR = (currentAdaptiveBaseNonReserveLevel - 0.2) / 0.8;
         double fReplacement = (nNeed <= 0) ? 0.0 : ((double) (nNeed - nCand) / Math.max(1, nNeed));
         fReplacement = clampRange(fReplacement, 0.0, 1.0);
 
-        double r = clampRange(baseR + (wReplacement / weightSum) * fReplacement, 0.0, 1.0);
+        double baseR = clampRange((currentAdaptiveBaseNonReserveLevel - 0.2) / 0.8, 0.0, 1.0);
+        double r = clampRange(baseR + sp.getBtAdaptiveReplacementWeight() * fReplacement, 0.0, 1.0);
         return 0.2 + 0.8 * r;
     }
 

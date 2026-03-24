@@ -15,8 +15,6 @@ import java.util.concurrent.Executors;
 
 public class Main {
 
-    // мб вернуть деградацию по току акб
-
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
 
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
@@ -28,8 +26,8 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 1;
+        RunMode runMode = RunMode.SWEEP_1;
+        int mcIterations = 50;
 
         BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
 
@@ -429,14 +427,11 @@ public class Main {
         static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = ModelDefaults.DEFAULT_BT_MAX_DISCHARGE_CURRENT;
         static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = ModelDefaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL;
         static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = ModelDefaults.DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL;
-        static final double DEFAULT_BT_ADAPTIVE_RESERVE_RISK_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_RESERVE_RISK_WEIGHT;
-        static final double DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_WEIGHT;
-        static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_WEIGHT;
-        static final double DEFAULT_BT_ADAPTIVE_RESERVE_RISK_SCALE_KW = ModelDefaults.DEFAULT_BT_ADAPTIVE_RESERVE_RISK_SCALE_KW;
-        static final double DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_SCALE_KW = ModelDefaults.DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_SCALE_KW;
-        static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_SCALE_KW = ModelDefaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_SCALE_KW;
-        static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_EMA_ALPHA = ModelDefaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_EMA_ALPHA;
-        static final double DEFAULT_BT_ADAPTIVE_RISK_GAIN = ModelDefaults.DEFAULT_BT_ADAPTIVE_RISK_GAIN;
+        static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_TREND_WEIGHT;
+        static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT;
+        static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT;
+        static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT;
+        static final double DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT = ModelDefaults.DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT;
         static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = ModelDefaults.DEFAULT_BT_GRID_FORMING_RESERVE_SHARE;
 
         // Reliability (rates are double, repair times are int)
@@ -550,14 +545,11 @@ public class Main {
                     Defaults.DEFAULT_BT_MAX_DISCHARGE_CURRENT,
                     Defaults.DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL,
                     Defaults.DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL,
-                    Defaults.DEFAULT_BT_ADAPTIVE_RESERVE_RISK_WEIGHT,
-                    Defaults.DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_WEIGHT,
-                    Defaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_WEIGHT,
-                    Defaults.DEFAULT_BT_ADAPTIVE_RESERVE_RISK_SCALE_KW,
-                    Defaults.DEFAULT_BT_ADAPTIVE_DEFICIT_RISK_SCALE_KW,
-                    Defaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_RISK_SCALE_KW,
-                    Defaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_EMA_ALPHA,
-                    Defaults.DEFAULT_BT_ADAPTIVE_RISK_GAIN,
+                    Defaults.DEFAULT_BT_ADAPTIVE_TREND_WEIGHT,
+                    Defaults.DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT,
+                    Defaults.DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT,
+                    Defaults.DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT,
+                    Defaults.DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT,
                     Defaults.DEFAULT_BT_GRID_FORMING_RESERVE_SHARE,
 
                     Defaults.DEFAULT_WT_FAILURE_RATE_PER_YEAR,
