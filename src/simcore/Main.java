@@ -24,10 +24,10 @@ public class Main {
     private static final class Cli {
 
         Task task = Task.RUN;
-        RunMode runMode = RunMode.SWEEP_1;
-        int mcIterations = 50;
+        RunMode runMode = RunMode.SINGLE;
+        int mcIterations = 500;
 
-        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
@@ -108,11 +108,11 @@ public class Main {
         if (mode == RunMode.SWEEP_1) {
             for (double p1 : param1) {
                 SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+//                        .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
 //                        .setDieselGeneratorPowerKw(p1)
 //                        .setRotationReserveCoeff(p1)
 //                        .setBtGridFormingReserveShare(p1)
-//                        .setNonReserveDischargeLevel(p1)
+                        .setNonReserveDischargeLevel(p1)
                         .build();
                 paramSets.add(p);
             }
@@ -208,8 +208,8 @@ public class Main {
 //        };
 //        double[] param2 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 
-        double[] param1 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-        double[] param2 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        double[] param2 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
+        double[] param1 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
 //                double[] param2 = new double[]{1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5};
 
 
