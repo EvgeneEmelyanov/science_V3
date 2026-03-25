@@ -17,7 +17,7 @@ public final class ModelDefaults {
     public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.5;
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.6; //0,6
     public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
-    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.6;
+    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.5;
     public static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = 1;
 
     public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = true;
