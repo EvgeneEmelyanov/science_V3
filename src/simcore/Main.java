@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 
 public class Main {
 
-    public enum Task {RUN, SOBOL_HARD, SOBOL_ECON}
+    public enum Task {RUN, SOBOL_HARD, SOBOL_ECON, ADAPTIVE_TUNE}
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
 
@@ -23,14 +23,33 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.RUN;
+        Task task = Task.ADAPTIVE_TUNE;
         RunMode runMode = RunMode.SINGLE;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
+        SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
+
         int mcIterations = 500;
 
-        BusSystemType busType = BusSystemType.DOUBLE_BUS;
-
-        SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
         int sobolN = 128;
+
+        // Adaptive weight tuning
+        int tuneSamples = 256;
+        int tuneTopK = 16;
+        int tuneStage1Mc = 50;
+        int tuneStage2Mc = 250;
+        String tuneCsvPath = Defaults.TUNE_CSV;
+        Double tuneEnsMax = null;
+        Double tuneLolpMax = null;
+        Double tuneLolehMax = null;
+        double tuneLambdaFuel = 0.0;
+        double tuneLambdaMoto = 0.0;
+        double tuneFixedWA = 0.0;
+
+        double tuneWEMin = 0.0, tuneWEMax = 1.2;
+        double tuneWTMin = 0.0, tuneWTMax = 0.5;
+        double tuneWHMin = 0.0, tuneWHMax = 0.3;
+        double tuneWDMin = 0.0, tuneWDMax = 0.8;
+        double tuneWRMin = 0.0, tuneWRMax = 0.8;
 
         //        String exportDriversPath = "D:/econ_drivers.csv";
         String exportDriversPath = null;
@@ -86,6 +105,29 @@ public class Main {
                 if (a.startsWith("--econDrivers=")) c.econDriversPath = a.substring("--econDrivers=".length()).trim();
                 if (a.startsWith("--econCase=")) c.econCaseId = a.substring("--econCase=".length()).trim();
                 if (a.startsWith("--econN=")) c.econN = Integer.parseInt(a.substring("--econN=".length()).trim());
+
+                if (a.startsWith("--tuneSamples=")) c.tuneSamples = Integer.parseInt(a.substring("--tuneSamples=".length()).trim());
+                if (a.startsWith("--tuneTopK=")) c.tuneTopK = Integer.parseInt(a.substring("--tuneTopK=".length()).trim());
+                if (a.startsWith("--tuneStage1Mc=")) c.tuneStage1Mc = Integer.parseInt(a.substring("--tuneStage1Mc=".length()).trim());
+                if (a.startsWith("--tuneStage2Mc=")) c.tuneStage2Mc = Integer.parseInt(a.substring("--tuneStage2Mc=".length()).trim());
+                if (a.startsWith("--tuneCsv=")) c.tuneCsvPath = a.substring("--tuneCsv=".length()).trim();
+                if (a.startsWith("--tuneEnsMax=")) c.tuneEnsMax = Double.parseDouble(a.substring("--tuneEnsMax=".length()).trim());
+                if (a.startsWith("--tuneLolpMax=")) c.tuneLolpMax = Double.parseDouble(a.substring("--tuneLolpMax=".length()).trim());
+                if (a.startsWith("--tuneLolehMax=")) c.tuneLolehMax = Double.parseDouble(a.substring("--tuneLolehMax=".length()).trim());
+                if (a.startsWith("--tuneLambdaFuel=")) c.tuneLambdaFuel = Double.parseDouble(a.substring("--tuneLambdaFuel=".length()).trim());
+                if (a.startsWith("--tuneLambdaMoto=")) c.tuneLambdaMoto = Double.parseDouble(a.substring("--tuneLambdaMoto=".length()).trim());
+                if (a.startsWith("--tuneFixedWA=")) c.tuneFixedWA = Double.parseDouble(a.substring("--tuneFixedWA=".length()).trim());
+
+                if (a.startsWith("--tuneWEMin=")) c.tuneWEMin = Double.parseDouble(a.substring("--tuneWEMin=".length()).trim());
+                if (a.startsWith("--tuneWEMax=")) c.tuneWEMax = Double.parseDouble(a.substring("--tuneWEMax=".length()).trim());
+                if (a.startsWith("--tuneWTMin=")) c.tuneWTMin = Double.parseDouble(a.substring("--tuneWTMin=".length()).trim());
+                if (a.startsWith("--tuneWTMax=")) c.tuneWTMax = Double.parseDouble(a.substring("--tuneWTMax=".length()).trim());
+                if (a.startsWith("--tuneWHMin=")) c.tuneWHMin = Double.parseDouble(a.substring("--tuneWHMin=".length()).trim());
+                if (a.startsWith("--tuneWHMax=")) c.tuneWHMax = Double.parseDouble(a.substring("--tuneWHMax=".length()).trim());
+                if (a.startsWith("--tuneWDMin=")) c.tuneWDMin = Double.parseDouble(a.substring("--tuneWDMin=".length()).trim());
+                if (a.startsWith("--tuneWDMax=")) c.tuneWDMax = Double.parseDouble(a.substring("--tuneWDMax=".length()).trim());
+                if (a.startsWith("--tuneWRMin=")) c.tuneWRMin = Double.parseDouble(a.substring("--tuneWRMin=".length()).trim());
+                if (a.startsWith("--tuneWRMax=")) c.tuneWRMax = Double.parseDouble(a.substring("--tuneWRMax=".length()).trim());
             }
             return c;
         }
@@ -395,6 +437,216 @@ public class Main {
         }
     }
 
+    private static void runTaskAdaptiveTune(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
+        int samples = Math.max(8, cli.tuneSamples);
+        int topK = Math.max(1, Math.min(cli.tuneTopK, samples));
+        int stage1Mc = Math.max(1, cli.tuneStage1Mc);
+        int stage2Mc = Math.max(1, cli.tuneStage2Mc);
+
+        SystemParameters adaptiveBase = SystemParametersBuilder.from(baseParams)
+                .setBtUseAdaptiveNonReserveDischargeLevel(true)
+                .setBtAdaptiveAccelerationWeight(cli.tuneFixedWA)
+                .build();
+
+        SimulationConfig cfg1 = ScenarioFactory.defaultConfig(li.windMs(), stage1Mc, cli.threads, false);
+        SimulationConfig cfg2 = ScenarioFactory.defaultConfig(li.windMs(), stage2Mc, cli.threads, false);
+
+        SimInput baseInput1 = new SimInput(cfg1, adaptiveBase, li.totalLoadKw());
+        SimInput baseInput2 = new SimInput(cfg2, adaptiveBase, li.totalLoadKw());
+
+        ExecutorService ex = Executors.newFixedThreadPool(cli.threads);
+        try {
+            SingleRunSimulator sim = new SingleRunSimulator();
+            MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.1);
+
+            MonteCarloEstimate baseline = mc.evaluateForTheta(baseInput2, null, null, stage2Mc, cli.mcBaseSeed, false);
+            double ensMax = (cli.tuneEnsMax != null) ? cli.tuneEnsMax : baseline.ensStats.getMean();
+            double lolpMax = (cli.tuneLolpMax != null) ? cli.tuneLolpMax : baseline.meanLolp;
+            double lolehMax = (cli.tuneLolehMax != null) ? cli.tuneLolehMax : baseline.meanLoleHours;
+
+            System.out.println("=== ADAPTIVE_TUNE baseline ===");
+            System.out.printf(Locale.US,
+                    "baseline: LCOE=%.6f ENS=%.6f LOLP=%.6f LOLH=%.6f Fuel=%.6f Moto=%.6f%n",
+                    baseline.meanLcoeRubPerKwh, baseline.ensStats.getMean(), baseline.meanLolp, baseline.meanLoleHours,
+                    baseline.meanFuelLiters, baseline.meanMotoHours);
+            System.out.printf(Locale.US,
+                    "constraints: ENS<=%.6f LOLP<=%.6f LOLH<=%.6f%n", ensMax, lolpMax, lolehMax);
+
+            List<TuneResult> global = new ArrayList<>();
+            double[][] points = simcore.sobol.SobolMath.generateABBySobolSequence(samples, 5, 1024)[0];
+            for (int i = 0; i < samples; i++) {
+                WeightPoint w = weightFromUnit(cli, points[i]);
+                MonteCarloEstimate est = evaluateWeights(mc, baseInput1, cli, w);
+                double score = score(est, baseline, ensMax, lolpMax, lolehMax, cli.tuneLambdaFuel, cli.tuneLambdaMoto);
+                TuneResult tr = new TuneResult("global", i + 1, w, est, score);
+                global.add(tr);
+                System.out.printf(Locale.US,
+                        "global %3d/%3d score=%.6f wE=%.4f wT=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLP=%.6f LOLH=%.6f avgNRL=%.4f%n",
+                        i + 1, samples, score, w.wE, w.wT, w.wH, w.wD, w.wR,
+                        est.meanLcoeRubPerKwh, est.ensStats.getMean(), est.meanLolp, est.meanLoleHours, est.meanAdaptiveNonReserveLevel);
+            }
+            global.sort(Comparator.comparingDouble(a -> a.score));
+
+            List<TuneResult> local = new ArrayList<>();
+            int localSamplesPerTop = 12;
+            for (int i = 0; i < Math.min(topK, global.size()); i++) {
+                WeightPoint center = global.get(i).weights;
+                for (int j = 0; j < localSamplesPerTop; j++) {
+                    double[] u = new double[]{(j + 0.5) / localSamplesPerTop, Math.abs(Math.sin((i + 1) * 17.0 + j)), Math.abs(Math.sin((i + 1) * 31.0 + j)), Math.abs(Math.sin((i + 1) * 47.0 + j)), Math.abs(Math.sin((i + 1) * 59.0 + j))};
+                    WeightPoint w = localPerturb(cli, center, u);
+                    MonteCarloEstimate est = evaluateWeights(mc, baseInput1, cli, w);
+                    double score = score(est, baseline, ensMax, lolpMax, lolehMax, cli.tuneLambdaFuel, cli.tuneLambdaMoto);
+                    local.add(new TuneResult("local", i * localSamplesPerTop + j + 1, w, est, score));
+                }
+            }
+            local.sort(Comparator.comparingDouble(a -> a.score));
+
+            List<TuneResult> finalists = new ArrayList<>();
+            LinkedHashMap<String, WeightPoint> unique = new LinkedHashMap<>();
+            for (TuneResult tr : global) {
+                String key = tr.weights.key();
+                if (!unique.containsKey(key)) unique.put(key, tr.weights);
+                if (unique.size() >= topK) break;
+            }
+            for (TuneResult tr : local) {
+                String key = tr.weights.key();
+                if (!unique.containsKey(key)) unique.put(key, tr.weights);
+                if (unique.size() >= topK * 2) break;
+            }
+
+            int idx = 1;
+            for (WeightPoint w : unique.values()) {
+                MonteCarloEstimate est = evaluateWeights(mc, baseInput2, cli, w);
+                double score = score(est, baseline, ensMax, lolpMax, lolehMax, cli.tuneLambdaFuel, cli.tuneLambdaMoto);
+                finalists.add(new TuneResult("final", idx++, w, est, score));
+            }
+            finalists.sort(Comparator.comparingDouble(a -> a.score));
+
+            writeTuneCsv(cli.tuneCsvPath, baseline, ensMax, lolpMax, lolehMax, global, local, finalists);
+
+            System.out.println("=== ADAPTIVE_TUNE final top ===");
+            for (int i = 0; i < Math.min(10, finalists.size()); i++) {
+                TuneResult tr = finalists.get(i);
+                System.out.printf(Locale.US,
+                        "#%d score=%.6f wE=%.4f wT=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLP=%.6f LOLH=%.6f Fuel=%.6f Moto=%.6f avgNRL=%.4f medNRL=%.4f%n",
+                        i + 1, tr.score, tr.weights.wE, tr.weights.wT, tr.weights.wH, tr.weights.wD, tr.weights.wR,
+                        tr.estimate.meanLcoeRubPerKwh, tr.estimate.ensStats.getMean(), tr.estimate.meanLolp, tr.estimate.meanLoleHours,
+                        tr.estimate.meanFuelLiters, tr.estimate.meanMotoHours,
+                        tr.estimate.meanAdaptiveNonReserveLevel, tr.estimate.medianAdaptiveNonReserveLevel);
+            }
+            System.out.println("Saved tune table: " + cli.tuneCsvPath);
+
+        } finally {
+            ex.shutdown();
+        }
+    }
+
+    private static MonteCarloEstimate evaluateWeights(MonteCarloRunner mc, SimInput baseInput, Cli cli, WeightPoint w)
+            throws InterruptedException, java.util.concurrent.ExecutionException {
+        SystemParameters tuned = SystemParametersBuilder.from(baseInput.getSystemParameters())
+                .setBtUseAdaptiveNonReserveDischargeLevel(true)
+                .setBtAdaptiveDeficitWeight(w.wE)
+                .setBtAdaptiveTrendWeight(w.wT)
+                .setBtAdaptiveAccelerationWeight(cli.tuneFixedWA)
+                .setBtAdaptiveNoDgPrevHourWeight(w.wH)
+                .setBtAdaptiveDgAvailabilityWeight(w.wD)
+                .setBtAdaptiveReplacementWeight(w.wR)
+                .build();
+        SimInput in = baseInput.withSystemParameters(tuned);
+        return mc.evaluateForTheta(in, null, null, in.getConfig().getIterations(), cli.mcBaseSeed, false);
+    }
+
+    private static WeightPoint weightFromUnit(Cli cli, double[] u) {
+        return new WeightPoint(
+                lerp(cli.tuneWEMin, cli.tuneWEMax, u[0]),
+                lerp(cli.tuneWTMin, cli.tuneWTMax, u[1]),
+                lerp(cli.tuneWHMin, cli.tuneWHMax, u[2]),
+                lerp(cli.tuneWDMin, cli.tuneWDMax, u[3]),
+                lerp(cli.tuneWRMin, cli.tuneWRMax, u[4])
+        );
+    }
+
+    private static WeightPoint localPerturb(Cli cli, WeightPoint c, double[] u) {
+        double spanE = (cli.tuneWEMax - cli.tuneWEMin) * 0.15;
+        double spanT = (cli.tuneWTMax - cli.tuneWTMin) * 0.15;
+        double spanH = (cli.tuneWHMax - cli.tuneWHMin) * 0.15;
+        double spanD = (cli.tuneWDMax - cli.tuneWDMin) * 0.15;
+        double spanR = (cli.tuneWRMax - cli.tuneWRMin) * 0.15;
+        return new WeightPoint(
+                clip(c.wE + (u[0] * 2.0 - 1.0) * spanE, cli.tuneWEMin, cli.tuneWEMax),
+                clip(c.wT + (u[1] * 2.0 - 1.0) * spanT, cli.tuneWTMin, cli.tuneWTMax),
+                clip(c.wH + (u[2] * 2.0 - 1.0) * spanH, cli.tuneWHMin, cli.tuneWHMax),
+                clip(c.wD + (u[3] * 2.0 - 1.0) * spanD, cli.tuneWDMin, cli.tuneWDMax),
+                clip(c.wR + (u[4] * 2.0 - 1.0) * spanR, cli.tuneWRMin, cli.tuneWRMax)
+        );
+    }
+
+    private static double score(MonteCarloEstimate est,
+                                MonteCarloEstimate baseline,
+                                double ensMax,
+                                double lolpMax,
+                                double lolehMax,
+                                double lambdaFuel,
+                                double lambdaMoto) {
+        double s = est.meanLcoeRubPerKwh / safePositive(baseline.meanLcoeRubPerKwh);
+        if (lambdaFuel != 0.0) s += lambdaFuel * est.meanFuelLiters / safePositive(baseline.meanFuelLiters);
+        if (lambdaMoto != 0.0) s += lambdaMoto * est.meanMotoHours / safePositive(baseline.meanMotoHours);
+        s += penaltyOver(est.ensStats.getMean(), ensMax, 1000.0);
+        s += penaltyOver(est.meanLolp, lolpMax, 1000.0);
+        s += penaltyOver(est.meanLoleHours, lolehMax, 1000.0);
+        return s;
+    }
+
+    private static double penaltyOver(double value, double limit, double scale) {
+        if (!(limit > 0.0)) return 0.0;
+        if (value <= limit) return 0.0;
+        double over = (value - limit) / limit;
+        return scale * over * over;
+    }
+
+    private static double safePositive(double x) {
+        return (x > 1e-12) ? x : 1e-12;
+    }
+
+    private static double lerp(double a, double b, double u) { return a + (b - a) * u; }
+    private static double clip(double x, double lo, double hi) { return Math.max(lo, Math.min(hi, x)); }
+
+    private static void writeTuneCsv(String path,
+                                     MonteCarloEstimate baseline,
+                                     double ensMax,
+                                     double lolpMax,
+                                     double lolehMax,
+                                     List<TuneResult> global,
+                                     List<TuneResult> local,
+                                     List<TuneResult> finals) throws java.io.IOException {
+        try (java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(path), java.nio.charset.StandardCharsets.UTF_8))) {
+            pw.println("kind,seq,score,wE,wT,wH,wD,wR,LCOE,ENS,LOLP,LOLH,FuelLiters,MotoHours,AvgNRL,MedNRL,ENS_limit,LOLP_limit,LOLH_limit,baseline_LCOE,baseline_ENS,baseline_LOLP,baseline_LOLH");
+            for (TuneResult tr : global) writeTuneRow(pw, tr, baseline, ensMax, lolpMax, lolehMax);
+            for (TuneResult tr : local) writeTuneRow(pw, tr, baseline, ensMax, lolpMax, lolehMax);
+            for (TuneResult tr : finals) writeTuneRow(pw, tr, baseline, ensMax, lolpMax, lolehMax);
+        }
+    }
+
+    private static void writeTuneRow(java.io.PrintWriter pw, TuneResult tr, MonteCarloEstimate baseline,
+                                     double ensMax, double lolpMax, double lolehMax) {
+        pw.printf(Locale.US,
+                "%s,%d,%.10f,%.6f,%.6f,%.6f,%.6f,%.6f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f%n",
+                tr.kind, tr.seq, tr.score, tr.weights.wE, tr.weights.wT, tr.weights.wH, tr.weights.wD, tr.weights.wR,
+                tr.estimate.meanLcoeRubPerKwh, tr.estimate.ensStats.getMean(), tr.estimate.meanLolp, tr.estimate.meanLoleHours,
+                tr.estimate.meanFuelLiters, tr.estimate.meanMotoHours,
+                tr.estimate.meanAdaptiveNonReserveLevel, tr.estimate.medianAdaptiveNonReserveLevel,
+                ensMax, lolpMax, lolehMax,
+                baseline.meanLcoeRubPerKwh, baseline.ensStats.getMean(), baseline.meanLolp, baseline.meanLoleHours);
+    }
+
+    private record WeightPoint(double wE, double wT, double wH, double wD, double wR) {
+        String key() {
+            return String.format(Locale.US, "%.6f|%.6f|%.6f|%.6f|%.6f", wE, wT, wH, wD, wR);
+        }
+    }
+
+    private record TuneResult(String kind, int seq, WeightPoint weights, MonteCarloEstimate estimate, double score) {}
+
     private static final class Defaults {
         private Defaults() {
         }
@@ -403,6 +655,7 @@ public class Main {
         static final String WIND_PATH = "D:/08_ModelingData/02_Wind.txt";
         static final String RESULTS_XLSX = "D:/results.xlsx";
         static final String TRACE_XLSX = "D:/trace.xlsx";
+        static final String TUNE_CSV = "D:/adaptive_tune.csv";
 
         // Load paths (can be overridden by --load=)
         static final String LOAD_GOK = "D:/08_ModelingData/01_Load_g.txt";
@@ -506,6 +759,7 @@ public class Main {
                 case RUN -> runTaskRun(li, baseParams, cli);
                 case SOBOL_HARD -> runTaskSobolHard(li, baseParams, cli);
                 case SOBOL_ECON -> runTaskSobolEcon(baseParams, cli);
+                case ADAPTIVE_TUNE -> runTaskAdaptiveTune(li, baseParams, cli);
             }
 
         } catch (Exception e) {
