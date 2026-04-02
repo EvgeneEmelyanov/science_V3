@@ -189,6 +189,7 @@ public class Battery extends Equipment {
         }
     }
 
+    // АЛГОРИТМ
     private AdaptiveCandidateState calculateAdaptiveCandidateState(SystemParameters sp,
                                                                    int naturalNeededDgCount,
                                                                    int candidateDgCount) {
@@ -199,7 +200,8 @@ public class Battery extends Equipment {
 
         int nNeed = Math.max(0, naturalNeededDgCount);
         int nCand = Math.max(0, candidateDgCount);
-        double fReplacement = (nNeed <= 0) ? 0.0 : ((double) (nNeed - nCand) / Math.max(1, nNeed));
+        double fReplacement = (nNeed <= 0) ? 0.0 : ((double) (nNeed - nCand) / Math.max(1, nNeed)); //ПОКА СПОРНО
+        fReplacement *= fReplacement;
         fReplacement = clampRange(fReplacement, 0.0, 1.0);
 
         double baseR = currentAdaptiveBaseR;
