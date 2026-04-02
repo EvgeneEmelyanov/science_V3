@@ -150,11 +150,8 @@ public class Battery extends Equipment {
         double fTrend = clampRange(trend / dgBusPowerKw, -1.0, 1.0);
         double fAcceleration = clampRange(acceleration / dgBusPowerKw, -1.0, 1.0);
         double fNoDg = (hasPrevRunningDgCountT1 && prevRunningDgCountT1 == 0) ? -1.0 : 0.0;
-        double fDgAvailability = 0.0;
-        if (deltaT1 > SimulationConstants.EPSILON) {
-            double coverage = prevAvailableDgPowerT1Kw / deltaT1;
-            fDgAvailability = 1.0 - Math.min(1.0, Math.max(0.0, coverage));
-        }
+        double fDgAvailability = prevLoadT1Kw / prevAvailableDgPowerT1Kw;
+//        fDgAvailability *= fDgAvailability; // менял
 
         double rBase = sp.getBtAdaptiveDeficitWeight() * fDeficit
                 + sp.getBtAdaptiveTrendWeight() * fTrend
@@ -200,7 +197,7 @@ public class Battery extends Equipment {
 
         int nNeed = Math.max(0, naturalNeededDgCount);
         int nCand = Math.max(0, candidateDgCount);
-        double fReplacement = (nNeed <= 0) ? 0.0 : ((double) (nNeed - nCand) / Math.max(1, nNeed)); //ПОКА СПОРНО
+        double fReplacement = (nNeed <= 0) ? 0.0 : ((double) (nNeed - nCand) / Math.max(1, nNeed)); // менял
         fReplacement *= fReplacement;
         fReplacement = clampRange(fReplacement, 0.0, 1.0);
 
