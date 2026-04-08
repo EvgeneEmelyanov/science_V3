@@ -33,7 +33,7 @@ public class Main {
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 256 ;//256
+        int sobolN = 256; //256
 
         String exportDriversPath = null;
 
@@ -516,10 +516,12 @@ public class Main {
             );
 
             System.out.printf(OUT_LOCALE,
-                    "baseline(static NRL): LCOE=%.6f ENS=%.6f LOLH=%.6f ENS_evtN=%.6f Fuel=%.6f Moto=%.6f%n",
+                    "baseline(static NRL): LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f Fuel=%.6f Moto=%.6f%n",
                     baseline.meanLcoeRubPerKwh,
                     baseline.ensStats.getMean(),
                     baseline.meanLoleHours,
+                    baseline.meanLolp,
+                    baseline.meanLpsp,
                     baseline.meanEnsEventsTotal,
                     baseline.meanFuelLiters,
                     baseline.meanMotoHours
@@ -535,12 +537,14 @@ public class Main {
                 stage1.add(new TuneResult(w, est, compromise));
 
 //                System.out.printf(OUT_LOCALE,
-//                        "global %3d/%d comp=%.2f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f ENS_evtN=%.6f avgNRL=%.4f%n",
+//                        "global %3d/%d comp=%.2f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f avgNRL=%.4f%n",
 //                        i + 1, cli.tuneSamples, compromise,
 //                        w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
 //                        est.meanLcoeRubPerKwh,
 //                        est.ensStats.getMean(),
 //                        est.meanLoleHours,
+//                        est.meanLolp,
+//                        est.meanLpsp,
 //                        est.meanEnsEventsTotal,
 //                        est.meanAdaptiveNonReserveLevel
 //                );
@@ -674,12 +678,14 @@ public class Main {
             out.add(new TuneResult(w, est, comp));
 
 //            System.out.printf(OUT_LOCALE,
-//                    "final %3d/%d comp=%.6f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f ENS_evtN=%.6f avgNRL=%.4f%n",
+//                    "final %3d/%d comp=%.6f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f avgNRL=%.4f%n",
 //                    idx++, selected.size(), comp,
 //                    w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
 //                    est.meanLcoeRubPerKwh,
 //                    est.ensStats.getMean(),
 //                    est.meanLoleHours,
+//                    est.meanLolp,
+//                    est.meanLpsp,
 //                    est.meanEnsEventsTotal,
 //                    est.meanAdaptiveNonReserveLevel
 //            );
@@ -740,7 +746,7 @@ public class Main {
         List<TuneResult> copy = new ArrayList<>(results);
         copy.sort(cmp);
 
-        System.out.println("rank\tcomp\twE\twT\twA\twH\twD\twR\tLCOE\tENS\tLOLH\tENS_evtN\tFuel\tMoto\tavgNRL\tmedNRL");
+        System.out.println("rank\tcomp\twE\twT\twA\twH\twD\twR\tLCOE\tENS\tLOLH\tLOLP\tLPSP\tENS_evtN\tFuel\tMoto\tavgNRL\tmedNRL");
 
         for (int i = 0; i < Math.min(n, copy.size()); i++) {
             TuneResult tr = copy.get(i);
@@ -748,13 +754,15 @@ public class Main {
             TuneWeights w = tr.weights();
 
             System.out.printf(OUT_LOCALE,
-                    "#%d\t%.6f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.4f\t%.4f%n",
+                    "#%d\t%.6f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.6f\t%.6f\t%.6f\t%.6e\t%.6e\t%.6f\t%.6f\t%.6f\t%.4f\t%.4f%n",
                     i + 1,
                     tr.compromise(),
                     w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
                     est.meanLcoeRubPerKwh,
                     est.ensStats.getMean(),
                     est.meanLoleHours,
+                    est.meanLolp,
+                    est.meanLpsp,
                     est.meanEnsEventsTotal,
                     est.meanFuelLiters,
                     est.meanMotoHours,
@@ -766,7 +774,7 @@ public class Main {
 
     private static void writeTuneCsv(String path, List<TuneResult> rows, MonteCarloEstimate baseline) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(path))) {
-            bw.write("wE;wT;wA;wH;wD;wR;LCOE;ENS;LOLH;ENS_evtN;Fuel;Moto;avgNRL;medNRL;compromise;lcoeNorm;ensNorm");
+            bw.write("wE;wT;wA;wH;wD;wR;LCOE;ENS;LOLH;LOLP;LPSP;ENS_evtN;Fuel;Moto;avgNRL;medNRL;compromise;lcoeNorm;ensNorm");
             bw.newLine();
 
             for (TuneResult tr : rows) {
@@ -776,11 +784,13 @@ public class Main {
                 double ensNorm = est.ensStats.getMean() / Math.max(1e-9, baseline.ensStats.getMean());
 
                 bw.write(String.format(OUT_LOCALE,
-                        "%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f",
+                        "%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f",
                         w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
                         est.meanLcoeRubPerKwh,
                         est.ensStats.getMean(),
                         est.meanLoleHours,
+                        est.meanLolp,
+                        est.meanLpsp,
                         est.meanEnsEventsTotal,
                         est.meanFuelLiters,
                         est.meanMotoHours,

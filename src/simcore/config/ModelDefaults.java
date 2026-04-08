@@ -7,15 +7,16 @@ public final class ModelDefaults {
     // Categories share (k1, k2); k3 implied = 1 - k1 - k2
     public static final double DEFAULT_FIRST_CAT = 0.1; //0,25
     public static final double DEFAULT_SECOND_CAT = 0.4; //0,25
-    // WT
-    public static final int DEFAULT_WT_COUNT_TOTAL = 2; //2
-    public static final double DEFAULT_WT_POWER_KW = 1346 / 2 * 0.25; //673
     // DG
     public static final int DEFAULT_DG_COUNT_TOTAL = 8; //8
     public static final double DEFAULT_DG_POWER_KW = 200;// 340
+
+    // WT
+    public static final int DEFAULT_WT_COUNT_TOTAL = 2; //2
+    public static final double DEFAULT_WT_POWER_KW = 1346 / 2 * 0.75; //673
     // Battery
-    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.1;
-    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.8; //0,6
+    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.425;
+    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.5; //0,6
 
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1; //0,6
     public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0; //2
