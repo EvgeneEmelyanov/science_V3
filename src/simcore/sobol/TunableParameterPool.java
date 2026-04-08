@@ -17,10 +17,10 @@ public final class TunableParameterPool {
     private static volatile double MIN_TOTAL_DG_POWER_KW = 1346;
 
     // Precomputed bounds (also used by coupled constraints)
-    private static final double DG_COUNT_MIN = minFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 0.666666666667, 4);
-    private static final double DG_COUNT_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 1.33333333333, 10);
-    private static final double DG_POWER_MIN = minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.395, 150);
-    private static final double DG_POWER_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.985, 675);
+    private static final double DG_COUNT_MIN = minFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 0.75, 6);
+    private static final double DG_COUNT_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_COUNT_TOTAL, 1.25, 10);
+    private static final double DG_POWER_MIN = minFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 0.5, 170);
+    private static final double DG_POWER_MAX = maxFromBase(ModelDefaults.DEFAULT_DG_POWER_KW, 1.5, 510);
 
     static {
         Map<TunableParamId, TunableParameter> m = new EnumMap<>(TunableParamId.class);
@@ -174,8 +174,8 @@ public final class TunableParameterPool {
                 new TunableParameter(
                         TunableParamId.WT_POWER,
                         "WT_POWER",
-                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.0, 0),
-                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 2, 1346),
+                        minFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 0.5, 504.75),
+                        maxFromBase(ModelDefaults.DEFAULT_WT_POWER_KW, 1.5, 1514.25),
                         SystemParametersBuilder::setWindTurbinePowerKw
                 ));
 

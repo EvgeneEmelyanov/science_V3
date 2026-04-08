@@ -26,14 +26,14 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.RUN;
-        RunMode runMode = RunMode.SINGLE;
-        int mcIterations = 1;
+        Task task = Task.ADAPTIVE_TUNE;
+        RunMode runMode = RunMode.SWEEP_2;
+        int mcIterations = 50;
 
-        BusSystemType busType = BusSystemType.SINGLE_SECTIONAL_BUS;
+        BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 256;
+        int sobolN = 256 ;//256
 
         String exportDriversPath = null;
 
@@ -52,21 +52,21 @@ public class Main {
 
         // Adaptive tuning
         int tuneSamples = 100;
-        int tuneStage1Mc = 25;
+        int tuneStage1Mc = 100;
         int tuneStage2Mc = 0;
-        int tuneBaselineMc = 25;
+        int tuneBaselineMc = 100;
 
         int tuneTopByLcoe = 3;
-        int tuneTopByEns = 3;
+        int tuneTopByEns = 0;
         int tuneTopByCompromise = 0;
 
         String tuneCsvPath = "adaptive_tune.csv";
 
-        double tuneWEMin = 0.0, tuneWEMax = 0.1;//0,3
+        double tuneWEMin = 0.0, tuneWEMax = 0.2;//0,3
         double tuneWTMin = 0.0, tuneWTMax = 0.75;
-        double tuneWAMin = 0.8, tuneWAMax = 1.5;
-        double tuneWHMin = 0.0, tuneWHMax = 1;
-        double tuneWDMin = 0.0, tuneWDMax = 0.1;
+        double tuneWAMin = 0.0, tuneWAMax = 0.5;
+        double tuneWHMin = 0.0, tuneWHMax = 8;
+        double tuneWDMin = 0.0, tuneWDMax = 0.5;
         double tuneWRMin = 0.5, tuneWRMax = 2;
 
 //        double tuneWEMin = 0.0, tuneWEMax = 0.3;
@@ -220,8 +220,8 @@ public class Main {
 //                                .setDieselGeneratorPowerKw(p2)
 //                                .setWindTurbinePowerKw(p1)
 
-//                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
-                                .setMaxChargeCurrent(p1)
+                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
+//                                .setMaxDischargeCurrent(p2)
                                 .setNonReserveDischargeLevel(p2)
                                 .build();
                         paramSets.add(p);
@@ -246,7 +246,7 @@ public class Main {
         final double catStep = 0.1;
 
 //        double[] param2 = new double[]{
-//                180, 190,
+//                150, 160, 170, 180, 190,
 //                200, 210, 220, 230, 240,
 //                250, 260, 270, 280, 290,
 //                300
@@ -269,9 +269,41 @@ public class Main {
 //        };
 
 //        double[] param2 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-        double[] param1 = new double[]{0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1};
 //        double[] param1 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-        double[] param2 = new double[]{0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1};
+
+//        double[] param1 = new double[]{0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1};
+
+        double[] param1 = new double[]{
+                0.0, 0.025, 0.05, 0.075,
+                0.1, 0.125, 0.15, 0.175,
+//                0.2, 0.225, 0.25, 0.275,
+//                0.3, 0.325, 0.35, 0.375,
+//                0.4, 0.425, 0.45, 0.475,
+//                0.5, 0.525, 0.55, 0.575,
+//                0.6, 0.625, 0.65, 0.675,
+//                0.7, 0.725, 0.75, 0.775,
+//                0.8, 0.825, 0.85, 0.875,
+//                0.9, 0.925, 0.95, 0.975,
+//                1.0, 1.025, 1.05, 1.075,
+//                1.1, 1.125, 1.15, 1.175,
+//                1.2, 1.225, 1.25, 1.275,
+//                1.3, 1.325, 1.35, 1.375,
+//                1.4, 1.425, 1.45, 1.475,
+//                1.5,
+        };
+
+//        double[] param2 = new double[]{0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4, 4.25, 4.5, 4.75, 5};
+
+        double[] param2 = new double[]{
+//                0.2, 0.225, 0.25, 0.275,
+//                0.3, 0.325, 0.35, 0.375,
+                0.4, 0.425, 0.45, 0.475,
+                0.5, 0.525, 0.55, 0.575,
+                0.6, 0.625, 0.65, 0.675,
+                0.7, 0.725, 0.75, 0.775,
+                0.8, 0.825, 0.85, 0.875,
+//                0.9, 0.925, 0.95, 0.975, 1.0
+        };
 
         if (cli.runMode == RunMode.SWEEP_2 && sweepCatsTriangle) {
             param1 = buildGrid01(catStep);
@@ -313,30 +345,30 @@ public class Main {
 
     private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
         List<TunableParamId> ids = List.of(
-//                TunableParamId.DG_POWER,
-////                TunableParamId.DG_COUNT,
-////                TunableParamId.WT_POWER,
-////                TunableParamId.BT_CAPACITY_PER_BUS,
-////                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-////                TunableParamId.BT_MAX_CHARGE_CURRENT,
-////                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+                TunableParamId.DG_POWER,
+                TunableParamId.DG_COUNT,
+                TunableParamId.WT_POWER,
+                TunableParamId.BT_CAPACITY_PER_BUS,
+                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                TunableParamId.BT_MAX_CHARGE_CURRENT,
+                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
 
 
                 // Группа по надежности:
-                TunableParamId.FIRST_CAT,
-                TunableParamId.SECOND_CAT,
-
-                TunableParamId.WT_FAILURE_RATE,
-                TunableParamId.DG_FAILURE_RATE,
-                TunableParamId.BT_FAILURE_RATE,
-                TunableParamId.BUS_FAILURE_RATE,
-                TunableParamId.BRK_FAILURE_RATE,
-
-                TunableParamId.WT_REPAIR_TIME,
-                TunableParamId.DG_REPAIR_TIME,
-                TunableParamId.BT_REPAIR_TIME,
-                TunableParamId.BUS_REPAIR_TIME,
-                TunableParamId.BRK_REPAIR_TIME
+//                TunableParamId.FIRST_CAT,
+//                TunableParamId.SECOND_CAT,
+//
+//                TunableParamId.WT_FAILURE_RATE,
+//                TunableParamId.DG_FAILURE_RATE,
+//                TunableParamId.BT_FAILURE_RATE,
+//                TunableParamId.BUS_FAILURE_RATE,
+//                TunableParamId.BRK_FAILURE_RATE,
+//
+//                TunableParamId.WT_REPAIR_TIME,
+//                TunableParamId.DG_REPAIR_TIME,
+//                TunableParamId.BT_REPAIR_TIME,
+//                TunableParamId.BUS_REPAIR_TIME,
+//                TunableParamId.BRK_REPAIR_TIME
 
         );
 
@@ -502,16 +534,16 @@ public class Main {
                 double compromise = compromiseMetric(est, baseline);
                 stage1.add(new TuneResult(w, est, compromise));
 
-                System.out.printf(OUT_LOCALE,
-                        "global %3d/%d comp=%.2f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f ENS_evtN=%.6f avgNRL=%.4f%n",
-                        i + 1, cli.tuneSamples, compromise,
-                        w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
-                        est.meanLcoeRubPerKwh,
-                        est.ensStats.getMean(),
-                        est.meanLoleHours,
-                        est.meanEnsEventsTotal,
-                        est.meanAdaptiveNonReserveLevel
-                );
+//                System.out.printf(OUT_LOCALE,
+//                        "global %3d/%d comp=%.2f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f ENS_evtN=%.6f avgNRL=%.4f%n",
+//                        i + 1, cli.tuneSamples, compromise,
+//                        w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
+//                        est.meanLcoeRubPerKwh,
+//                        est.ensStats.getMean(),
+//                        est.meanLoleHours,
+//                        est.meanEnsEventsTotal,
+//                        est.meanAdaptiveNonReserveLevel
+//                );
             }
 
 //            writeTuneCsv(cli.tuneCsvPath, stage1, baseline);

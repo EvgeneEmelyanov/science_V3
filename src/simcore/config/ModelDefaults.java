@@ -8,25 +8,25 @@ public final class ModelDefaults {
     public static final double DEFAULT_FIRST_CAT = 0.1; //0,25
     public static final double DEFAULT_SECOND_CAT = 0.4; //0,25
     // WT
-    public static final int DEFAULT_WT_COUNT_TOTAL = 2; //4
-    public static final double DEFAULT_WT_POWER_KW = 673; //673
+    public static final int DEFAULT_WT_COUNT_TOTAL = 2; //2
+    public static final double DEFAULT_WT_POWER_KW = 1346 / 2 * 0.25; //673
     // DG
-    public static final int DEFAULT_DG_COUNT_TOTAL = 8; //6
-    public static final double DEFAULT_DG_POWER_KW = 200;// 420
+    public static final int DEFAULT_DG_COUNT_TOTAL = 8; //8
+    public static final double DEFAULT_DG_POWER_KW = 200;// 340
     // Battery
-    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.5;
-    public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 0.6; //0,6
-    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
-    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.5;
-    public static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = 1;
+    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.1;
+    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.8; //0,6
 
-    public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = true;
-    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT = 0.2; // wE
-    public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = 0.2; // wT
-    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = 0; // wA
-    public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = 0.2; // wH
-    public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = 0.2; // wR
-    public static final double DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT = 0.2; // wD
+    public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1; //0,6
+    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0; //2
+
+    public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = false;
+    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT = 0.0053; // wE
+    public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = 0.4607; // wT
+    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = 1.4112; // wA
+    public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = 0.9095; // wH 0.0427
+    public static final double DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT = 0.0109; // wD
+    public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = 0.6874; // wR 0.8166
 
     // Reliability (rates are double, repair times are int)
     public static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;
@@ -45,7 +45,7 @@ public final class ModelDefaults {
     public static final double DEFAULT_BUS_CCF_BETA_DOUBLE = 0.0;
 
     // ---- Economics defaults ----
-    public static final double DEFAULT_DISCOUNT_RATE = 0.08;
+    public static final double DEFAULT_DISCOUNT_RATE = 0.08; //0.1
     public static final double DEFAULT_COST_RU_RUB = 5_000_000;
     public static final double DEFAULT_COST_DG_RUB_PER_KW = 60_000;
     public static final double DEFAULT_COST_DG_RUB_PER_KW_PER_KMH = 5_000;
@@ -65,6 +65,7 @@ public final class ModelDefaults {
     public static final boolean CFG_RESERVE_THIRD_CATEGORY = true;
     public static final boolean CFG_CONSIDER_ROTATION_RESERVE = true;
 
+    public static final double DEFAULT_BT_GRID_FORMING_RESERVE_SHARE = 1;
     public static final boolean CFG_USE_AVG_LOAD_RESERVE_POLICY = false;
     public static final double CFG_IDLE_RESERVE_COEFF = 1;
     public static final double CFG_ROTATION_RESERVE_COEFF = 1.7;
