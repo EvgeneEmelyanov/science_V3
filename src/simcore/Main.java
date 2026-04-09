@@ -33,7 +33,7 @@ public class Main {
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
         SobolConfig.SeedMode sobolSeedMode = SobolConfig.SeedMode.HYBRID_BY_TYPE;
-        int sobolN = 256; //256
+        int sobolN = 256;
 
         String exportDriversPath = null;
 
@@ -62,7 +62,9 @@ public class Main {
 
         String tuneCsvPath = "adaptive_tune.csv";
 
-        double tuneWEMin = 0.0, tuneWEMax = 0.2;//0,3
+        int tuneSobolSkip = 0;
+
+        double tuneWEMin = 0.0, tuneWEMax = 0.2;
         double tuneWTMin = 0.0, tuneWTMax = 0.75;
         double tuneWAMin = 0.0, tuneWAMax = 0.5;
         double tuneWHMin = 0.0, tuneWHMax = 8;
@@ -125,6 +127,7 @@ public class Main {
                 if (a.startsWith("--tuneTopByCompromise=")) c.tuneTopByCompromise = Integer.parseInt(a.substring("--tuneTopByCompromise=".length()).trim());
 
                 if (a.startsWith("--tuneCsv=")) c.tuneCsvPath = a.substring("--tuneCsv=".length()).trim();
+                if (a.startsWith("--tuneSobolSkip=")) c.tuneSobolSkip = Integer.parseInt(a.substring("--tuneSobolSkip=".length()).trim());
 
                 if (a.startsWith("--tuneWEMin=")) c.tuneWEMin = Double.parseDouble(a.substring("--tuneWEMin=".length()).trim());
                 if (a.startsWith("--tuneWEMax=")) c.tuneWEMax = Double.parseDouble(a.substring("--tuneWEMax=".length()).trim());
@@ -219,7 +222,6 @@ public class Main {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
 //                                .setDieselGeneratorPowerKw(p2)
 //                                .setWindTurbinePowerKw(p1)
-
                                 .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
 //                                .setMaxDischargeCurrent(p2)
                                 .setNonReserveDischargeLevel(p2)
@@ -245,64 +247,17 @@ public class Main {
         final boolean sweepCatsTriangle = false;
         final double catStep = 0.1;
 
-//        double[] param2 = new double[]{
-//                150, 160, 170, 180, 190,
-//                200, 210, 220, 230, 240,
-//                250, 260, 270, 280, 290,
-//                300
-//        };
-//
-//        double[] param1 = new double[] {
-//                0.0,
-//                168.25,
-//                336.5,
-//                504.75,
-//                673.0,
-//                841.25,
-//                1009.5,
-//                1177.75,
-//                1346.0,
-//                1514.25,
-//                1682.5,
-//                1850.75,
-//                2019.0
-//        };
-
-//        double[] param2 = new double[]{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-//        double[] param1 = new double[]{0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1};
-
-//        double[] param1 = new double[]{0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1};
-
         double[] param1 = new double[]{
                 0.0, 0.025, 0.05, 0.075,
                 0.1, 0.125, 0.15, 0.175,
-//                0.2, 0.225, 0.25, 0.275,
-//                0.3, 0.325, 0.35, 0.375,
-//                0.4, 0.425, 0.45, 0.475,
-//                0.5, 0.525, 0.55, 0.575,
-//                0.6, 0.625, 0.65, 0.675,
-//                0.7, 0.725, 0.75, 0.775,
-//                0.8, 0.825, 0.85, 0.875,
-//                0.9, 0.925, 0.95, 0.975,
-//                1.0, 1.025, 1.05, 1.075,
-//                1.1, 1.125, 1.15, 1.175,
-//                1.2, 1.225, 1.25, 1.275,
-//                1.3, 1.325, 1.35, 1.375,
-//                1.4, 1.425, 1.45, 1.475,
-//                1.5,
         };
 
-//        double[] param2 = new double[]{0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4, 4.25, 4.5, 4.75, 5};
-
         double[] param2 = new double[]{
-//                0.2, 0.225, 0.25, 0.275,
-//                0.3, 0.325, 0.35, 0.375,
                 0.4, 0.425, 0.45, 0.475,
                 0.5, 0.525, 0.55, 0.575,
                 0.6, 0.625, 0.65, 0.675,
                 0.7, 0.725, 0.75, 0.775,
                 0.8, 0.825, 0.85, 0.875,
-//                0.9, 0.925, 0.95, 0.975, 1.0
         };
 
         if (cli.runMode == RunMode.SWEEP_2 && sweepCatsTriangle) {
@@ -352,24 +307,6 @@ public class Main {
                 TunableParamId.BT_MAX_DISCHARGE_CURRENT,
                 TunableParamId.BT_MAX_CHARGE_CURRENT,
                 TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
-
-
-                // Группа по надежности:
-//                TunableParamId.FIRST_CAT,
-//                TunableParamId.SECOND_CAT,
-//
-//                TunableParamId.WT_FAILURE_RATE,
-//                TunableParamId.DG_FAILURE_RATE,
-//                TunableParamId.BT_FAILURE_RATE,
-//                TunableParamId.BUS_FAILURE_RATE,
-//                TunableParamId.BRK_FAILURE_RATE,
-//
-//                TunableParamId.WT_REPAIR_TIME,
-//                TunableParamId.DG_REPAIR_TIME,
-//                TunableParamId.BT_REPAIR_TIME,
-//                TunableParamId.BUS_REPAIR_TIME,
-//                TunableParamId.BRK_REPAIR_TIME
-
         );
 
         SobolConfig sobolCfg = SobolConfig.fromIds(
@@ -490,6 +427,9 @@ public class Main {
         if (cli.tuneBaselineMc <= 0) {
             throw new IllegalArgumentException("tuneBaselineMc must be > 0");
         }
+        if (cli.tuneSobolSkip < 0) {
+            throw new IllegalArgumentException("tuneSobolSkip must be >= 0");
+        }
 
         ExecutorService ex = Executors.newFixedThreadPool(cli.threads);
         try {
@@ -527,18 +467,18 @@ public class Main {
                     baseline.meanMotoHours
             );
 
-            Random rnd = new Random(cli.mcBaseSeed ^ 0x9E3779B97F4A7C15L);
-            List<TuneResult> stage1 = new ArrayList<>(cli.tuneSamples);
+            List<TuneWeights> candidates = generateSobolTuneWeights(cli);
+            List<TuneResult> stage1 = new ArrayList<>(candidates.size());
 
-            for (int i = 0; i < cli.tuneSamples; i++) {
-                TuneWeights w = randomWeights(rnd, cli);
+            for (int i = 0; i < candidates.size(); i++) {
+                TuneWeights w = candidates.get(i);
                 MonteCarloEstimate est = evaluateWeights(engine, li, cfgStage1, baseParams, cli.mcBaseSeed, w, cli.tuneStage1Mc);
                 double compromise = compromiseMetric(est, baseline);
                 stage1.add(new TuneResult(w, est, compromise));
 
 //                System.out.printf(OUT_LOCALE,
-//                        "global %3d/%d comp=%.2f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f avgNRL=%.4f%n",
-//                        i + 1, cli.tuneSamples, compromise,
+//                        "global %3d/%d comp=%.6f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f avgNRL=%.4f%n",
+//                        i + 1, candidates.size(), compromise,
 //                        w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
 //                        est.meanLcoeRubPerKwh,
 //                        est.ensStats.getMean(),
@@ -588,19 +528,26 @@ public class Main {
         }
     }
 
-    private static TuneWeights randomWeights(Random rnd, Cli cli) {
-        return new TuneWeights(
-                uniform(rnd, cli.tuneWEMin, cli.tuneWEMax),
-                uniform(rnd, cli.tuneWTMin, cli.tuneWTMax),
-                uniform(rnd, cli.tuneWAMin, cli.tuneWAMax),
-                uniform(rnd, cli.tuneWHMin, cli.tuneWHMax),
-                uniform(rnd, cli.tuneWDMin, cli.tuneWDMax),
-                uniform(rnd, cli.tuneWRMin, cli.tuneWRMax)
-        );
+    private static List<TuneWeights> generateSobolTuneWeights(Cli cli) {
+        double[][] unitPoints = SobolMath.generateSequence(cli.tuneSamples, 6, cli.tuneSobolSkip);
+        List<TuneWeights> out = new ArrayList<>(cli.tuneSamples);
+
+        for (double[] u : unitPoints) {
+            out.add(new TuneWeights(
+                    scaleToRange(u[0], cli.tuneWEMin, cli.tuneWEMax),
+                    scaleToRange(u[1], cli.tuneWTMin, cli.tuneWTMax),
+                    scaleToRange(u[2], cli.tuneWAMin, cli.tuneWAMax),
+                    scaleToRange(u[3], cli.tuneWHMin, cli.tuneWHMax),
+                    scaleToRange(u[4], cli.tuneWDMin, cli.tuneWDMax),
+                    scaleToRange(u[5], cli.tuneWRMin, cli.tuneWRMax)
+            ));
+        }
+
+        return out;
     }
 
-    private static double uniform(Random rnd, double min, double max) {
-        return min + rnd.nextDouble() * (max - min);
+    private static double scaleToRange(double u01, double min, double max) {
+        return min + u01 * (max - min);
     }
 
     private static MonteCarloEstimate evaluateWeights(SimulationEngine engine,
@@ -678,8 +625,8 @@ public class Main {
             out.add(new TuneResult(w, est, comp));
 
 //            System.out.printf(OUT_LOCALE,
-//                    "final %3d/%d comp=%.6f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f avgNRL=%.4f%n",
-//                    idx++, selected.size(), comp,
+//                    "final comp=%.6f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f avgNRL=%.4f%n",
+//                    comp,
 //                    w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
 //                    est.meanLcoeRubPerKwh,
 //                    est.ensStats.getMean(),

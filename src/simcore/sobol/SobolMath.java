@@ -16,10 +16,36 @@ public final class SobolMath {
     private SobolMath() {}
 
     /**
+     * Generates a Sobol low-discrepancy sequence matrix of shape [N][d].
+     * Each coordinate is in [0, 1).
+     */
+    public static double[][] generateSequence(int N, int d, int skip) {
+        if (N <= 0) throw new IllegalArgumentException("N must be > 0");
+        if (d <= 0) throw new IllegalArgumentException("d must be > 0");
+        if (skip < 0) throw new IllegalArgumentException("skip must be >= 0");
+
+        SobolSequenceGenerator sobol = new SobolSequenceGenerator(d);
+        for (int i = 0; i < skip; i++) {
+            sobol.nextVector();
+        }
+
+        double[][] x = new double[N][d];
+        for (int i = 0; i < N; i++) {
+            double[] v = sobol.nextVector();
+            System.arraycopy(v, 0, x[i], 0, d);
+        }
+        return x;
+    }
+
+    /**
      * Generates two matrices A and B (NxD) from a Sobol low-discrepancy sequence of dimension 2D.
      * The first D coordinates form A, the next D form B.
      */
     public static double[][][] generateABBySobolSequence(int N, int d, int skip) {
+        if (N <= 0) throw new IllegalArgumentException("N must be > 0");
+        if (d <= 0) throw new IllegalArgumentException("d must be > 0");
+        if (skip < 0) throw new IllegalArgumentException("skip must be >= 0");
+
         SobolSequenceGenerator sobol = new SobolSequenceGenerator(2 * d);
         for (int i = 0; i < skip; i++) sobol.nextVector();
 
@@ -31,7 +57,7 @@ public final class SobolMath {
             System.arraycopy(v, 0, A[i], 0, d);
             System.arraycopy(v, d, B[i], 0, d);
         }
-        return new double[][][] { A, B };
+        return new double[][][]{A, B};
     }
 
     /**
@@ -54,7 +80,6 @@ public final class SobolMath {
             if (ab[j].length != N) throw new IllegalArgumentException("ab[" + j + "].length != a.length");
         }
 
-        // variance over pooled samples (A ∪ B)
         double[] yAll = new double[2 * N];
         System.arraycopy(a, 0, yAll, 0, N);
         System.arraycopy(b, 0, yAll, N, N);
@@ -75,10 +100,8 @@ public final class SobolMath {
             for (int i = 0; i < N; i++) {
                 double yAB = ab[j][i];
 
-                // First-order (Saltelli 2002) - robust under noise
                 sumS += b[i] * (yAB - a[i]);
 
-                // Total-order (Jansen)
                 double diff = a[i] - yAB;
                 sumST += diff * diff;
             }
