@@ -12,13 +12,13 @@ public final class ModelDefaults {
     public static final double DEFAULT_DG_POWER_KW = 200;// 340
     // WT
     public static final int DEFAULT_WT_COUNT_TOTAL = 2; //2
-    public static final double DEFAULT_WT_POWER_KW = 1346 / 2 * 3; //673
+    public static final double DEFAULT_WT_POWER_KW = 1346 / 2 * 1.5;
     // Battery
-    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.575;
-    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.45; //0,6
+    public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 1;
+    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 1;
 
-    public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1; //0,6
-    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0; //2
+    public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1;
+    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 1.0; //2
 
     public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = false;
     public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT = 0.0053; // wE

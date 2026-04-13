@@ -18,6 +18,7 @@ import java.util.concurrent.Executors;
 
 public class Main {
     private static final Locale OUT_LOCALE = Locale.forLanguageTag("ru-RU");
+
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON, ADAPTIVE_TUNE}
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
@@ -26,9 +27,9 @@ public class Main {
 
     private static final class Cli {
 
-        Task task = Task.ADAPTIVE_TUNE;
-        RunMode runMode = RunMode.SWEEP_2;
-        int mcIterations = 50;
+        Task task = Task.RUN;
+        RunMode runMode = RunMode.SWEEP_1;
+        int mcIterations = 250;
 
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
@@ -51,29 +52,39 @@ public class Main {
         String traceXlsxPath = Defaults.TRACE_XLSX;
 
         // Adaptive tuning
-        int tuneSamples = 100;
-        int tuneStage1Mc = 100;
-        int tuneStage2Mc = 0;
-        int tuneBaselineMc = 100;
+        int tuneSamples = 256;
+        int tuneStage1Mc = 50;
+        int tuneStage2Mc = 50;
+        int tuneBaselineMc = 50;
 
-        int tuneTopByLcoe = 3;
-        int tuneTopByEns = 0;
+        int tuneTopByLcoe = 5;
+        int tuneTopByEns = 5;
         int tuneTopByCompromise = 0;
 
         String tuneCsvPath = "adaptive_tune.csv";
 
-        int tuneSobolSkip = 0;
+        int tuneSobolSkip = 16;
 
-        double tuneWEMin = 0.0, tuneWEMax = 0.2;
-        double tuneWTMin = 0.0, tuneWTMax = 0.75;
-        double tuneWAMin = 0.0, tuneWAMax = 0.5;
-        double tuneWHMin = 0.0, tuneWHMax = 8;
-        double tuneWDMin = 0.0, tuneWDMax = 0.5;
-        double tuneWRMin = 0.5, tuneWRMax = 2;
+        // Stage 2 local search
+        int tuneStage2Samples = 64;
+        int tuneStage2SobolSkip = 16;
+        double tuneStage2RadiusFracWE = 0.10;
+        double tuneStage2RadiusFracWT = 0.10;
+        double tuneStage2RadiusFracWA = 0.10;
+        double tuneStage2RadiusFracWH = 0.10;
+        double tuneStage2RadiusFracWD = 0.10;
+        double tuneStage2RadiusFracWR = 0.10;
+
+        double tuneWEMin = 0.0, tuneWEMax = 0.4;
+        double tuneWTMin = 0.0, tuneWTMax = 0.4;
+        double tuneWAMin = 0.0, tuneWAMax = 0.7;
+        double tuneWHMin = 0.0, tuneWHMax = 4;
+        double tuneWDMin = 0.0, tuneWDMax = 0.4;
+        double tuneWRMin = 0.0, tuneWRMax = 2;
 
 //        double tuneWEMin = 0.0, tuneWEMax = 0.3;
-//        double tuneWTMin = 0.0, tuneWTMax = 1;
-//        double tuneWAMin = 0.8, tuneWAMax = 3;
+//        double tuneWTMin = 0.0, tuneWTMax = 1.0;
+//        double tuneWAMin = 0.8, tuneWAMax = 3.0;
 //        double tuneWHMin = 1.0, tuneWHMax = 3.5;
 //        double tuneWDMin = 0.0, tuneWDMax = 1.5;
 //        double tuneWRMin = 1.0, tuneWRMax = 2.0;
@@ -129,6 +140,16 @@ public class Main {
                 if (a.startsWith("--tuneCsv=")) c.tuneCsvPath = a.substring("--tuneCsv=".length()).trim();
                 if (a.startsWith("--tuneSobolSkip=")) c.tuneSobolSkip = Integer.parseInt(a.substring("--tuneSobolSkip=".length()).trim());
 
+                if (a.startsWith("--tuneStage2Samples=")) c.tuneStage2Samples = Integer.parseInt(a.substring("--tuneStage2Samples=".length()).trim());
+                if (a.startsWith("--tuneStage2SobolSkip=")) c.tuneStage2SobolSkip = Integer.parseInt(a.substring("--tuneStage2SobolSkip=".length()).trim());
+
+                if (a.startsWith("--tuneStage2RadiusFracWE=")) c.tuneStage2RadiusFracWE = Double.parseDouble(a.substring("--tuneStage2RadiusFracWE=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWT=")) c.tuneStage2RadiusFracWT = Double.parseDouble(a.substring("--tuneStage2RadiusFracWT=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWA=")) c.tuneStage2RadiusFracWA = Double.parseDouble(a.substring("--tuneStage2RadiusFracWA=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWH=")) c.tuneStage2RadiusFracWH = Double.parseDouble(a.substring("--tuneStage2RadiusFracWH=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWD=")) c.tuneStage2RadiusFracWD = Double.parseDouble(a.substring("--tuneStage2RadiusFracWD=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWR=")) c.tuneStage2RadiusFracWR = Double.parseDouble(a.substring("--tuneStage2RadiusFracWR=".length()).trim());
+
                 if (a.startsWith("--tuneWEMin=")) c.tuneWEMin = Double.parseDouble(a.substring("--tuneWEMin=".length()).trim());
                 if (a.startsWith("--tuneWEMax=")) c.tuneWEMax = Double.parseDouble(a.substring("--tuneWEMax=".length()).trim());
                 if (a.startsWith("--tuneWTMin=")) c.tuneWTMin = Double.parseDouble(a.substring("--tuneWTMin=".length()).trim());
@@ -153,6 +174,15 @@ public class Main {
     }
 
     private record TuneResult(TuneWeights weights, MonteCarloEstimate estimate, double compromise) {}
+
+    private record WeightBounds(
+            double weMin, double weMax,
+            double wtMin, double wtMax,
+            double waMin, double waMax,
+            double whMin, double whMax,
+            double wdMin, double wdMax,
+            double wrMin, double wrMax
+    ) {}
 
     public static void main(String[] args) {
         Cli cli = Cli.parse(args);
@@ -220,11 +250,9 @@ public class Main {
                 for (double p1 : param1) {
                     for (double p2 : param2) {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
-//                                .setDieselGeneratorPowerKw(p2)
-//                                .setWindTurbinePowerKw(p1)
-                                .setBatteryCapacityKwhPerBus(p1 * 1346 / 2)
-//                                .setMaxDischargeCurrent(p2)
-                                .setNonReserveDischargeLevel(p2)
+                                .setWindTurbinePowerKw(p1)
+                                .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
+//                                .setNonReserveDischargeLevel(p2)
                                 .build();
                         paramSets.add(p);
                     }
@@ -247,9 +275,51 @@ public class Main {
         final boolean sweepCatsTriangle = false;
         final double catStep = 0.1;
 
+
+//                double[] param1 = new double[] {
+////                0.0,
+//                168.25,
+//                336.5,
+//                504.75,
+//                673.0,
+//                841.25,
+//                1009.5,
+//                1177.75,
+//                1346.0,
+//                1514.25,
+//                1682.5,
+//                1850.75,
+//                2019.0
+//        };
+//
+//
+//        double[] param2 = new double[]{
+//                0.0, 0.025, 0.05, 0.075,
+//                0.1, 0.125, 0.15, 0.175,
+//                0.2, 0.225, 0.25, 0.275,
+//                0.3, 0.325, 0.35, 0.375,
+//                0.4, 0.425, 0.45, 0.475,
+//                0.5, 0.525, 0.55, 0.575,
+//                0.6, 0.625, 0.65, 0.675,
+//                0.7, 0.725, 0.75, 0.775,
+//                0.8, 0.825, 0.85, 0.875,
+//                0.9, 0.925, 0.95, 0.975,
+//                1.0,
+//                1.025, 1.05, 1.075,
+//                1.1, 1.125, 1.15, 1.175,
+//                1.2, 1.225, 1.25, 1.275,
+//        };
+
         double[] param1 = new double[]{
-                0.0, 0.025, 0.05, 0.075,
-                0.1, 0.125, 0.15, 0.175,
+                0.2, 0.225, 0.25, 0.275,
+                0.3, 0.325, 0.35, 0.375,
+                0.4, 0.425, 0.45, 0.475,
+                0.5, 0.525, 0.55, 0.575,
+                0.6, 0.625, 0.65, 0.675,
+                0.7, 0.725, 0.75, 0.775,
+                0.8, 0.825, 0.85, 0.875,
+                0.9, 0.925, 0.95, 0.975,
+                1.0
         };
 
         double[] param2 = new double[]{
@@ -418,18 +488,7 @@ public class Main {
     }
 
     private static void runTaskAdaptiveTune(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
-        if (cli.tuneSamples <= 0) {
-            throw new IllegalArgumentException("tuneSamples must be > 0");
-        }
-        if (cli.tuneStage1Mc <= 0) {
-            throw new IllegalArgumentException("tuneStage1Mc must be > 0");
-        }
-        if (cli.tuneBaselineMc <= 0) {
-            throw new IllegalArgumentException("tuneBaselineMc must be > 0");
-        }
-        if (cli.tuneSobolSkip < 0) {
-            throw new IllegalArgumentException("tuneSobolSkip must be >= 0");
-        }
+        validateAdaptiveTuneCli(cli);
 
         ExecutorService ex = Executors.newFixedThreadPool(cli.threads);
         try {
@@ -467,48 +526,29 @@ public class Main {
                     baseline.meanMotoHours
             );
 
-            List<TuneWeights> candidates = generateSobolTuneWeights(cli);
-            List<TuneResult> stage1 = new ArrayList<>(candidates.size());
+            WeightBounds globalBounds = globalBounds(cli);
 
-            for (int i = 0; i < candidates.size(); i++) {
-                TuneWeights w = candidates.get(i);
-                MonteCarloEstimate est = evaluateWeights(engine, li, cfgStage1, baseParams, cli.mcBaseSeed, w, cli.tuneStage1Mc);
-                double compromise = compromiseMetric(est, baseline);
-                stage1.add(new TuneResult(w, est, compromise));
-
-//                System.out.printf(OUT_LOCALE,
-//                        "global %3d/%d comp=%.6f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f avgNRL=%.4f%n",
-//                        i + 1, candidates.size(), compromise,
-//                        w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
-//                        est.meanLcoeRubPerKwh,
-//                        est.ensStats.getMean(),
-//                        est.meanLoleHours,
-//                        est.meanLolp,
-//                        est.meanLpsp,
-//                        est.meanEnsEventsTotal,
-//                        est.meanAdaptiveNonReserveLevel
-//                );
-            }
-
-//            writeTuneCsv(cli.tuneCsvPath, stage1, baseline);
+            System.out.println("=== ADAPTIVE_TUNE stage 1: global Sobol ===");
+            List<TuneWeights> stage1Candidates = generateSobolTuneWeights(globalBounds, cli.tuneSamples, cli.tuneSobolSkip);
+            List<TuneResult> stage1 = evaluateCandidates(
+                    engine, li, cfgStage1, baseParams, cli.mcBaseSeed, cli.tuneStage1Mc, baseline, stage1Candidates
+            );
 
             List<TuneResult> finalResults;
-
-            if (cli.tuneStage2Mc > 0) {
+            if (cli.tuneStage2Mc > 0 && cli.tuneStage2Samples > 0) {
+                System.out.println("=== ADAPTIVE_TUNE stage 2: local Sobol around elite points ===");
+                finalResults = runStage2LocalSearch(
+                        stage1, cli, engine, li, cfgStage2, baseParams, cli.mcBaseSeed, cli.tuneStage2Mc, baseline, globalBounds
+                );
+            } else if (cli.tuneStage2Mc > 0) {
                 finalResults = reevaluateTopUnion(
-                        stage1,
-                        cli,
-                        engine,
-                        li,
-                        cfgStage2,
-                        baseParams,
-                        cli.mcBaseSeed,
-                        cli.tuneStage2Mc,
-                        baseline
+                        stage1, cli, engine, li, cfgStage2, baseParams, cli.mcBaseSeed, cli.tuneStage2Mc, baseline
                 );
             } else {
                 finalResults = selectTopUnionFromStage1(stage1, cli);
             }
+
+//            writeTuneCsv(cli.tuneCsvPath, finalResults, baseline);
 
             System.out.println("=== ADAPTIVE_TUNE final top by LCOE ===");
             printTop(finalResults, Comparator.comparingDouble(tr -> tr.estimate().meanLcoeRubPerKwh), cli.tuneTopByLcoe);
@@ -521,25 +561,70 @@ public class Main {
                 printTop(finalResults, Comparator.comparingDouble(TuneResult::compromise), cli.tuneTopByCompromise);
             }
 
-//            System.out.println("Saved tune table: " + cli.tuneCsvPath);
-
         } finally {
             ex.shutdown();
         }
     }
 
-    private static List<TuneWeights> generateSobolTuneWeights(Cli cli) {
-        double[][] unitPoints = SobolMath.generateSequence(cli.tuneSamples, 6, cli.tuneSobolSkip);
-        List<TuneWeights> out = new ArrayList<>(cli.tuneSamples);
+    private static void validateAdaptiveTuneCli(Cli cli) {
+        if (cli.tuneSamples <= 0) throw new IllegalArgumentException("tuneSamples must be > 0");
+        if (cli.tuneStage1Mc <= 0) throw new IllegalArgumentException("tuneStage1Mc must be > 0");
+        if (cli.tuneBaselineMc <= 0) throw new IllegalArgumentException("tuneBaselineMc must be > 0");
+        if (cli.tuneSobolSkip < 0) throw new IllegalArgumentException("tuneSobolSkip must be >= 0");
+        if (cli.tuneStage2Mc < 0) throw new IllegalArgumentException("tuneStage2Mc must be >= 0");
+        if (cli.tuneStage2Samples < 0) throw new IllegalArgumentException("tuneStage2Samples must be >= 0");
+        if (cli.tuneStage2SobolSkip < 0) throw new IllegalArgumentException("tuneStage2SobolSkip must be >= 0");
+
+        validateFrac(cli.tuneStage2RadiusFracWE, "tuneStage2RadiusFracWE");
+        validateFrac(cli.tuneStage2RadiusFracWT, "tuneStage2RadiusFracWT");
+        validateFrac(cli.tuneStage2RadiusFracWA, "tuneStage2RadiusFracWA");
+        validateFrac(cli.tuneStage2RadiusFracWH, "tuneStage2RadiusFracWH");
+        validateFrac(cli.tuneStage2RadiusFracWD, "tuneStage2RadiusFracWD");
+        validateFrac(cli.tuneStage2RadiusFracWR, "tuneStage2RadiusFracWR");
+
+        validateRange(cli.tuneWEMin, cli.tuneWEMax, "tuneWE");
+        validateRange(cli.tuneWTMin, cli.tuneWTMax, "tuneWT");
+        validateRange(cli.tuneWAMin, cli.tuneWAMax, "tuneWA");
+        validateRange(cli.tuneWHMin, cli.tuneWHMax, "tuneWH");
+        validateRange(cli.tuneWDMin, cli.tuneWDMax, "tuneWD");
+        validateRange(cli.tuneWRMin, cli.tuneWRMax, "tuneWR");
+    }
+
+    private static void validateRange(double min, double max, String name) {
+        if (!(max >= min)) {
+            throw new IllegalArgumentException(name + " max must be >= min");
+        }
+    }
+
+    private static void validateFrac(double v, String name) {
+        if (v < 0.0 || v > 0.5) {
+            throw new IllegalArgumentException(name + " must be in [0.0, 0.5]");
+        }
+    }
+
+    private static WeightBounds globalBounds(Cli cli) {
+        return new WeightBounds(
+                cli.tuneWEMin, cli.tuneWEMax,
+                cli.tuneWTMin, cli.tuneWTMax,
+                cli.tuneWAMin, cli.tuneWAMax,
+                cli.tuneWHMin, cli.tuneWHMax,
+                cli.tuneWDMin, cli.tuneWDMax,
+                cli.tuneWRMin, cli.tuneWRMax
+        );
+    }
+
+    private static List<TuneWeights> generateSobolTuneWeights(WeightBounds bounds, int samples, int sobolSkip) {
+        double[][] unitPoints = SobolMath.generateSequence(samples, 6, sobolSkip);
+        List<TuneWeights> out = new ArrayList<>(samples);
 
         for (double[] u : unitPoints) {
             out.add(new TuneWeights(
-                    scaleToRange(u[0], cli.tuneWEMin, cli.tuneWEMax),
-                    scaleToRange(u[1], cli.tuneWTMin, cli.tuneWTMax),
-                    scaleToRange(u[2], cli.tuneWAMin, cli.tuneWAMax),
-                    scaleToRange(u[3], cli.tuneWHMin, cli.tuneWHMax),
-                    scaleToRange(u[4], cli.tuneWDMin, cli.tuneWDMax),
-                    scaleToRange(u[5], cli.tuneWRMin, cli.tuneWRMax)
+                    scaleToRange(u[0], bounds.weMin, bounds.weMax),
+                    scaleToRange(u[1], bounds.wtMin, bounds.wtMax),
+                    scaleToRange(u[2], bounds.waMin, bounds.waMax),
+                    scaleToRange(u[3], bounds.whMin, bounds.whMax),
+                    scaleToRange(u[4], bounds.wdMin, bounds.wdMax),
+                    scaleToRange(u[5], bounds.wrMin, bounds.wrMax)
             ));
         }
 
@@ -548,6 +633,139 @@ public class Main {
 
     private static double scaleToRange(double u01, double min, double max) {
         return min + u01 * (max - min);
+    }
+
+    private static List<TuneResult> evaluateCandidates(SimulationEngine engine,
+                                                       ScenarioFactory.LoadedInput li,
+                                                       SimulationConfig cfg,
+                                                       SystemParameters baseParams,
+                                                       long mcBaseSeed,
+                                                       int mcIterations,
+                                                       MonteCarloEstimate baseline,
+                                                       List<TuneWeights> candidates) throws Exception {
+        List<TuneResult> out = new ArrayList<>(candidates.size());
+
+        for (TuneWeights w : candidates) {
+            MonteCarloEstimate est = evaluateWeights(engine, li, cfg, baseParams, mcBaseSeed, w, mcIterations);
+            double compromise = compromiseMetric(est, baseline);
+            out.add(new TuneResult(w, est, compromise));
+        }
+
+        return out;
+    }
+
+    private static List<TuneResult> runStage2LocalSearch(List<TuneResult> stage1,
+                                                         Cli cli,
+                                                         SimulationEngine engine,
+                                                         ScenarioFactory.LoadedInput li,
+                                                         SimulationConfig cfgStage2,
+                                                         SystemParameters baseParams,
+                                                         long mcBaseSeed,
+                                                         int mcIterations,
+                                                         MonteCarloEstimate baseline,
+                                                         WeightBounds globalBounds) throws Exception {
+        if (cfgStage2 == null) {
+            throw new IllegalArgumentException("cfgStage2 is null");
+        }
+        if (mcIterations <= 0) {
+            throw new IllegalArgumentException("mcIterations must be > 0 for runStage2LocalSearch");
+        }
+
+        Map<String, TuneWeights> elite = new LinkedHashMap<>();
+
+        addTop(stage1,
+                Comparator.comparingDouble(tr -> tr.estimate().meanLcoeRubPerKwh),
+                cli.tuneTopByLcoe,
+                elite);
+
+        addTop(stage1,
+                Comparator.comparingDouble(tr -> tr.estimate().ensStats.getMean()),
+                cli.tuneTopByEns,
+                elite);
+
+        addTop(stage1,
+                Comparator.comparingDouble(TuneResult::compromise),
+                cli.tuneTopByCompromise,
+                elite);
+
+        Map<String, TuneResult> bestLocal = new LinkedHashMap<>();
+
+        int eliteIdx = 0;
+        for (TuneWeights center : elite.values()) {
+            eliteIdx++;
+
+            WeightBounds localBounds = localBoundsAround(center, globalBounds, cli);
+            List<TuneWeights> localCandidates = generateSobolTuneWeights(
+                    localBounds,
+                    cli.tuneStage2Samples,
+                    cli.tuneStage2SobolSkip
+            );
+
+            localCandidates = addCenterCandidateFirst(center, localCandidates);
+
+            List<TuneResult> localResults = evaluateCandidates(
+                    engine, li, cfgStage2, baseParams, mcBaseSeed, mcIterations, baseline, localCandidates
+            );
+
+            TuneResult bestByCompromise = Collections.min( // ВЫБОР ОПТИМАЛЬНОЙ ЗОНЫ
+                    localResults,
+//                    Comparator.comparingDouble(TuneResult::compromise)
+                    Comparator.comparingDouble(tr ->tr.estimate().meanLcoeRubPerKwh)
+//                    Comparator.comparingDouble(tr ->tr.estimate().ensStats.getMean())
+            );
+
+            bestLocal.put(bestByCompromise.weights().key(), bestByCompromise);
+
+            System.out.printf(OUT_LOCALE,
+                    "stage2 local zone %d: center=(%.4f, %.4f, %.4f, %.4f, %.4f, %.4f) bestComp=%.6f%n",
+                    eliteIdx,
+                    center.wE(), center.wT(), center.wA(), center.wH(), center.wD(), center.wR(),
+                    bestByCompromise.compromise()
+            );
+        }
+
+        return new ArrayList<>(bestLocal.values());
+    }
+
+    private static List<TuneWeights> addCenterCandidateFirst(TuneWeights center, List<TuneWeights> localCandidates) {
+        LinkedHashMap<String, TuneWeights> uniq = new LinkedHashMap<>();
+        uniq.put(center.key(), center);
+        for (TuneWeights w : localCandidates) {
+            uniq.putIfAbsent(w.key(), w);
+        }
+        return new ArrayList<>(uniq.values());
+    }
+
+    private static WeightBounds localBoundsAround(TuneWeights center, WeightBounds globalBounds, Cli cli) {
+        return new WeightBounds(
+                localMin(center.wE(), globalBounds.weMin, globalBounds.weMax, cli.tuneStage2RadiusFracWE),
+                localMax(center.wE(), globalBounds.weMin, globalBounds.weMax, cli.tuneStage2RadiusFracWE),
+
+                localMin(center.wT(), globalBounds.wtMin, globalBounds.wtMax, cli.tuneStage2RadiusFracWT),
+                localMax(center.wT(), globalBounds.wtMin, globalBounds.wtMax, cli.tuneStage2RadiusFracWT),
+
+                localMin(center.wA(), globalBounds.waMin, globalBounds.waMax, cli.tuneStage2RadiusFracWA),
+                localMax(center.wA(), globalBounds.waMin, globalBounds.waMax, cli.tuneStage2RadiusFracWA),
+
+                localMin(center.wH(), globalBounds.whMin, globalBounds.whMax, cli.tuneStage2RadiusFracWH),
+                localMax(center.wH(), globalBounds.whMin, globalBounds.whMax, cli.tuneStage2RadiusFracWH),
+
+                localMin(center.wD(), globalBounds.wdMin, globalBounds.wdMax, cli.tuneStage2RadiusFracWD),
+                localMax(center.wD(), globalBounds.wdMin, globalBounds.wdMax, cli.tuneStage2RadiusFracWD),
+
+                localMin(center.wR(), globalBounds.wrMin, globalBounds.wrMax, cli.tuneStage2RadiusFracWR),
+                localMax(center.wR(), globalBounds.wrMin, globalBounds.wrMax, cli.tuneStage2RadiusFracWR)
+        );
+    }
+
+    private static double localMin(double center, double globalMin, double globalMax, double radiusFrac) {
+        double radius = radiusFrac * (globalMax - globalMin);
+        return Math.max(globalMin, center - radius);
+    }
+
+    private static double localMax(double center, double globalMin, double globalMax, double radiusFrac) {
+        double radius = radiusFrac * (globalMax - globalMin);
+        return Math.min(globalMax, center + radius);
     }
 
     private static MonteCarloEstimate evaluateWeights(SimulationEngine engine,
@@ -623,19 +841,6 @@ public class Main {
             MonteCarloEstimate est = evaluateWeights(engine, li, cfgStage2, baseParams, mcBaseSeed, w, mcIterations);
             double comp = compromiseMetric(est, baseline);
             out.add(new TuneResult(w, est, comp));
-
-//            System.out.printf(OUT_LOCALE,
-//                    "final comp=%.6f wE=%.4f wT=%.4f wA=%.4f wH=%.4f wD=%.4f wR=%.4f | LCOE=%.6f ENS=%.6f LOLH=%.6f LOLP=%.6e LPSP=%.6e ENS_evtN=%.6f avgNRL=%.4f%n",
-//                    comp,
-//                    w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
-//                    est.meanLcoeRubPerKwh,
-//                    est.ensStats.getMean(),
-//                    est.meanLoleHours,
-//                    est.meanLolp,
-//                    est.meanLpsp,
-//                    est.meanEnsEventsTotal,
-//                    est.meanAdaptiveNonReserveLevel
-//            );
         }
 
         return out;
