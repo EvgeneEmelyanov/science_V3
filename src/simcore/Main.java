@@ -22,6 +22,7 @@ public class Main {
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON, ADAPTIVE_TUNE}
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
+    public enum TuneObjective {LCOE, LOLH}
 
     public static double MAX_LOAD;
 
@@ -52,18 +53,19 @@ public class Main {
         String traceXlsxPath = Defaults.TRACE_XLSX;
 
         // Adaptive tuning
-        int tuneSamples = 128;
-        int tuneStage1Mc = 100;
-        int tuneStage2Mc = 100;
-        int tuneBaselineMc = 100;
+        TuneObjective tuneOptimizeBy = TuneObjective.LOLH;
 
-        int tuneTopByLcoe = 5;          // минимум LCOE при LOLH <= baseline
-        int tuneTopByLole = 5;          // минимум LOLH при LCOE <= baseline
-        int tuneTopByCompromise = 0;    // мягкий компромисс LCOE + LOLH
-        int tuneTopPareto = 20;         // сколько Pareto-точек печатать
-        double tuneConstraintTolRel = 0.0; // допускаемое относительное ухудшение ограничения
+        int tuneSamples = 256;
+        int tuneStage1Mc = 15;
+        int tuneStage2Mc = 15;
+        int tuneBaselineMc = 15;
 
-        String tuneCsvPath = "adaptive_tune.csv";
+        int tuneTopPrimary = 10;        // топ по выбранной цели с учетом ограничения
+        int tuneTopCompromise = 0;      // мягкий компромисс LCOE+LOLH
+        int tuneTopPareto = 30;         // сколько Pareto-точек печатать / отбирать
+        double tuneConstraintTolRel = 0.0;
+
+        String tuneCsvPath = "D:/adaptive_tune.csv";
 
         int tuneSobolSkip = 16;
 
@@ -77,19 +79,19 @@ public class Main {
         double tuneStage2RadiusFracWD = 0.10;
         double tuneStage2RadiusFracWR = 0.10;
 
-        double tuneWEMin = 0.0, tuneWEMax = 0.4;
-        double tuneWTMin = 0.0, tuneWTMax = 0.4;
-        double tuneWAMin = 0.0, tuneWAMax = 0.7;
-        double tuneWHMin = 0.0, tuneWHMax = 4.0;
-        double tuneWDMin = 0.0, tuneWDMax = 0.4;
-        double tuneWRMin = 0.0, tuneWRMax = 2.0;
+//        double tuneWEMin = 0.0, tuneWEMax = 0.4;
+//        double tuneWTMin = 0.0, tuneWTMax = 0.4;
+//        double tuneWAMin = 0.0, tuneWAMax = 0.7;
+//        double tuneWHMin = 0.0, tuneWHMax = 4.0;
+//        double tuneWDMin = 0.0, tuneWDMax = 0.4;
+//        double tuneWRMin = 0.0, tuneWRMax = 2.0;
 
-//        double tuneWEMin = 0.0, tuneWEMax = 0.3;
-//        double tuneWTMin = 0.0, tuneWTMax = 1.0;
-//        double tuneWAMin = 0.8, tuneWAMax = 3.0;
-//        double tuneWHMin = 1.0, tuneWHMax = 3.5;
-//        double tuneWDMin = 0.0, tuneWDMax = 1.5;
-//        double tuneWRMin = 1.0, tuneWRMax = 2.0;
+        double tuneWEMin = 0.0, tuneWEMax = 2;
+        double tuneWTMin = 0.0, tuneWTMax = 2;
+        double tuneWAMin = 0.0, tuneWAMax = 2;
+        double tuneWHMin = 0.0, tuneWHMax = 5.0;
+        double tuneWDMin = 0.0, tuneWDMax = 2;
+        double tuneWRMin = 0.0, tuneWRMax = 5.0;
 
         static Cli parse(String[] args) {
             Cli c = new Cli();
@@ -130,15 +132,15 @@ public class Main {
                 if (a.startsWith("--econCase=")) c.econCaseId = a.substring("--econCase=".length()).trim();
                 if (a.startsWith("--econN=")) c.econN = Integer.parseInt(a.substring("--econN=".length()).trim());
 
+                if (a.startsWith("--tuneOptimizeBy=")) c.tuneOptimizeBy = TuneObjective.valueOf(a.substring("--tuneOptimizeBy=".length()).trim());
+
                 if (a.startsWith("--tuneSamples=")) c.tuneSamples = Integer.parseInt(a.substring("--tuneSamples=".length()).trim());
                 if (a.startsWith("--tuneStage1Mc=")) c.tuneStage1Mc = Integer.parseInt(a.substring("--tuneStage1Mc=".length()).trim());
                 if (a.startsWith("--tuneStage2Mc=")) c.tuneStage2Mc = Integer.parseInt(a.substring("--tuneStage2Mc=".length()).trim());
                 if (a.startsWith("--tuneBaselineMc=")) c.tuneBaselineMc = Integer.parseInt(a.substring("--tuneBaselineMc=".length()).trim());
 
-                if (a.startsWith("--tuneTopByLcoe=")) c.tuneTopByLcoe = Integer.parseInt(a.substring("--tuneTopByLcoe=".length()).trim());
-                if (a.startsWith("--tuneTopByLole=")) c.tuneTopByLole = Integer.parseInt(a.substring("--tuneTopByLole=".length()).trim());
-                if (a.startsWith("--tuneTopByEns=")) c.tuneTopByLole = Integer.parseInt(a.substring("--tuneTopByEns=".length()).trim()); // совместимость
-                if (a.startsWith("--tuneTopByCompromise=")) c.tuneTopByCompromise = Integer.parseInt(a.substring("--tuneTopByCompromise=".length()).trim());
+                if (a.startsWith("--tuneTopPrimary=")) c.tuneTopPrimary = Integer.parseInt(a.substring("--tuneTopPrimary=".length()).trim());
+                if (a.startsWith("--tuneTopCompromise=")) c.tuneTopCompromise = Integer.parseInt(a.substring("--tuneTopCompromise=".length()).trim());
                 if (a.startsWith("--tuneTopPareto=")) c.tuneTopPareto = Integer.parseInt(a.substring("--tuneTopPareto=".length()).trim());
                 if (a.startsWith("--tuneConstraintTolRel=")) c.tuneConstraintTolRel = Double.parseDouble(a.substring("--tuneConstraintTolRel=".length()).trim());
 
@@ -172,6 +174,124 @@ public class Main {
         }
     }
 
+    private static void runTaskRun(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
+        SimulationConfig cfg = ScenarioFactory.defaultConfig(
+                li.windMs(),
+                cli.mcIterations,
+                cli.threads,
+                cli.exportDriversPath != null
+        );
+        SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
+
+        final boolean sweepCatsTriangle = false;
+        final double catStep = 0.1;
+
+        double[] param1 = new double[]{
+                0.2, 0.225, 0.25, 0.275,
+                0.3, 0.325, 0.35, 0.375,
+                0.4, 0.425, 0.45, 0.475,
+                0.5, 0.525, 0.55, 0.575,
+                0.6, 0.625, 0.65, 0.675,
+                0.7, 0.725, 0.75, 0.775,
+                0.8, 0.825, 0.85, 0.875,
+                0.9, 0.925, 0.95, 0.975,
+                1.0
+        };
+
+        double[] param2 = new double[]{
+                0.4, 0.425, 0.45, 0.475,
+                0.5, 0.525, 0.55, 0.575,
+                0.6, 0.625, 0.65, 0.675,
+                0.7, 0.725, 0.75, 0.775,
+                0.8, 0.825, 0.85, 0.875,
+        };
+
+        if (cli.runMode == RunMode.SWEEP_2 && sweepCatsTriangle) {
+            param1 = buildGrid01(catStep);
+            param2 = buildGrid01(catStep);
+        }
+
+        List<SystemParameters> paramSets = buildParamSets(cli.runMode, baseParams, param1, param2, sweepCatsTriangle, catStep);
+        boolean allowTrace = (cli.mcIterations == 1) && (paramSets.size() == 1);
+
+        ExecutorService ex = Executors.newFixedThreadPool(cli.threads);
+        try {
+            SingleRunSimulator sim = new SingleRunSimulator();
+            MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.1);
+            SimulationEngine engine = new SimulationEngine(mc);
+
+            List<MonteCarloEstimate> estimates = new ArrayList<>(paramSets.size());
+
+            for (int k = 0; k < paramSets.size(); k++) {
+                SimInput in = baseInput.withSystemParameters(paramSets.get(k));
+                MonteCarloEstimate est = engine.runMonteCarlo(in, cli.mcIterations, cli.mcBaseSeed, allowTrace);
+                estimates.add(est);
+
+                if (cli.exportDriversPath != null && est.economyDrivers != null) {
+                    EconomyDriversCsvIO.append(cli.exportDriversPath, "case_" + k, est.economyDrivers);
+                }
+
+                if (allowTrace && est.singleRun != null && est.singleRun.trace != null && !est.singleRun.trace.isEmpty()) {
+                    SimulationTraceExporter.exportToXlsx(cli.traceXlsxPath, est.singleRun.trace);
+                }
+            }
+
+            SweepResultsExcelWriter.writeXlsx(cli.resultsXlsxPath, cli.runMode, cfg, baseParams, paramSets, estimates, param1, param2);
+            System.out.println("Saved: " + cli.resultsXlsxPath);
+
+        } finally {
+            ex.shutdown();
+        }
+    }
+
+    private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
+        List<TunableParamId> ids = List.of(
+                TunableParamId.DG_POWER,
+                TunableParamId.DG_COUNT,
+                TunableParamId.WT_POWER,
+                TunableParamId.BT_CAPACITY_PER_BUS,
+                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
+                TunableParamId.BT_MAX_CHARGE_CURRENT,
+                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
+
+
+
+
+        );
+
+        SobolConfig sobolCfg = SobolConfig.fromIds(
+                cli.sobolN,
+                cli.mcIterations,
+                cli.mcBaseSeed,
+                cli.threads,
+                ids,
+                cli.sobolSeedMode
+        );
+
+        TunableParameterPool.setMinTotalDgPowerKw(MAX_LOAD);
+
+        SimulationConfig cfg = ScenarioFactory.defaultConfig(
+                li.windMs(),
+                sobolCfg.getMcIterations(),
+                sobolCfg.getThreads(),
+                cli.exportDriversPath != null
+        );
+        SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
+
+        ExecutorService ex = Executors.newFixedThreadPool(sobolCfg.getThreads());
+        try {
+            SingleRunSimulator sim = new SingleRunSimulator();
+            MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.10);
+            SobolAnalyzer analyzer = new SobolAnalyzer(mc, ex);
+
+            SobolResult res = analyzer.run(baseInput, sobolCfg);
+
+            System.out.println("Sobol done. dim=" + sobolCfg.dim());
+        } finally {
+            ex.shutdown();
+        }
+    }
+
     private record TuneWeights(double wE, double wT, double wA, double wH, double wD, double wR) {
         String key() {
             return String.format(OUT_LOCALE, "%.6f|%.6f|%.6f|%.6f|%.6f|%.6f", wE, wT, wA, wH, wD, wR);
@@ -179,13 +299,6 @@ public class Main {
     }
 
     private record TuneResult(TuneWeights weights, MonteCarloEstimate estimate, double compromise) {}
-
-    private enum TuneSelectionMode {
-        MIN_LCOE_SUBJ_LOLE,
-        MIN_LOLE_SUBJ_LCOE,
-        MIN_COMPROMISE,
-        PARETO
-    }
 
     private record WeightBounds(
             double weMin, double weMax,
@@ -264,7 +377,6 @@ public class Main {
                         SystemParameters p = SystemParametersBuilder.from(baseParams)
                                 .setWindTurbinePowerKw(p1)
                                 .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
-//                                .setNonReserveDischargeLevel(p2)
                                 .build();
                         paramSets.add(p);
                     }
@@ -273,153 +385,6 @@ public class Main {
         }
 
         return paramSets;
-    }
-
-    private static void runTaskRun(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
-        SimulationConfig cfg = ScenarioFactory.defaultConfig(
-                li.windMs(),
-                cli.mcIterations,
-                cli.threads,
-                cli.exportDriversPath != null
-        );
-        SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
-
-        final boolean sweepCatsTriangle = false;
-        final double catStep = 0.1;
-
-//        double[] param1 = new double[] {
-////                0.0,
-//                168.25,
-//                336.5,
-//                504.75,
-//                673.0,
-//                841.25,
-//                1009.5,
-//                1177.75,
-//                1346.0,
-//                1514.25,
-//                1682.5,
-//                1850.75,
-//                2019.0
-//        };
-//
-//        double[] param2 = new double[]{
-//                0.0, 0.025, 0.05, 0.075,
-//                0.1, 0.125, 0.15, 0.175,
-//                0.2, 0.225, 0.25, 0.275,
-//                0.3, 0.325, 0.35, 0.375,
-//                0.4, 0.425, 0.45, 0.475,
-//                0.5, 0.525, 0.55, 0.575,
-//                0.6, 0.625, 0.65, 0.675,
-//                0.7, 0.725, 0.75, 0.775,
-//                0.8, 0.825, 0.85, 0.875,
-//                0.9, 0.925, 0.95, 0.975,
-//                1.0,
-//                1.025, 1.05, 1.075,
-//                1.1, 1.125, 1.15, 1.175,
-//                1.2, 1.225, 1.25, 1.275,
-//        };
-
-        double[] param1 = new double[]{
-                0.2, 0.225, 0.25, 0.275,
-                0.3, 0.325, 0.35, 0.375,
-                0.4, 0.425, 0.45, 0.475,
-                0.5, 0.525, 0.55, 0.575,
-                0.6, 0.625, 0.65, 0.675,
-                0.7, 0.725, 0.75, 0.775,
-                0.8, 0.825, 0.85, 0.875,
-                0.9, 0.925, 0.95, 0.975,
-                1.0
-        };
-
-        double[] param2 = new double[]{
-                0.4, 0.425, 0.45, 0.475,
-                0.5, 0.525, 0.55, 0.575,
-                0.6, 0.625, 0.65, 0.675,
-                0.7, 0.725, 0.75, 0.775,
-                0.8, 0.825, 0.85, 0.875,
-        };
-
-        if (cli.runMode == RunMode.SWEEP_2 && sweepCatsTriangle) {
-            param1 = buildGrid01(catStep);
-            param2 = buildGrid01(catStep);
-        }
-
-        List<SystemParameters> paramSets = buildParamSets(cli.runMode, baseParams, param1, param2, sweepCatsTriangle, catStep);
-        boolean allowTrace = (cli.mcIterations == 1) && (paramSets.size() == 1);
-
-        ExecutorService ex = Executors.newFixedThreadPool(cli.threads);
-        try {
-            SingleRunSimulator sim = new SingleRunSimulator();
-            MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.1);
-            SimulationEngine engine = new SimulationEngine(mc);
-
-            List<MonteCarloEstimate> estimates = new ArrayList<>(paramSets.size());
-
-            for (int k = 0; k < paramSets.size(); k++) {
-                SimInput in = baseInput.withSystemParameters(paramSets.get(k));
-                MonteCarloEstimate est = engine.runMonteCarlo(in, cli.mcIterations, cli.mcBaseSeed, allowTrace);
-                estimates.add(est);
-
-                if (cli.exportDriversPath != null && est.economyDrivers != null) {
-                    EconomyDriversCsvIO.append(cli.exportDriversPath, "case_" + k, est.economyDrivers);
-                }
-
-                if (allowTrace && est.singleRun != null && est.singleRun.trace != null && !est.singleRun.trace.isEmpty()) {
-                    SimulationTraceExporter.exportToXlsx(cli.traceXlsxPath, est.singleRun.trace);
-                }
-            }
-
-            SweepResultsExcelWriter.writeXlsx(cli.resultsXlsxPath, cli.runMode, cfg, baseParams, paramSets, estimates, param1, param2);
-            System.out.println("Saved: " + cli.resultsXlsxPath);
-
-        } finally {
-            ex.shutdown();
-        }
-    }
-
-    private static void runTaskSobolHard(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
-        List<TunableParamId> ids = List.of(
-                TunableParamId.DG_POWER,
-                TunableParamId.DG_COUNT,
-                TunableParamId.WT_POWER,
-                TunableParamId.BT_CAPACITY_PER_BUS,
-                TunableParamId.BT_MAX_DISCHARGE_CURRENT,
-                TunableParamId.BT_MAX_CHARGE_CURRENT,
-                TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
-        );
-
-        SobolConfig sobolCfg = SobolConfig.fromIds(
-                cli.sobolN,
-                cli.mcIterations,
-                cli.mcBaseSeed,
-                cli.threads,
-                ids,
-                cli.sobolSeedMode
-        );
-
-        TunableParameterPool.setMinTotalDgPowerKw(MAX_LOAD);
-
-        SimulationConfig cfg = ScenarioFactory.defaultConfig(
-                li.windMs(),
-                sobolCfg.getMcIterations(),
-                sobolCfg.getThreads(),
-                cli.exportDriversPath != null
-        );
-        SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
-
-        ExecutorService ex = Executors.newFixedThreadPool(sobolCfg.getThreads());
-        try {
-            SingleRunSimulator sim = new SingleRunSimulator();
-            MonteCarloRunner mc = new MonteCarloRunner(ex, sim, false, 1.96, 0.10);
-            SobolAnalyzer analyzer = new SobolAnalyzer(mc, ex);
-
-            SobolResult res = analyzer.run(baseInput, sobolCfg);
-
-            System.out.println("Sobol done. dim=" + sobolCfg.dim());
-        } finally {
-            ex.shutdown();
-        }
     }
 
     private static void runTaskSobolEcon(SystemParameters baseParams, Cli cli) throws Exception {
@@ -538,6 +503,9 @@ public class Main {
 
             WeightBounds globalBounds = globalBounds(cli);
 
+            System.out.println("=== ADAPTIVE_TUNE objective = " + cli.tuneOptimizeBy + " ===");
+            System.out.println("secondary constraint: " + secondaryConstraintName(cli));
+
             System.out.println("=== ADAPTIVE_TUNE stage 1: global Sobol ===");
             List<TuneWeights> stage1Candidates = generateSobolTuneWeights(globalBounds, cli.tuneSamples, cli.tuneSobolSkip);
             List<TuneResult> stage1 = evaluateCandidates(
@@ -558,26 +526,22 @@ public class Main {
                 finalResults = selectTopUnionFromStage1(stage1, cli, baseline);
             }
 
-            List<TuneResult> feasibleByLcoe = filterFeasible(finalResults, baseline, cli, TuneSelectionMode.MIN_LCOE_SUBJ_LOLE);
-            List<TuneResult> feasibleByLole = filterFeasible(finalResults, baseline, cli, TuneSelectionMode.MIN_LOLE_SUBJ_LCOE);
+            List<TuneResult> feasiblePrimary = filterPrimaryFeasible(finalResults, baseline, cli);
             List<TuneResult> pareto = paretoFront(finalResults);
 
             writeTuneCsv(cli.tuneCsvPath, finalResults, baseline, cli);
 
-            System.out.println("=== ADAPTIVE_TUNE final top by LCOE subject to LOLH<=baseline ===");
-            printTop(feasibleByLcoe, metricComparator(TuneSelectionMode.MIN_LCOE_SUBJ_LOLE), cli.tuneTopByLcoe);
+            System.out.println("=== ADAPTIVE_TUNE final top by primary objective with secondary constraint ===");
+            printTop(feasiblePrimary, primaryComparator(cli), cli.tuneTopPrimary);
 
-            System.out.println("=== ADAPTIVE_TUNE final top by LOLH subject to LCOE<=baseline ===");
-            printTop(feasibleByLole, metricComparator(TuneSelectionMode.MIN_LOLE_SUBJ_LCOE), cli.tuneTopByLole);
-
-            if (cli.tuneTopByCompromise > 0) {
+            if (cli.tuneTopCompromise > 0) {
                 System.out.println("=== ADAPTIVE_TUNE final top by compromise(LCOE+LOLH) ===");
-                printTop(finalResults, metricComparator(TuneSelectionMode.MIN_COMPROMISE), cli.tuneTopByCompromise);
+                printTop(finalResults, Comparator.comparingDouble(TuneResult::compromise), cli.tuneTopCompromise);
             }
 
             if (cli.tuneTopPareto > 0) {
                 System.out.println("=== ADAPTIVE_TUNE Pareto front (LCOE vs LOLH) ===");
-                printTop(pareto, metricComparator(TuneSelectionMode.PARETO), cli.tuneTopPareto);
+                printTop(pareto, paretoComparator(), cli.tuneTopPareto);
             }
 
             System.out.println("Saved: " + cli.tuneCsvPath);
@@ -596,9 +560,8 @@ public class Main {
         if (cli.tuneStage2Samples < 0) throw new IllegalArgumentException("tuneStage2Samples must be >= 0");
         if (cli.tuneStage2SobolSkip < 0) throw new IllegalArgumentException("tuneStage2SobolSkip must be >= 0");
 
-        if (cli.tuneTopByLcoe < 0) throw new IllegalArgumentException("tuneTopByLcoe must be >= 0");
-        if (cli.tuneTopByLole < 0) throw new IllegalArgumentException("tuneTopByLole must be >= 0");
-        if (cli.tuneTopByCompromise < 0) throw new IllegalArgumentException("tuneTopByCompromise must be >= 0");
+        if (cli.tuneTopPrimary < 0) throw new IllegalArgumentException("tuneTopPrimary must be >= 0");
+        if (cli.tuneTopCompromise < 0) throw new IllegalArgumentException("tuneTopCompromise must be >= 0");
         if (cli.tuneTopPareto < 0) throw new IllegalArgumentException("tuneTopPareto must be >= 0");
         if (cli.tuneConstraintTolRel < 0.0) throw new IllegalArgumentException("tuneConstraintTolRel must be >= 0");
 
@@ -681,55 +644,57 @@ public class Main {
         return out;
     }
 
-    private static boolean isFeasible(TuneResult tr,
-                                      MonteCarloEstimate baseline,
-                                      Cli cli,
-                                      TuneSelectionMode mode) {
+    private static boolean isPrimaryFeasible(TuneResult tr,
+                                             MonteCarloEstimate baseline,
+                                             Cli cli) {
         if (baseline == null) return true;
 
         double tol = Math.max(0.0, cli.tuneConstraintTolRel);
 
-        return switch (mode) {
-            case MIN_LCOE_SUBJ_LOLE ->
+        return switch (cli.tuneOptimizeBy) {
+            case LCOE ->
                     tr.estimate().meanLoleHours <= baseline.meanLoleHours * (1.0 + tol);
-
-            case MIN_LOLE_SUBJ_LCOE ->
+            case LOLH ->
                     tr.estimate().meanLcoeRubPerKwh <= baseline.meanLcoeRubPerKwh * (1.0 + tol);
-
-            case MIN_COMPROMISE, PARETO -> true;
         };
     }
 
-    private static List<TuneResult> filterFeasible(List<TuneResult> src,
-                                                   MonteCarloEstimate baseline,
-                                                   Cli cli,
-                                                   TuneSelectionMode mode) {
+    private static List<TuneResult> filterPrimaryFeasible(List<TuneResult> src,
+                                                          MonteCarloEstimate baseline,
+                                                          Cli cli) {
         List<TuneResult> out = new ArrayList<>();
         for (TuneResult tr : src) {
-            if (isFeasible(tr, baseline, cli, mode)) {
+            if (isPrimaryFeasible(tr, baseline, cli)) {
                 out.add(tr);
             }
         }
         return out;
     }
 
-    private static Comparator<TuneResult> metricComparator(TuneSelectionMode mode) {
-        return switch (mode) {
-            case MIN_LCOE_SUBJ_LOLE ->
+    private static Comparator<TuneResult> primaryComparator(Cli cli) {
+        return switch (cli.tuneOptimizeBy) {
+            case LCOE ->
                     Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLcoeRubPerKwh)
                             .thenComparingDouble(tr -> tr.estimate().meanLoleHours);
-
-            case MIN_LOLE_SUBJ_LCOE ->
+            case LOLH ->
                     Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLoleHours)
                             .thenComparingDouble(tr -> tr.estimate().meanLcoeRubPerKwh);
-
-            case MIN_COMPROMISE ->
-                    Comparator.comparingDouble(TuneResult::compromise);
-
-            case PARETO ->
-                    Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLcoeRubPerKwh)
-                            .thenComparingDouble(tr -> tr.estimate().meanLoleHours);
         };
+    }
+
+    private static Comparator<TuneResult> paretoComparator() {
+        return Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLcoeRubPerKwh)
+                .thenComparingDouble(tr -> tr.estimate().meanLoleHours);
+    }
+
+    private static String primaryObjectiveName(Cli cli) {
+        return cli.tuneOptimizeBy == TuneObjective.LCOE ? "LCOE" : "LOLH";
+    }
+
+    private static String secondaryConstraintName(Cli cli) {
+        return cli.tuneOptimizeBy == TuneObjective.LCOE
+                ? "LOLH <= baseline * (1 + tol)"
+                : "LCOE <= baseline * (1 + tol)";
     }
 
     private static boolean dominates(TuneResult a, TuneResult b) {
@@ -763,11 +728,7 @@ public class Main {
             }
         }
 
-        out.sort(
-                Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLcoeRubPerKwh)
-                        .thenComparingDouble(tr -> tr.estimate().meanLoleHours)
-        );
-
+        out.sort(paretoComparator());
         return out;
     }
 
@@ -795,23 +756,20 @@ public class Main {
     private static TuneResult selectRepresentativeForZone(List<TuneResult> localResults,
                                                           MonteCarloEstimate baseline,
                                                           Cli cli) {
-        List<TuneResult> feasibleByLcoe = filterFeasible(localResults, baseline, cli, TuneSelectionMode.MIN_LCOE_SUBJ_LOLE);
-        List<TuneResult> feasibleByLole = filterFeasible(localResults, baseline, cli, TuneSelectionMode.MIN_LOLE_SUBJ_LCOE);
+        List<TuneResult> feasiblePrimary = filterPrimaryFeasible(localResults, baseline, cli);
         List<TuneResult> pareto = paretoFront(localResults);
 
         List<TuneResult> pool = new ArrayList<>();
 
-        TuneResult bestLcoe = minOrNull(feasibleByLcoe, metricComparator(TuneSelectionMode.MIN_LCOE_SUBJ_LOLE));
-        TuneResult bestLole = minOrNull(feasibleByLole, metricComparator(TuneSelectionMode.MIN_LOLE_SUBJ_LCOE));
-        TuneResult bestComp = minOrNull(localResults, metricComparator(TuneSelectionMode.MIN_COMPROMISE));
-        TuneResult bestParetoComp = minOrNull(pareto, metricComparator(TuneSelectionMode.MIN_COMPROMISE));
+        TuneResult bestPrimary = minOrNull(feasiblePrimary, primaryComparator(cli));
+        TuneResult bestComp = minOrNull(localResults, Comparator.comparingDouble(TuneResult::compromise));
+        TuneResult bestParetoComp = minOrNull(pareto, Comparator.comparingDouble(TuneResult::compromise));
 
-        if (bestLcoe != null) pool.add(bestLcoe);
-        if (bestLole != null) pool.add(bestLole);
+        if (bestPrimary != null) pool.add(bestPrimary);
         if (bestComp != null) pool.add(bestComp);
         if (bestParetoComp != null) pool.add(bestParetoComp);
 
-        return minOrNull(pool, metricComparator(TuneSelectionMode.MIN_COMPROMISE));
+        return minOrNull(pool, Comparator.comparingDouble(TuneResult::compromise));
     }
 
     private static List<TuneResult> runStage2LocalSearch(List<TuneResult> stage1,
@@ -834,23 +792,16 @@ public class Main {
         Map<String, TuneWeights> elite = new LinkedHashMap<>();
 
         addTop(
-                filterFeasible(stage1, baseline, cli, TuneSelectionMode.MIN_LCOE_SUBJ_LOLE),
-                metricComparator(TuneSelectionMode.MIN_LCOE_SUBJ_LOLE),
-                cli.tuneTopByLcoe,
-                elite
-        );
-
-        addTop(
-                filterFeasible(stage1, baseline, cli, TuneSelectionMode.MIN_LOLE_SUBJ_LCOE),
-                metricComparator(TuneSelectionMode.MIN_LOLE_SUBJ_LCOE),
-                cli.tuneTopByLole,
+                filterPrimaryFeasible(stage1, baseline, cli),
+                primaryComparator(cli),
+                cli.tuneTopPrimary,
                 elite
         );
 
         addTop(
                 stage1,
-                metricComparator(TuneSelectionMode.MIN_COMPROMISE),
-                cli.tuneTopByCompromise,
+                Comparator.comparingDouble(TuneResult::compromise),
+                cli.tuneTopCompromise,
                 elite
         );
 
@@ -987,23 +938,16 @@ public class Main {
         Map<String, TuneWeights> selected = new LinkedHashMap<>();
 
         addTop(
-                filterFeasible(stage1, baseline, cli, TuneSelectionMode.MIN_LCOE_SUBJ_LOLE),
-                metricComparator(TuneSelectionMode.MIN_LCOE_SUBJ_LOLE),
-                cli.tuneTopByLcoe,
-                selected
-        );
-
-        addTop(
-                filterFeasible(stage1, baseline, cli, TuneSelectionMode.MIN_LOLE_SUBJ_LCOE),
-                metricComparator(TuneSelectionMode.MIN_LOLE_SUBJ_LCOE),
-                cli.tuneTopByLole,
+                filterPrimaryFeasible(stage1, baseline, cli),
+                primaryComparator(cli),
+                cli.tuneTopPrimary,
                 selected
         );
 
         addTop(
                 stage1,
-                metricComparator(TuneSelectionMode.MIN_COMPROMISE),
-                cli.tuneTopByCompromise,
+                Comparator.comparingDouble(TuneResult::compromise),
+                cli.tuneTopCompromise,
                 selected
         );
 
@@ -1026,23 +970,16 @@ public class Main {
         Map<String, TuneResult> selected = new LinkedHashMap<>();
 
         addTopResults(
-                filterFeasible(stage1, baseline, cli, TuneSelectionMode.MIN_LCOE_SUBJ_LOLE),
-                metricComparator(TuneSelectionMode.MIN_LCOE_SUBJ_LOLE),
-                cli.tuneTopByLcoe,
-                selected
-        );
-
-        addTopResults(
-                filterFeasible(stage1, baseline, cli, TuneSelectionMode.MIN_LOLE_SUBJ_LCOE),
-                metricComparator(TuneSelectionMode.MIN_LOLE_SUBJ_LCOE),
-                cli.tuneTopByLole,
+                filterPrimaryFeasible(stage1, baseline, cli),
+                primaryComparator(cli),
+                cli.tuneTopPrimary,
                 selected
         );
 
         addTopResults(
                 stage1,
-                metricComparator(TuneSelectionMode.MIN_COMPROMISE),
-                cli.tuneTopByCompromise,
+                Comparator.comparingDouble(TuneResult::compromise),
+                cli.tuneTopCompromise,
                 selected
         );
 
@@ -1117,7 +1054,7 @@ public class Main {
         }
 
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(path))) {
-            bw.write("wE;wT;wA;wH;wD;wR;LCOE;ENS;LOLH;LOLP;LPSP;ENS_evtN;Fuel;Moto;avgNRL;medNRL;compromise;lcoeNorm;loleNorm;isPareto;feasibleLcoeGivenLole;feasibleLoleGivenLcoe");
+            bw.write("wE;wT;wA;wH;wD;wR;LCOE;ENS;LOLH;LOLP;LPSP;ENS_evtN;Fuel;Moto;avgNRL;medNRL;compromise;lcoeNorm;loleNorm;isPareto;isFeasibleForPrimaryObjective;primaryObjective;secondaryConstraint");
             bw.newLine();
 
             for (TuneResult tr : rows) {
@@ -1128,11 +1065,10 @@ public class Main {
                 double loleNorm = est.meanLoleHours / Math.max(1e-9, baseline.meanLoleHours);
 
                 boolean isPareto = paretoKeys.contains(w.key());
-                boolean feasibleLcoeGivenLole = isFeasible(tr, baseline, cli, TuneSelectionMode.MIN_LCOE_SUBJ_LOLE);
-                boolean feasibleLoleGivenLcoe = isFeasible(tr, baseline, cli, TuneSelectionMode.MIN_LOLE_SUBJ_LCOE);
+                boolean isFeasibleForPrimaryObjective = isPrimaryFeasible(tr, baseline, cli);
 
                 bw.write(String.format(OUT_LOCALE,
-                        "%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%b;%b;%b",
+                        "%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%.8f;%b;%b;%s;%s",
                         w.wE(), w.wT(), w.wA(), w.wH(), w.wD(), w.wR(),
                         est.meanLcoeRubPerKwh,
                         est.ensStats.getMean(),
@@ -1148,8 +1084,9 @@ public class Main {
                         lcoeNorm,
                         loleNorm,
                         isPareto,
-                        feasibleLcoeGivenLole,
-                        feasibleLoleGivenLcoe
+                        isFeasibleForPrimaryObjective,
+                        primaryObjectiveName(cli),
+                        secondaryConstraintName(cli)
                 ));
                 bw.newLine();
             }
