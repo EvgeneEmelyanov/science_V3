@@ -56,9 +56,9 @@ public class Main {
         TuneObjective tuneOptimizeBy = TuneObjective.LOLH;
 
         int tuneSamples = 256;
-        int tuneStage1Mc = 15;
-        int tuneStage2Mc = 15;
-        int tuneBaselineMc = 15;
+        int tuneStage1Mc = 50;
+        int tuneStage2Mc = 50;
+        int tuneBaselineMc = 50;
 
         int tuneTopPrimary = 10;        // топ по выбранной цели с учетом ограничения
         int tuneTopCompromise = 0;      // мягкий компромисс LCOE+LOLH
@@ -71,7 +71,7 @@ public class Main {
 
         // Stage 2 local search
         int tuneStage2Samples = 64;
-        int tuneStage2SobolSkip = 16;
+        int tuneStage2SobolSkip = 0;
         double tuneStage2RadiusFracWE = 0.10;
         double tuneStage2RadiusFracWT = 0.10;
         double tuneStage2RadiusFracWA = 0.10;
@@ -86,12 +86,12 @@ public class Main {
 //        double tuneWDMin = 0.0, tuneWDMax = 0.4;
 //        double tuneWRMin = 0.0, tuneWRMax = 2.0;
 
-        double tuneWEMin = 0.0, tuneWEMax = 2;
+        double tuneWEMin = 0.0, tuneWEMax = 1;
         double tuneWTMin = 0.0, tuneWTMax = 2;
-        double tuneWAMin = 0.0, tuneWAMax = 2;
-        double tuneWHMin = 0.0, tuneWHMax = 5.0;
-        double tuneWDMin = 0.0, tuneWDMax = 2;
-        double tuneWRMin = 0.0, tuneWRMax = 5.0;
+        double tuneWAMin = 0.0, tuneWAMax = 1;
+        double tuneWHMin = 0.0, tuneWHMax = 4.0;
+        double tuneWDMin = 0.0, tuneWDMax = 1;
+        double tuneWRMin = 1.0, tuneWRMax = 4.0;
 
         static Cli parse(String[] args) {
             Cli c = new Cli();
