@@ -20,17 +20,20 @@ public class Main {
     private static final Locale OUT_LOCALE = Locale.forLanguageTag("ru-RU");
 
     public enum Task {RUN, SOBOL_HARD, SOBOL_ECON, ADAPTIVE_TUNE}
+
     public enum RunMode {SINGLE, SWEEP_1, SWEEP_2}
+
     public enum LoadType {GOK, KOMUNAL, SELHOZ, DEF}
+
     public enum TuneObjective {LCOE, LOLH}
 
     public static double MAX_LOAD;
 
     private static final class Cli {
 
-        Task task = Task.ADAPTIVE_TUNE;
-        RunMode runMode = RunMode.SWEEP_1;
-        int mcIterations = 250;
+        Task task = Task.RUN;
+        RunMode runMode = RunMode.SINGLE;
+        int mcIterations = 1;
 
         BusSystemType busType = BusSystemType.DOUBLE_BUS;
 
@@ -101,8 +104,10 @@ public class Main {
                 if (a.startsWith("--task=")) c.task = Task.valueOf(a.substring("--task=".length()).trim());
 
                 if (a.startsWith("--runMode=")) c.runMode = RunMode.valueOf(a.substring("--runMode=".length()).trim());
-                if (a.startsWith("--loadType=")) c.loadType = LoadType.valueOf(a.substring("--loadType=".length()).trim());
-                if (a.startsWith("--busType=")) c.busType = BusSystemType.valueOf(a.substring("--busType=".length()).trim());
+                if (a.startsWith("--loadType="))
+                    c.loadType = LoadType.valueOf(a.substring("--loadType=".length()).trim());
+                if (a.startsWith("--busType="))
+                    c.busType = BusSystemType.valueOf(a.substring("--busType=".length()).trim());
 
                 if (a.startsWith("--load=")) c.loadFilePath = a.substring("--load=".length()).trim();
                 if (a.startsWith("--wind=")) c.windFilePath = a.substring("--wind=".length()).trim();
@@ -132,46 +137,132 @@ public class Main {
                 if (a.startsWith("--econCase=")) c.econCaseId = a.substring("--econCase=".length()).trim();
                 if (a.startsWith("--econN=")) c.econN = Integer.parseInt(a.substring("--econN=".length()).trim());
 
-                if (a.startsWith("--tuneOptimizeBy=")) c.tuneOptimizeBy = TuneObjective.valueOf(a.substring("--tuneOptimizeBy=".length()).trim());
+                if (a.startsWith("--tuneOptimizeBy="))
+                    c.tuneOptimizeBy = TuneObjective.valueOf(a.substring("--tuneOptimizeBy=".length()).trim());
 
-                if (a.startsWith("--tuneSamples=")) c.tuneSamples = Integer.parseInt(a.substring("--tuneSamples=".length()).trim());
-                if (a.startsWith("--tuneStage1Mc=")) c.tuneStage1Mc = Integer.parseInt(a.substring("--tuneStage1Mc=".length()).trim());
-                if (a.startsWith("--tuneStage2Mc=")) c.tuneStage2Mc = Integer.parseInt(a.substring("--tuneStage2Mc=".length()).trim());
-                if (a.startsWith("--tuneBaselineMc=")) c.tuneBaselineMc = Integer.parseInt(a.substring("--tuneBaselineMc=".length()).trim());
+                if (a.startsWith("--tuneSamples="))
+                    c.tuneSamples = Integer.parseInt(a.substring("--tuneSamples=".length()).trim());
+                if (a.startsWith("--tuneStage1Mc="))
+                    c.tuneStage1Mc = Integer.parseInt(a.substring("--tuneStage1Mc=".length()).trim());
+                if (a.startsWith("--tuneStage2Mc="))
+                    c.tuneStage2Mc = Integer.parseInt(a.substring("--tuneStage2Mc=".length()).trim());
+                if (a.startsWith("--tuneBaselineMc="))
+                    c.tuneBaselineMc = Integer.parseInt(a.substring("--tuneBaselineMc=".length()).trim());
 
-                if (a.startsWith("--tuneTopPrimary=")) c.tuneTopPrimary = Integer.parseInt(a.substring("--tuneTopPrimary=".length()).trim());
-                if (a.startsWith("--tuneTopCompromise=")) c.tuneTopCompromise = Integer.parseInt(a.substring("--tuneTopCompromise=".length()).trim());
-                if (a.startsWith("--tuneTopPareto=")) c.tuneTopPareto = Integer.parseInt(a.substring("--tuneTopPareto=".length()).trim());
-                if (a.startsWith("--tuneConstraintTolRel=")) c.tuneConstraintTolRel = Double.parseDouble(a.substring("--tuneConstraintTolRel=".length()).trim());
+                if (a.startsWith("--tuneTopPrimary="))
+                    c.tuneTopPrimary = Integer.parseInt(a.substring("--tuneTopPrimary=".length()).trim());
+                if (a.startsWith("--tuneTopCompromise="))
+                    c.tuneTopCompromise = Integer.parseInt(a.substring("--tuneTopCompromise=".length()).trim());
+                if (a.startsWith("--tuneTopPareto="))
+                    c.tuneTopPareto = Integer.parseInt(a.substring("--tuneTopPareto=".length()).trim());
+                if (a.startsWith("--tuneConstraintTolRel="))
+                    c.tuneConstraintTolRel = Double.parseDouble(a.substring("--tuneConstraintTolRel=".length()).trim());
 
                 if (a.startsWith("--tuneCsv=")) c.tuneCsvPath = a.substring("--tuneCsv=".length()).trim();
-                if (a.startsWith("--tuneSobolSkip=")) c.tuneSobolSkip = Integer.parseInt(a.substring("--tuneSobolSkip=".length()).trim());
+                if (a.startsWith("--tuneSobolSkip="))
+                    c.tuneSobolSkip = Integer.parseInt(a.substring("--tuneSobolSkip=".length()).trim());
 
-                if (a.startsWith("--tuneStage2Samples=")) c.tuneStage2Samples = Integer.parseInt(a.substring("--tuneStage2Samples=".length()).trim());
-                if (a.startsWith("--tuneStage2SobolSkip=")) c.tuneStage2SobolSkip = Integer.parseInt(a.substring("--tuneStage2SobolSkip=".length()).trim());
+                if (a.startsWith("--tuneStage2Samples="))
+                    c.tuneStage2Samples = Integer.parseInt(a.substring("--tuneStage2Samples=".length()).trim());
+                if (a.startsWith("--tuneStage2SobolSkip="))
+                    c.tuneStage2SobolSkip = Integer.parseInt(a.substring("--tuneStage2SobolSkip=".length()).trim());
 
-                if (a.startsWith("--tuneStage2RadiusFracWE=")) c.tuneStage2RadiusFracWE = Double.parseDouble(a.substring("--tuneStage2RadiusFracWE=".length()).trim());
-                if (a.startsWith("--tuneStage2RadiusFracWT=")) c.tuneStage2RadiusFracWT = Double.parseDouble(a.substring("--tuneStage2RadiusFracWT=".length()).trim());
-                if (a.startsWith("--tuneStage2RadiusFracWA=")) c.tuneStage2RadiusFracWA = Double.parseDouble(a.substring("--tuneStage2RadiusFracWA=".length()).trim());
-                if (a.startsWith("--tuneStage2RadiusFracWH=")) c.tuneStage2RadiusFracWH = Double.parseDouble(a.substring("--tuneStage2RadiusFracWH=".length()).trim());
-                if (a.startsWith("--tuneStage2RadiusFracWD=")) c.tuneStage2RadiusFracWD = Double.parseDouble(a.substring("--tuneStage2RadiusFracWD=".length()).trim());
-                if (a.startsWith("--tuneStage2RadiusFracWR=")) c.tuneStage2RadiusFracWR = Double.parseDouble(a.substring("--tuneStage2RadiusFracWR=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWE="))
+                    c.tuneStage2RadiusFracWE = Double.parseDouble(a.substring("--tuneStage2RadiusFracWE=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWT="))
+                    c.tuneStage2RadiusFracWT = Double.parseDouble(a.substring("--tuneStage2RadiusFracWT=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWA="))
+                    c.tuneStage2RadiusFracWA = Double.parseDouble(a.substring("--tuneStage2RadiusFracWA=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWH="))
+                    c.tuneStage2RadiusFracWH = Double.parseDouble(a.substring("--tuneStage2RadiusFracWH=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWD="))
+                    c.tuneStage2RadiusFracWD = Double.parseDouble(a.substring("--tuneStage2RadiusFracWD=".length()).trim());
+                if (a.startsWith("--tuneStage2RadiusFracWR="))
+                    c.tuneStage2RadiusFracWR = Double.parseDouble(a.substring("--tuneStage2RadiusFracWR=".length()).trim());
 
-                if (a.startsWith("--tuneWEMin=")) c.tuneWEMin = Double.parseDouble(a.substring("--tuneWEMin=".length()).trim());
-                if (a.startsWith("--tuneWEMax=")) c.tuneWEMax = Double.parseDouble(a.substring("--tuneWEMax=".length()).trim());
-                if (a.startsWith("--tuneWTMin=")) c.tuneWTMin = Double.parseDouble(a.substring("--tuneWTMin=".length()).trim());
-                if (a.startsWith("--tuneWTMax=")) c.tuneWTMax = Double.parseDouble(a.substring("--tuneWTMax=".length()).trim());
-                if (a.startsWith("--tuneWAMin=")) c.tuneWAMin = Double.parseDouble(a.substring("--tuneWAMin=".length()).trim());
-                if (a.startsWith("--tuneWAMax=")) c.tuneWAMax = Double.parseDouble(a.substring("--tuneWAMax=".length()).trim());
-                if (a.startsWith("--tuneWHMin=")) c.tuneWHMin = Double.parseDouble(a.substring("--tuneWHMin=".length()).trim());
-                if (a.startsWith("--tuneWHMax=")) c.tuneWHMax = Double.parseDouble(a.substring("--tuneWHMax=".length()).trim());
-                if (a.startsWith("--tuneWDMin=")) c.tuneWDMin = Double.parseDouble(a.substring("--tuneWDMin=".length()).trim());
-                if (a.startsWith("--tuneWDMax=")) c.tuneWDMax = Double.parseDouble(a.substring("--tuneWDMax=".length()).trim());
-                if (a.startsWith("--tuneWRMin=")) c.tuneWRMin = Double.parseDouble(a.substring("--tuneWRMin=".length()).trim());
-                if (a.startsWith("--tuneWRMax=")) c.tuneWRMax = Double.parseDouble(a.substring("--tuneWRMax=".length()).trim());
+                if (a.startsWith("--tuneWEMin="))
+                    c.tuneWEMin = Double.parseDouble(a.substring("--tuneWEMin=".length()).trim());
+                if (a.startsWith("--tuneWEMax="))
+                    c.tuneWEMax = Double.parseDouble(a.substring("--tuneWEMax=".length()).trim());
+                if (a.startsWith("--tuneWTMin="))
+                    c.tuneWTMin = Double.parseDouble(a.substring("--tuneWTMin=".length()).trim());
+                if (a.startsWith("--tuneWTMax="))
+                    c.tuneWTMax = Double.parseDouble(a.substring("--tuneWTMax=".length()).trim());
+                if (a.startsWith("--tuneWAMin="))
+                    c.tuneWAMin = Double.parseDouble(a.substring("--tuneWAMin=".length()).trim());
+                if (a.startsWith("--tuneWAMax="))
+                    c.tuneWAMax = Double.parseDouble(a.substring("--tuneWAMax=".length()).trim());
+                if (a.startsWith("--tuneWHMin="))
+                    c.tuneWHMin = Double.parseDouble(a.substring("--tuneWHMin=".length()).trim());
+                if (a.startsWith("--tuneWHMax="))
+                    c.tuneWHMax = Double.parseDouble(a.substring("--tuneWHMax=".length()).trim());
+                if (a.startsWith("--tuneWDMin="))
+                    c.tuneWDMin = Double.parseDouble(a.substring("--tuneWDMin=".length()).trim());
+                if (a.startsWith("--tuneWDMax="))
+                    c.tuneWDMax = Double.parseDouble(a.substring("--tuneWDMax=".length()).trim());
+                if (a.startsWith("--tuneWRMin="))
+                    c.tuneWRMin = Double.parseDouble(a.substring("--tuneWRMin=".length()).trim());
+                if (a.startsWith("--tuneWRMax="))
+                    c.tuneWRMax = Double.parseDouble(a.substring("--tuneWRMax=".length()).trim());
             }
             return c;
         }
+    }
+
+    private static List<SystemParameters> buildParamSets(RunMode mode,
+                                                         SystemParameters baseParams,
+                                                         double[] param1,
+                                                         double[] param2,
+                                                         boolean sweepCatsTriangle,
+                                                         double catStep) {
+
+        List<SystemParameters> paramSets = new ArrayList<>();
+
+        if (mode == RunMode.SINGLE) {
+            paramSets.add(baseParams);
+            return paramSets;
+        }
+
+        if (mode == RunMode.SWEEP_1) {
+            for (double p1 : param1) {
+                SystemParameters p = SystemParametersBuilder.from(baseParams)
+                        .setNonReserveDischargeLevel(p1)
+                        .build();
+                paramSets.add(p);
+            }
+            return paramSets;
+        }
+
+        if (mode == RunMode.SWEEP_2) {
+            if (sweepCatsTriangle) {
+                int n = (int) Math.round(1.0 / catStep);
+                for (int i = 0; i <= n; i++) {
+                    double k1 = i * catStep;
+                    for (int j = 0; j <= n - i; j++) {
+                        double k2 = j * catStep;
+                        SystemParameters p = SystemParametersBuilder.from(baseParams)
+                                .setFirstCat(k1)
+                                .setSecondCat(k2)
+                                .build();
+                        paramSets.add(p);
+                    }
+                }
+            } else {
+                for (double p1 : param1) {
+                    for (double p2 : param2) {
+                        SystemParameters p = SystemParametersBuilder.from(baseParams)
+//                                .setTotalDieselGeneratorCount((int) p1)
+                                .setDieselGeneratorPowerKw(p2)
+                                .setWindTurbinePowerKw(p1)
+//                                .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
+                                .build();
+                        paramSets.add(p);
+                    }
+                }
+            }
+        }
+
+        return paramSets;
     }
 
     private static void runTaskRun(ScenarioFactory.LoadedInput li, SystemParameters baseParams, Cli cli) throws Exception {
@@ -183,28 +274,77 @@ public class Main {
         );
         SimInput baseInput = new SimInput(cfg, baseParams, li.totalLoadKw());
 
-        final boolean sweepCatsTriangle = false;
+        final boolean sweepCatsTriangle = true;
         final double catStep = 0.1;
 
-        double[] param1 = new double[]{
-                0.2, 0.225, 0.25, 0.275,
-                0.3, 0.325, 0.35, 0.375,
-                0.4, 0.425, 0.45, 0.475,
-                0.5, 0.525, 0.55, 0.575,
-                0.6, 0.625, 0.65, 0.675,
-                0.7, 0.725, 0.75, 0.775,
-                0.8, 0.825, 0.85, 0.875,
-                0.9, 0.925, 0.95, 0.975,
-                1.0
-        };
+//        double[] param1 = new double[]{6, 8, 10};
 
         double[] param2 = new double[]{
-                0.4, 0.425, 0.45, 0.475,
-                0.5, 0.525, 0.55, 0.575,
-                0.6, 0.625, 0.65, 0.675,
-                0.7, 0.725, 0.75, 0.775,
-                0.8, 0.825, 0.85, 0.875,
+                150,
+                160, 170, 180, 190, 200,
+                210, 220, 230, 240, 250,
+                260, 270, 280, 290, 300,
+////                310, 320, 330, 340, 350,
+////                360, 370, 380, 390, 400,
+////                410, 420, 430, 440, 450,
+////                460, 470, 480, 490, 500,
+////                510, 520, 530, 540, 550,
+////                560, 570, 580, 590, 600
         };
+
+//        double[] param2 = new double[]{
+//                1346, 1480, 1615, 1749, 1884, 2019,
+//                2153, 2288, 2422, 2557, 2692
+//        };
+
+        double[] param1 = new double[] {
+                0.0,
+//                168.25,
+//                336.5,
+//                504.75,
+                673.0,
+//                841.25,
+//                1009.5,
+//                1177.75,
+                1346.0,
+//                1514.25,
+//                1682.5,
+//                1850.75,
+                2019.0
+        };
+//        double[] param2 = new double[]{
+//                0.0,
+//                0.1,
+//                0.2,
+//                0.3,
+//                0.4,
+//                0.5,
+//                0.6,
+//                0.7,
+//                0.8,
+//                0.9,
+//                1.0,
+//        };
+
+//        double[] param1 = new double[]{
+//                0.2, 0.225, 0.25, 0.275,
+//                0.3, 0.325, 0.35, 0.375,
+//                0.4, 0.425, 0.45, 0.475,
+//                0.5, 0.525, 0.55, 0.575,
+//                0.6, 0.625, 0.65, 0.675,
+//                0.7, 0.725, 0.75, 0.775,
+//                0.8, 0.825, 0.85, 0.875,
+//                0.9, 0.925, 0.95, 0.975,
+//                1.0
+//        };
+//
+//        double[] param2 = new double[]{
+//                0.4, 0.425, 0.45, 0.475,
+//                0.5, 0.525, 0.55, 0.575,
+//                0.6, 0.625, 0.65, 0.675,
+//                0.7, 0.725, 0.75, 0.775,
+//                0.8, 0.825, 0.85, 0.875,
+//        };
 
         if (cli.runMode == RunMode.SWEEP_2 && sweepCatsTriangle) {
             param1 = buildGrid01(catStep);
@@ -255,8 +395,6 @@ public class Main {
                 TunableParamId.BT_NON_RESERVE_DISCHARGE_LVL
 
 
-
-
         );
 
         SobolConfig sobolCfg = SobolConfig.fromIds(
@@ -298,7 +436,8 @@ public class Main {
         }
     }
 
-    private record TuneResult(TuneWeights weights, MonteCarloEstimate estimate, double compromise) {}
+    private record TuneResult(TuneWeights weights, MonteCarloEstimate estimate, double compromise) {
+    }
 
     private record WeightBounds(
             double weMin, double weMax,
@@ -307,7 +446,8 @@ public class Main {
             double whMin, double whMax,
             double wdMin, double wdMax,
             double wrMin, double wrMax
-    ) {}
+    ) {
+    }
 
     public static void main(String[] args) {
         Cli cli = Cli.parse(args);
@@ -331,60 +471,6 @@ public class Main {
             System.err.println("Ошибка: " + e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    private static List<SystemParameters> buildParamSets(RunMode mode,
-                                                         SystemParameters baseParams,
-                                                         double[] param1,
-                                                         double[] param2,
-                                                         boolean sweepCatsTriangle,
-                                                         double catStep) {
-
-        List<SystemParameters> paramSets = new ArrayList<>();
-
-        if (mode == RunMode.SINGLE) {
-            paramSets.add(baseParams);
-            return paramSets;
-        }
-
-        if (mode == RunMode.SWEEP_1) {
-            for (double p1 : param1) {
-                SystemParameters p = SystemParametersBuilder.from(baseParams)
-                        .setNonReserveDischargeLevel(p1)
-                        .build();
-                paramSets.add(p);
-            }
-            return paramSets;
-        }
-
-        if (mode == RunMode.SWEEP_2) {
-            if (sweepCatsTriangle) {
-                int n = (int) Math.round(1.0 / catStep);
-                for (int i = 0; i <= n; i++) {
-                    double k1 = i * catStep;
-                    for (int j = 0; j <= n - i; j++) {
-                        double k2 = j * catStep;
-                        SystemParameters p = SystemParametersBuilder.from(baseParams)
-                                .setFirstCat(k1)
-                                .setSecondCat(k2)
-                                .build();
-                        paramSets.add(p);
-                    }
-                }
-            } else {
-                for (double p1 : param1) {
-                    for (double p2 : param2) {
-                        SystemParameters p = SystemParametersBuilder.from(baseParams)
-                                .setWindTurbinePowerKw(p1)
-                                .setBatteryCapacityKwhPerBus(p2 * 1346 / 2)
-                                .build();
-                        paramSets.add(p);
-                    }
-                }
-            }
-        }
-
-        return paramSets;
     }
 
     private static void runTaskSobolEcon(SystemParameters baseParams, Cli cli) throws Exception {
@@ -652,10 +738,8 @@ public class Main {
         double tol = Math.max(0.0, cli.tuneConstraintTolRel);
 
         return switch (cli.tuneOptimizeBy) {
-            case LCOE ->
-                    tr.estimate().meanLoleHours <= baseline.meanLoleHours * (1.0 + tol);
-            case LOLH ->
-                    tr.estimate().meanLcoeRubPerKwh <= baseline.meanLcoeRubPerKwh * (1.0 + tol);
+            case LCOE -> tr.estimate().meanLoleHours <= baseline.meanLoleHours * (1.0 + tol);
+            case LOLH -> tr.estimate().meanLcoeRubPerKwh <= baseline.meanLcoeRubPerKwh * (1.0 + tol);
         };
     }
 
@@ -673,12 +757,10 @@ public class Main {
 
     private static Comparator<TuneResult> primaryComparator(Cli cli) {
         return switch (cli.tuneOptimizeBy) {
-            case LCOE ->
-                    Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLcoeRubPerKwh)
-                            .thenComparingDouble(tr -> tr.estimate().meanLoleHours);
-            case LOLH ->
-                    Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLoleHours)
-                            .thenComparingDouble(tr -> tr.estimate().meanLcoeRubPerKwh);
+            case LCOE -> Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLcoeRubPerKwh)
+                    .thenComparingDouble(tr -> tr.estimate().meanLoleHours);
+            case LOLH -> Comparator.comparingDouble((TuneResult tr) -> tr.estimate().meanLoleHours)
+                    .thenComparingDouble(tr -> tr.estimate().meanLcoeRubPerKwh);
         };
     }
 
@@ -1094,7 +1176,8 @@ public class Main {
     }
 
     private static final class ScenarioFactory {
-        private ScenarioFactory() {}
+        private ScenarioFactory() {
+        }
 
         static LoadedInput load(String loadPath, String windPath) throws Exception {
             InputData input = new InputDataLoader().load(loadPath, windPath);
@@ -1194,11 +1277,13 @@ public class Main {
             );
         }
 
-        record LoadedInput(double[] totalLoadKw, double[] windMs) {}
+        record LoadedInput(double[] totalLoadKw, double[] windMs) {
+        }
     }
 
     private static final class Defaults {
-        private Defaults() {}
+        private Defaults() {
+        }
 
         static final String WIND_PATH = "D:/08_ModelingData/02_Wind.txt";
         static final String RESULTS_XLSX = "D:/results.xlsx";
@@ -1321,7 +1406,8 @@ public class Main {
         );
     }
 
-    private record EconInputs(UnitCosts costs, double discountRatePerYear) {}
+    private record EconInputs(UnitCosts costs, double discountRatePerYear) {
+    }
 
     private static EconInputs econInputsFromUnitRow(double[] u01, List<TunableParamId> ids, BusSystemType busType) {
         double discountRate = Double.NaN;

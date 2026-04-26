@@ -1393,7 +1393,8 @@ public final class SingleRunSimulator {
             // Avg-load policy: reserve is based on long-term average load, independent from current hour wind/load.
             reserveNeed = avgLoadPerBusKw * sp.getRotationReserveCoeff();
         } else {
-            reserveNeed = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2);
+            reserveNeed = loadKw * (cat1 + SimulationConstants.DG_IDLE_K2 * cat2); // ХАРДКОД
+//            reserveNeed = loadKw;
             reserveNeed += windLoss * SimulationConstants.DG_IDLE_MARGIN_PCT;
         }
         if (reserveNeed < 0.0) reserveNeed = 0.0;
@@ -1410,11 +1411,13 @@ public final class SingleRunSimulator {
             // Avg-load policy: use avgLoadPerBus * CFG_IDLE_RESERVE_COEFF as the required bridging power.
             double requiredPowerKw = ModelDefaults.CFG_USE_AVG_LOAD_RESERVE_POLICY
                     ? (avgLoadPerBusKw * sp.getIdleReserveCoeff())
-                    : (dgRatedKw * idleNeed);
+                    : (dgRatedKw * idleNeed);// ХАРДКОД
+//                    : (reserveNeed);
 
             idleNeed = canBatteryBridge(battery, sp, requiredPowerKw, SimulationConstants.DG_START_DELAY_HOURS, btDisCap)
                     ? 0
                     : idleNeed;
+//            if (idleNeed > 0) idleNeed = 1; // ХАРДКОД
         }
 
         // Rotation reserve: if any DG must run, keep N+1 units online.
@@ -1422,6 +1425,9 @@ public final class SingleRunSimulator {
         if (considerRotationReserve && idleNeed > 0) {
             idleNeed = Math.min(available, Math.max(2, idleNeed + 1));
         }
+//        if (considerRotationReserve && idleNeed > 0) { // ХАРДКОД
+//            idleNeed = Math.min(available, 2);
+//        }
 
         final boolean rotationSurplusMode = considerRotationReserve && idleNeed == 2;
         final boolean burnThisHour = rotationSurplusMode && (hourIndex % 4 == 0);

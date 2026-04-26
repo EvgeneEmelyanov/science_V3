@@ -237,7 +237,8 @@ public final class SimulationTraceExporter {
     private static void writeNum1(Row row, int col, double v, CellStyle style) {
         Cell cell = row.createCell(col);
         if (Double.isFinite(v)) {
-            cell.setCellValue(round1(v));
+            cell.setCellValue(round1(v)); //изменил
+            cell.setCellValue(v);
         } else {
             cell.setBlank();
         }

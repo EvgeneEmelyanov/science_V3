@@ -6,27 +6,26 @@ public final class ModelDefaults {
 
     // Categories share (k1, k2); k3 implied = 1 - k1 - k2
     public static final double DEFAULT_FIRST_CAT = 0.1; //0,25
-    public static final double DEFAULT_SECOND_CAT = 0.4; //0,25
+    public static final double DEFAULT_SECOND_CAT = 0.40; //0,25
     // DG
     public static final int DEFAULT_DG_COUNT_TOTAL = 8; //8
     public static final double DEFAULT_DG_POWER_KW = 200;// 340
     // WT
     public static final int DEFAULT_WT_COUNT_TOTAL = 2; //2
-    public static final double DEFAULT_WT_POWER_KW = 1346 / 2 * 3;
+    public static final double DEFAULT_WT_POWER_KW = 1346 / 2 * 1.5;
     // Battery
     public static final double DEFAULT_BT_CAPACITY_KWH_PER_BUS = (double) 1346 / 2 * 0.525;
-    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 100;
-
+    public static final double DEFAULT_BT_NON_RESERVE_DISCHARGE_LEVEL = 0.6;
+    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0;
     public static final double DEFAULT_BT_MAX_CHARGE_CURRENT = 1;
-    public static final double DEFAULT_BT_MAX_DISCHARGE_CURRENT = 2.0; //2
 
-    public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = false;
-    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT = 0.0053; // wE
-    public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = 0.4607; // wT
-    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = 1.4112; // wA
-    public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = 0.9095; // wH 0.0427
-    public static final double DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT = 0.0109; // wD
-    public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = 0.6874; // wR 0.8166
+    public static final boolean DEFAULT_BT_USE_ADAPTIVE_NON_RESERVE_DISCHARGE_LEVEL = true;
+    public static final double DEFAULT_BT_ADAPTIVE_DEFICIT_WEIGHT = 0.4406;
+    public static final double DEFAULT_BT_ADAPTIVE_TREND_WEIGHT = 1.3688;
+    public static final double DEFAULT_BT_ADAPTIVE_ACCELERATION_WEIGHT = 0.6219;
+    public static final double DEFAULT_BT_ADAPTIVE_NO_DG_PREV_HOUR_WEIGHT = 1.8125;
+    public static final double DEFAULT_BT_ADAPTIVE_DG_AVAILABILITY_WEIGHT = 0.0595;
+    public static final double DEFAULT_BT_ADAPTIVE_REPLACEMENT_WEIGHT = 3.1469;
 
     // Reliability (rates are double, repair times are int)
     public static final double DEFAULT_WT_FAILURE_RATE_PER_YEAR = 1.94;
